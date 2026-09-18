@@ -46,6 +46,7 @@ jobs:
           cat server.log
           exit 1
 
+      - run: npm run site:smoke
       - run: npm run auth:smoke
 
       - name: Show server log on failure

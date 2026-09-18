@@ -16,7 +16,8 @@
     "media:smoke": "tsx scripts/media-smoke.ts",
     "settings:smoke": "tsx scripts/settings-smoke.ts",
     "backup:smoke": "tsx scripts/backup-smoke.ts",
-    "security:smoke": "tsx scripts/security-smoke.ts"
+    "security:smoke": "tsx scripts/security-smoke.ts",
+    "site:smoke": "tsx scripts/site-smoke.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
