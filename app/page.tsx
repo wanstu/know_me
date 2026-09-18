@@ -4,6 +4,7 @@ import { LiveClock } from "@/components/live-clock";
 import { getSiteSettings } from "@/lib/settings/repository";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const entrances = [
   { name: "Blog", desc: "文章与笔记", href: "/blog" },
@@ -18,11 +19,21 @@ function avatarSafe(value: string) {
   return /^https?:\/\//i.test(value) || value.startsWith("/media/");
 }
 
+function safeLink(value: string, allowMailto = false) {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (allowMailto && /^mailto:[^\s]+$/i.test(trimmed)) return trimmed;
+  return "";
+}
+
 export default function HomePage() {
   const settings = getSiteSettings();
+  const githubUrl = safeLink(settings.githubUrl);
+  const emailUrl = safeLink(settings.emailUrl, true);
+  const aboutUrl = safeLink(settings.aboutUrl);
 
   return (
-    <main className="immersive-page">
+    <main className={"immersive-page theme-" + settings.themeMode}>
       <AmbientWallpaper url={settings.homeBackgroundUrl} />
       <section className="home-layout container-wide">
         <article className="glass-card profile-card" id="about">
@@ -40,11 +51,11 @@ export default function HomePage() {
           </div>
           <p className="profile-lead">{settings.profileBio}</p>
           <div className="chip-row">
-            {settings.githubUrl ? <a href={settings.githubUrl} className="chip" target="_blank" rel="noreferrer">GitHub</a> : null}
-            {settings.emailUrl ? <a href={settings.emailUrl} className="chip">Mail</a> : null}
+            {githubUrl ? <a href={githubUrl} className="chip" target="_blank" rel="noreferrer">GitHub</a> : null}
+            {emailUrl ? <a href={emailUrl} className="chip">Mail</a> : null}
             <Link href="/blog" className="chip">Blog</Link>
             <Link href="/feed.xml" className="chip">RSS</Link>
-            {settings.aboutUrl ? <a href={settings.aboutUrl} className="chip" target="_blank" rel="noreferrer">About</a> : null}
+            {aboutUrl ? <a href={aboutUrl} className="chip" target="_blank" rel="noreferrer">About</a> : null}
           </div>
         </article>
 

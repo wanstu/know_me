@@ -45,6 +45,16 @@ function allItems(items: NavItem[]): NavItem[] {
   return items.flatMap((item) => [item, ...allItems(item.children)]);
 }
 
+function contrastText(background: string) {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(background.trim());
+  if (!match) return "#ffffff";
+  const hex = match[1].length === 3 ? match[1].split("").map((ch) => ch + ch).join("") : match[1];
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.68 ? "#172033" : "#ffffff";
+}
+
 export function NavigationManager({ initialTree }: { initialTree: NavigationTree }) {
   const [tree, setTree] = useState(initialTree);
   const [activeGroupId, setActiveGroupId] = useState(initialTree.groups[0]?.id ?? 0);
@@ -300,7 +310,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => void dropItem(item.id)}
               >
-                <div className="nav-item-icon" style={item.backgroundColor ? { background: item.backgroundColor } : undefined}>
+                <div className="nav-item-icon" style={item.backgroundColor ? { background: item.backgroundColor, color: contrastText(item.backgroundColor) } : undefined}>
                   {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <span>{item.iconText || item.name.slice(0, 2)}</span>}
                 </div>
                 <div className="nav-item-copy">

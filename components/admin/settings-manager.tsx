@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { SearchEngineName, SiteSettings } from "@/lib/settings/repository";
+import type { SearchEngineName, SiteSettings, ThemeMode } from "@/lib/settings/repository";
 
 export function SettingsManager({ initialSettings }: { initialSettings: SiteSettings }) {
   const [settings, setSettings] = useState(initialSettings);
@@ -10,6 +10,25 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
 
   function update<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  async function restoreBackup(file: File | null) {
+    if (!file) return;
+    if (!window.confirm("恢复备份会替换当前博客、导航、媒体和站点设置，但不会改管理员账号。确定继续？")) return;
+    setBusy(true);
+    setMessage("正在恢复备份…");
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/backup/restore", { method: "POST", body: form });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "恢复失败");
+      setMessage("恢复完成，正在刷新…");
+      window.setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "恢复失败");
+      setBusy(false);
+    }
   }
 
   async function save() {
@@ -72,6 +91,14 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
               <option value="DuckDuckGo">DuckDuckGo</option>
             </select>
           </label>
+          <label>
+            主页主题
+            <select value={settings.themeMode} onChange={(event) => update("themeMode", event.target.value as ThemeMode)}>
+              <option value="auto">跟随系统</option>
+              <option value="dark">深色</option>
+              <option value="light">浅色</option>
+            </select>
+          </label>
           <label className="settings-check">
             <input type="checkbox" checked={settings.startPublic} onChange={(event) => update("startPublic", event.target.checked)} />
             <span>
@@ -80,6 +107,26 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
             </span>
           </label>
         </div>
+      </section>
+
+      <section className="admin-panel settings-section">
+        <div>
+          <div className="eyebrow">Backup</div>
+          <h2>备份与恢复</h2>
+          <p className="muted">备份包含博客、导航、媒体文件和站点设置；管理员密码与登录 Session 不会被导出。</p>
+        </div>
+        <div className="backup-actions">
+          <a className="secondary-button" href="/api/backup/export">下载完整备份 ZIP</a>
+          <label className="file-picker">
+            <span>从 ZIP 恢复</span>
+            <input type="file" accept=".zip,application/zip" disabled={busy} onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              void restoreBackup(file);
+              event.currentTarget.value = "";
+            }} />
+          </label>
+        </div>
+        <p className="muted backup-note">恢复前建议先下载一次当前备份。恢复使用事务更新数据库，并整体替换媒体目录。</p>
       </section>
 
       <div className="settings-savebar">

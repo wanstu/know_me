@@ -1461,3 +1461,117 @@ button { cursor: pointer; }
   color: #dce4ef;
   padding: 7px 10px;
 }
+
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.backup-actions .file-picker {
+  margin-top: 0;
+}
+.backup-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+
+/* homepage/start theme modes */
+.immersive-page {
+  color: var(--text);
+}
+.immersive-page.theme-light {
+  --panel: rgba(255, 255, 255, .68);
+  --panel-soft: rgba(255, 255, 255, .5);
+  --text: #172033;
+  --muted: #59677a;
+  --line: rgba(15, 23, 42, .14);
+}
+.theme-light .ambient-wallpaper::after {
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(238,244,250,.34));
+}
+.theme-light .eyebrow {
+  color: #53657b;
+}
+.theme-light .clock-date,
+.theme-light .quote-card span {
+  color: #506075;
+}
+.theme-light .search-box input,
+.theme-light .search-box button,
+.theme-light .search-box select {
+  color: #172033;
+}
+.theme-light .search-box input::placeholder {
+  color: #718096;
+}
+.theme-light .start-rail button,
+.theme-light .start-rail-admin {
+  color: #4d5c70;
+}
+.theme-light .toolbar-buttons button,
+.theme-light .toolbar-buttons a,
+.theme-light .public-login-chip,
+.theme-light .logout-form--compact button {
+  color: #172033;
+}
+.theme-light .folder-dialog-head > button,
+.theme-light .folder-dialog-grid > button {
+  color: #172033;
+}
+.theme-light .folder-dialog-grid > button {
+  background: rgba(255,255,255,.36);
+}
+.theme-light .folder-preview i {
+  background: rgba(23,32,51,.14);
+}
+
+@media (prefers-color-scheme: light) {
+  .immersive-page.theme-auto {
+    --panel: rgba(255, 255, 255, .68);
+    --panel-soft: rgba(255, 255, 255, .5);
+    --text: #172033;
+    --muted: #59677a;
+    --line: rgba(15, 23, 42, .14);
+  }
+  .theme-auto .ambient-wallpaper::after {
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(238,244,250,.34));
+  }
+  .theme-auto .eyebrow {
+    color: #53657b;
+  }
+  .theme-auto .clock-date,
+  .theme-auto .quote-card span {
+    color: #506075;
+  }
+  .theme-auto .search-box input,
+  .theme-auto .search-box button,
+  .theme-auto .search-box select {
+    color: #172033;
+  }
+  .theme-auto .search-box input::placeholder {
+    color: #718096;
+  }
+  .theme-auto .start-rail button,
+  .theme-auto .start-rail-admin {
+    color: #4d5c70;
+  }
+  .theme-auto .toolbar-buttons button,
+  .theme-auto .toolbar-buttons a,
+  .theme-auto .public-login-chip,
+  .theme-auto .logout-form--compact button {
+    color: #172033;
+  }
+  .theme-auto .folder-dialog-head > button,
+  .theme-auto .folder-dialog-grid > button {
+    color: #172033;
+  }
+  .theme-auto .folder-dialog-grid > button {
+    background: rgba(255,255,255,.36);
+  }
+  .theme-auto .folder-preview i {
+    background: rgba(23,32,51,.14);
+  }
+}

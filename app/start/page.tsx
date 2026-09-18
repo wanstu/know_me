@@ -17,7 +17,7 @@ export default async function StartPage() {
   const tree = getNavigationTree(authenticated);
 
   return (
-    <main className="immersive-page start-page">
+    <main className={"immersive-page start-page theme-" + settings.themeMode}>
       <AmbientWallpaper url={settings.startBackgroundUrl} />
       <StartClient
         initialTree={tree}

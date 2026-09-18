@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
+export type ThemeMode = "auto" | "dark" | "light";
 
 export type SiteSettings = {
   profileName: string;
@@ -16,6 +17,7 @@ export type SiteSettings = {
   startBackgroundUrl: string;
   startPublic: boolean;
   defaultSearchEngine: SearchEngineName;
+  themeMode: ThemeMode;
 };
 
 const defaults: SiteSettings = {
@@ -31,7 +33,8 @@ const defaults: SiteSettings = {
   homeBackgroundUrl: "",
   startBackgroundUrl: "",
   startPublic: false,
-  defaultSearchEngine: "Bing"
+  defaultSearchEngine: "Bing",
+  themeMode: "auto"
 };
 
 function object(value: unknown) {
@@ -62,6 +65,7 @@ export function getSiteSettings(): SiteSettings {
     stored.defaultSearchEngine === "Google" || stored.defaultSearchEngine === "DuckDuckGo"
       ? stored.defaultSearchEngine
       : "Bing";
+  const themeMode: ThemeMode = stored.themeMode === "dark" || stored.themeMode === "light" ? stored.themeMode : "auto";
 
   return {
     profileName: typeof stored.profileName === "string" ? stored.profileName : defaults.profileName,
@@ -76,7 +80,8 @@ export function getSiteSettings(): SiteSettings {
     homeBackgroundUrl: typeof stored.homeBackgroundUrl === "string" ? stored.homeBackgroundUrl : defaults.homeBackgroundUrl,
     startBackgroundUrl: typeof stored.startBackgroundUrl === "string" ? stored.startBackgroundUrl : defaults.startBackgroundUrl,
     startPublic: stored.startPublic === true,
-    defaultSearchEngine: engine
+    defaultSearchEngine: engine,
+    themeMode
   };
 }
 
@@ -100,7 +105,11 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     defaultSearchEngine:
       input.defaultSearchEngine === "Google" || input.defaultSearchEngine === "DuckDuckGo" || input.defaultSearchEngine === "Bing"
         ? input.defaultSearchEngine
-        : current.defaultSearchEngine
+        : current.defaultSearchEngine,
+    themeMode:
+      input.themeMode === "dark" || input.themeMode === "light" || input.themeMode === "auto"
+        ? input.themeMode
+        : current.themeMode
   };
   setSetting("site", next);
   return next;

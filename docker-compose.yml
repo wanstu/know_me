@@ -1,0 +1,15 @@
+services:
+  know-me:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: know-me
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ./data/know-me.db
+      SITE_URL: ${SITE_URL:-http://127.0.0.1:3000}
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { isSameOriginRequest } from "@/lib/auth/request";
-import { getSiteSettings, updateSiteSettings, type SearchEngineName } from "@/lib/settings/repository";
+import { getSiteSettings, updateSiteSettings, type SearchEngineName, type ThemeMode } from "@/lib/settings/repository";
 
 export const runtime = "nodejs";
 
@@ -26,6 +26,7 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.startPublic !== undefined) input.startPublic = body.startPublic === true;
     if (body.defaultSearchEngine !== undefined) input.defaultSearchEngine = String(body.defaultSearchEngine) as SearchEngineName;
+    if (body.themeMode !== undefined) input.themeMode = String(body.themeMode) as ThemeMode;
 
     return NextResponse.json({ ok: true, settings: updateSiteSettings(input) });
   } catch (error) {

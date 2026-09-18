@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ./data/ci.db
+      SITE_URL: http://127.0.0.1:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run typecheck
+      - run: npm run itab:smoke
+      - run: npm run blog:smoke
+      - run: npm run media:smoke
+      - run: npm run settings:smoke
+      - run: npm run backup:smoke
+      - run: npm run security:smoke
+      - run: npm run build
+
+      - name: Start production server
+        shell: bash
+        run: |
+          npm run start -- -H 127.0.0.1 -p 3000 > server.log 2>&1 &
+          echo $! > server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - run: npm run auth:smoke
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log || true

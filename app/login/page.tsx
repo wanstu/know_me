@@ -32,6 +32,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {error === "invalid_credentials" ? (
           <div className="login-error" role="alert">用户名或密码不正确。</div>
         ) : null}
+        {error === "rate_limited" ? (
+          <div className="login-error" role="alert">失败次数过多，请稍后再试。</div>
+        ) : null}
 
         <form action="/api/auth/login" method="post" className="login-form">
           <input type="hidden" name="next" value={nextPath} />

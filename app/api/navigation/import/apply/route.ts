@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as { raw?: unknown; strategy?: unknown; overwrite?: unknown };
     const raw = typeof body.raw === "string" ? body.raw : "";
     if (!raw) return NextResponse.json({ error: "empty_file" }, { status: 400 });
+    if (Buffer.byteLength(raw, "utf8") > 5 * 1024 * 1024) return NextResponse.json({ error: "itab_file_too_large" }, { status: 413 });
     const strategy = body.strategy === "replace" ? "replace" : "merge";
     const overwrite = body.overwrite === true;
     const result = applyItabImport(raw, strategy, overwrite);

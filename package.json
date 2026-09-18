@@ -13,11 +13,14 @@
     "itab:smoke": "tsx scripts/itab-smoke.ts",
     "blog:smoke": "tsx scripts/blog-smoke.ts",
     "media:smoke": "tsx scripts/media-smoke.ts",
-    "settings:smoke": "tsx scripts/settings-smoke.ts"
+    "settings:smoke": "tsx scripts/settings-smoke.ts",
+    "backup:smoke": "tsx scripts/backup-smoke.ts",
+    "security:smoke": "tsx scripts/security-smoke.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "github-slugger": "^2.0.0",
+    "jszip": "^3.10.2",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",

@@ -25,6 +25,18 @@ function tileMark(item: NavItem) {
   return "↗";
 }
 
+function contrastText(background: string) {
+  const value = background.trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  if (!match) return "#ffffff";
+  const hex = match[1].length === 3 ? match[1].split("").map((ch) => ch + ch).join("") : match[1];
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.68 ? "#172033" : "#ffffff";
+}
+
 function isNavigable(url: string) {
   return /^(https?:|about:|chrome:|moz-extension:|chrome-extension:|edge:|file:)/i.test(url);
 }
@@ -146,7 +158,7 @@ export function StartClient({ initialTree, defaultEngine = "Bing", authenticated
                   key={item.id}
                   type="button"
                   onClick={() => activate(item)}
-                  style={item.backgroundColor ? { background: item.backgroundColor } : undefined}
+                  style={item.backgroundColor ? { background: item.backgroundColor, color: contrastText(item.backgroundColor) } : undefined}
                   title={item.browserLocal ? "浏览器内部地址，能否打开取决于当前浏览器权限" : item.url || item.name}
                 >
                   {item.type === "folder" ? (
