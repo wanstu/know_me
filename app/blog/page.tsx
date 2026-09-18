@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { archiveCounts, filterPublishedPosts, listTaxonomy } from "@/lib/blog/repository";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
@@ -24,9 +26,10 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const posts = filterPublishedPosts({ query, tag, category, limit: 30 });
   const taxonomy = listTaxonomy();
   const archives = archiveCounts();
+  const settings = getSiteSettings();
 
   return (
-    <main className="paper-page">
+    <main className={"paper-page " + themeClass(settings)}>
       <header className="public-header">
         <Link href="/" className="public-brand">know_me / blog</Link>
         <nav className="public-nav">
@@ -40,7 +43,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="blog-layout">
         <div>
           <div className="blog-hero">
-            <div className="eyebrow" style={{ color: "#778395" }}>Writing & Notes</div>
+            <div className="eyebrow">Writing & Notes</div>
             <h1>{query || tag || category ? "找到值得回看的内容。" : "写下值得留下的东西。"}</h1>
             <p>
               {query ? "搜索：" + query : tag ? "标签：" + tag : category ? "分类：" + category :

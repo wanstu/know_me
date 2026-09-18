@@ -6,6 +6,7 @@ import { StartClient } from "@/components/start/start-client";
 import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { getNavigationTree } from "@/lib/navigation/repository";
 import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,7 @@ export default async function StartPage() {
   } as CSSProperties;
 
   return (
-    <main className={"immersive-page start-page theme-" + settings.themeMode} style={startStyle}>
+    <main className={"immersive-page start-page " + themeClass(settings)} style={startStyle}>
       <AmbientWallpaper url={settings.startBackgroundUrl} />
       <StartClient
         initialTree={tree}

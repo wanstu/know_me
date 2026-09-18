@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 const menu = [
   { key: "dashboard", label: "总览", href: "/admin" },
@@ -20,8 +22,9 @@ export function AdminShell({
   active: string;
   children: React.ReactNode;
 }) {
+  const settings = getSiteSettings();
   return (
-    <main className="admin-page">
+    <main className={"admin-page " + themeClass(settings)}>
       <div className="admin-shell">
         <aside className="admin-sidebar">
           <Link href="/" className="admin-logo">know_me</Link>

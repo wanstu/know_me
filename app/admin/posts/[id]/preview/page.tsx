@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { MarkdownRenderer } from "@/components/blog/markdown-renderer";
 import { extractToc } from "@/lib/blog/toc";
 import { getPostById, markdownToText } from "@/lib/blog/repository";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
@@ -14,9 +16,10 @@ export default async function PostPreviewPage({ params }: { params: Promise<{ id
 
   const toc = extractToc(post.contentMd);
   const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
+  const settings = getSiteSettings();
 
   return (
-    <main className="paper-page">
+    <main className={"paper-page " + themeClass(settings)}>
       <header className="public-header editor-preview-header">
         <div className="public-brand">know_me / preview</div>
         <nav className="public-nav">
@@ -31,7 +34,7 @@ export default async function PostPreviewPage({ params }: { params: Promise<{ id
       <section className="article-layout">
         <article className="article">
           <div className="editor-preview-notice">这是管理端预览，不受文章发布状态限制。</div>
-          <div className="eyebrow" style={{ color: "#778395" }}>
+          <div className="eyebrow">
             {post.categories[0] || post.tags[0] || "Preview"}
           </div>
           <h1>{post.title}</h1>

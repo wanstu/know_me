@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
 import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default function HomePage() {
     .filter((item) => item.name);
 
   return (
-    <main className={"immersive-page theme-" + settings.themeMode}>
+    <main className={"immersive-page " + themeClass(settings)}>
       <AmbientWallpaper url={settings.homeBackgroundUrl} />
 
       <section className="home-layout container-wide">

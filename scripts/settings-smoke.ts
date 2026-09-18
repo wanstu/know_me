@@ -7,6 +7,7 @@ try {
     startPublic: !original.startPublic,
     defaultSearchEngine: "DuckDuckGo",
     themeMode: "light",
+    themePreset: "forest",
     startDensity: "compact",
     startCardOpacity: 72,
     startCardRadius: 18,
@@ -19,6 +20,7 @@ try {
   if (updated.startPublic === original.startPublic) throw new Error("startPublic not changed");
   if (getSiteSettings().defaultSearchEngine !== "DuckDuckGo") throw new Error("search engine not persisted");
   if (getSiteSettings().themeMode !== "light") throw new Error("theme mode not persisted");
+  if (getSiteSettings().themePreset !== "forest") throw new Error("theme preset not persisted");
   if (getSiteSettings().startDensity !== "compact") throw new Error("start density not persisted");
   if (getSiteSettings().startCardOpacity !== 72) throw new Error("start card opacity not persisted");
   if (getSiteSettings().startCardRadius !== 18) throw new Error("start card radius not persisted");

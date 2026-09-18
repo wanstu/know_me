@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MediaRecord } from "@/lib/media/repository";
 import type {
   HomeEntry,
@@ -9,10 +9,23 @@ import type {
   SiteSettings,
   SocialLink,
   StartDensity,
-  ThemeMode
+  ThemeMode,
+  ThemePreset
 } from "@/lib/settings/repository";
 
 type MediaTarget = "avatarUrl" | "homeBackgroundUrl" | "startBackgroundUrl" | null;
+
+const themePresets: Array<{
+  id: ThemePreset;
+  name: string;
+  description: string;
+  swatches: [string, string, string];
+}> = [
+  { id: "aurora", name: "极光", description: "默认 · 蓝紫渐变，冷静但不压暗", swatches: ["#6d7cff", "#8c7cf6", "#42c7d9"] },
+  { id: "ocean", name: "海洋", description: "蓝青色调，清爽明亮", swatches: ["#0ea5e9", "#38bdf8", "#22d3ee"] },
+  { id: "forest", name: "森林", description: "绿色系，柔和自然", swatches: ["#34d399", "#22c55e", "#84cc16"] },
+  { id: "sunset", name: "落日", description: "橙粉暖色，更有生活感", swatches: ["#fb7185", "#f97316", "#f59e0b"] }
+];
 
 function id(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return prefix + "-" + crypto.randomUUID();
@@ -38,6 +51,13 @@ export function SettingsManager({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [mediaTarget, setMediaTarget] = useState<MediaTarget>(null);
+
+  useEffect(() => {
+    const root = document.querySelector(".admin-page");
+    if (!root) return;
+    root.classList.remove("theme-auto", "theme-dark", "theme-light", "theme-preset-aurora", "theme-preset-ocean", "theme-preset-forest", "theme-preset-sunset");
+    root.classList.add("theme-" + settings.themeMode, "theme-preset-" + settings.themePreset);
+  }, [settings.themeMode, settings.themePreset]);
 
   function update<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -228,8 +248,28 @@ export function SettingsManager({
       <section className="admin-panel settings-section">
         <div>
           <div className="eyebrow">Appearance</div>
-          <h2>背景与起始页</h2>
-          <p className="muted">可以直接从媒体库选图，也可以填写外部 HTTPS 图片地址。</p>
+          <h2>主题与背景</h2>
+          <p className="muted">主题控制整站色彩和明暗；背景图片只影响个人主页与起始页。</p>
+        </div>
+
+        <div className="theme-preset-grid span-2">
+          {themePresets.map((preset) => (
+            <button
+              type="button"
+              key={preset.id}
+              className={"theme-preset-card " + (settings.themePreset === preset.id ? "is-active" : "")}
+              onClick={() => update("themePreset", preset.id)}
+            >
+              <span className="theme-preset-swatches" aria-hidden="true">
+                {preset.swatches.map((value) => <i key={value} style={{ background: value }} />)}
+              </span>
+              <span className="theme-preset-copy">
+                <strong>{preset.name}</strong>
+                <small>{preset.description}</small>
+              </span>
+              <span className="theme-preset-check">{settings.themePreset === preset.id ? "✓" : ""}</span>
+            </button>
+          ))}
         </div>
 
         <div className="settings-grid">
@@ -259,7 +299,7 @@ export function SettingsManager({
             </select>
           </label>
           <label>
-            主页主题
+            明暗模式
             <select value={settings.themeMode} onChange={(event) => update("themeMode", event.target.value as ThemeMode)}>
               <option value="auto">跟随系统</option>
               <option value="dark">深色</option>

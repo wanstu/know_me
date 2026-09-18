@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { safeNextPath } from "@/lib/auth/request";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
@@ -20,9 +22,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (user) redirect(nextPath);
 
   const error = first(params.error);
+  const settings = getSiteSettings();
 
   return (
-    <main className="login-page">
+    <main className={"login-page " + themeClass(settings)}>
       <div className="ambient-wallpaper" aria-hidden="true" />
       <section className="glass-card login-card">
         <div className="eyebrow">Private Area</div>

@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
 export type ThemeMode = "auto" | "dark" | "light";
+export type ThemePreset = "aurora" | "ocean" | "forest" | "sunset";
 export type StartDensity = "compact" | "comfortable" | "spacious";
 export type SocialLink = { id: string; label: string; url: string };
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
@@ -22,6 +23,7 @@ export type SiteSettings = {
   startPublic: boolean;
   defaultSearchEngine: SearchEngineName;
   themeMode: ThemeMode;
+  themePreset: ThemePreset;
   startDensity: StartDensity;
   startCardOpacity: number;
   startCardRadius: number;
@@ -46,6 +48,7 @@ const defaults: SiteSettings = {
   startPublic: false,
   defaultSearchEngine: "Bing",
   themeMode: "auto",
+  themePreset: "aurora",
   startDensity: "comfortable",
   startCardOpacity: 64,
   startCardRadius: 22,
@@ -139,6 +142,7 @@ export function getSiteSettings(): SiteSettings {
       ? stored.defaultSearchEngine
       : "Bing";
   const themeMode: ThemeMode = stored.themeMode === "dark" || stored.themeMode === "light" ? stored.themeMode : "auto";
+  const themePreset: ThemePreset = stored.themePreset === "ocean" || stored.themePreset === "forest" || stored.themePreset === "sunset" ? stored.themePreset : "aurora";
   const startDensity: StartDensity = stored.startDensity === "compact" || stored.startDensity === "spacious" ? stored.startDensity : "comfortable";
   const githubUrl = typeof stored.githubUrl === "string" ? stored.githubUrl : defaults.githubUrl;
   const emailUrl = typeof stored.emailUrl === "string" ? stored.emailUrl : defaults.emailUrl;
@@ -164,6 +168,7 @@ export function getSiteSettings(): SiteSettings {
     startPublic: stored.startPublic === true,
     defaultSearchEngine: engine,
     themeMode,
+    themePreset,
     startDensity,
     startCardOpacity: typeof stored.startCardOpacity === "number" ? clamp(stored.startCardOpacity, 30, 95) : defaults.startCardOpacity,
     startCardRadius: typeof stored.startCardRadius === "number" ? clamp(stored.startCardRadius, 12, 32) : defaults.startCardRadius,
@@ -199,6 +204,10 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
       input.themeMode === "dark" || input.themeMode === "light" || input.themeMode === "auto"
         ? input.themeMode
         : current.themeMode,
+    themePreset:
+      input.themePreset === "aurora" || input.themePreset === "ocean" || input.themePreset === "forest" || input.themePreset === "sunset"
+        ? input.themePreset
+        : current.themePreset,
     startDensity:
       input.startDensity === "compact" || input.startDensity === "comfortable" || input.startDensity === "spacious"
         ? input.startDensity

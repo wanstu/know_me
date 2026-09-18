@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { MarkdownRenderer } from "@/components/blog/markdown-renderer";
 import { extractToc } from "@/lib/blog/toc";
 import { getAdjacentPublishedPosts, getPublishedPostBySlug, markdownToText } from "@/lib/blog/repository";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
@@ -44,9 +46,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const toc = extractToc(post.contentMd);
   const adjacent = getAdjacentPublishedPosts(post.id);
   const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
+  const settings = getSiteSettings();
 
   return (
-    <main className="paper-page">
+    <main className={"paper-page " + themeClass(settings)}>
       <header className="public-header">
         <Link href="/" className="public-brand">know_me / blog</Link>
         <nav className="public-nav">
@@ -57,7 +60,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
       <section className="article-layout">
         <article className="article">
-          <div className="eyebrow" style={{ color: "#778395" }}>
+          <div className="eyebrow">
             {post.categories[0] || post.tags[0] || "Article"}
           </div>
           <h1>{post.title}</h1>

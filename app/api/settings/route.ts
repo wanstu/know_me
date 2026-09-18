@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { isSameOriginRequest } from "@/lib/auth/request";
-import { getSiteSettings, updateSiteSettings, type SearchEngineName, type ThemeMode, type StartDensity, type SiteSettings } from "@/lib/settings/repository";
+import { getSiteSettings, updateSiteSettings, type SearchEngineName, type ThemeMode, type ThemePreset, type StartDensity, type SiteSettings } from "@/lib/settings/repository";
 
 export const runtime = "nodejs";
 
@@ -27,6 +27,7 @@ export async function PATCH(request: NextRequest) {
     if (body.startPublic !== undefined) input.startPublic = body.startPublic === true;
     if (body.defaultSearchEngine !== undefined) input.defaultSearchEngine = String(body.defaultSearchEngine) as SearchEngineName;
     if (body.themeMode !== undefined) input.themeMode = String(body.themeMode) as ThemeMode;
+    if (body.themePreset !== undefined) input.themePreset = String(body.themePreset) as ThemePreset;
     if (body.startDensity !== undefined) input.startDensity = String(body.startDensity) as StartDensity;
     if (typeof body.startCardOpacity === "number") input.startCardOpacity = body.startCardOpacity;
     if (typeof body.startCardRadius === "number") input.startCardRadius = body.startCardRadius;
