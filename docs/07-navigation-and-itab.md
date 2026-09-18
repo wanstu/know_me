@@ -52,6 +52,22 @@ about:、chrome:、moz-extension: 等不会被删除，而会标记为 browserLo
 
 是否能打开取决于当前浏览器及扩展权限。
 
+## CLI 导入
+
+除了管理后台，也可以直接从 PowerShell 导入：
+
+~~~powershell
+npm run itab:import -- --file data/backup.itabdata
+~~~
+
+覆盖当前导航：
+
+~~~powershell
+npm run itab:import -- --file data/backup.itabdata --strategy replace --overwrite
+~~~
+
+默认策略是 merge；CLI 会先输出预览统计，再执行导入。
+
 ## 验证
 
 ~~~powershell
