@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>know_me · 交互原型</title>
+<style>
+:root{
+  --bg:#0d1119;--panel:rgba(22,27,38,.64);--panel2:rgba(255,255,255,.08);
+  --text:#f4f7fb;--muted:#aeb8c8;--line:rgba(255,255,255,.13);
+  --accent:#6ee7d8;--accent2:#84a7ff;--radius:22px;
+  font-family:Inter,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box} body{margin:0;background:#0b1017;color:var(--text)}
+button,input,textarea{font:inherit} button{cursor:pointer}
+.shell{min-height:100vh;position:relative;overflow:hidden}
+.wallpaper{position:fixed;inset:0;background:
+ radial-gradient(circle at 22% 18%,rgba(243,139,120,.5),transparent 30%),
+ radial-gradient(circle at 76% 34%,rgba(73,170,232,.52),transparent 34%),
+ linear-gradient(128deg,#30263b 0%,#16223a 42%,#102b3b 68%,#08121e 100%);z-index:-3}
+.wallpaper:before{content:"";position:absolute;inset:0;background:
+ radial-gradient(ellipse at 46% 72%,rgba(255,224,129,.26),transparent 22%),
+ linear-gradient(180deg,rgba(5,8,14,.03),rgba(5,8,14,.55))}
+.noise{position:fixed;inset:0;z-index:-2;opacity:.25;background-image:
+ linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),
+ linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:28px 28px}
+.glass{background:var(--panel);border:1px solid var(--line);box-shadow:0 24px 70px rgba(0,0,0,.28);
+ backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.prototype-switcher{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:99;display:flex;gap:7px;
+ padding:7px;border-radius:999px;background:rgba(6,10,17,.76);border:1px solid var(--line);backdrop-filter:blur(18px)}
+.prototype-switcher button{border:0;color:#aeb8c8;background:transparent;padding:9px 13px;border-radius:999px}
+.prototype-switcher button.active{background:#f5f7fb;color:#101522}
+.view{display:none;min-height:100vh}.view.active{display:block}
+.muted{color:var(--muted)} .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#b8c6d9}
+.icon-btn{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:#fff}
+
+/* HOME */
+.home-wrap{min-height:100vh;display:grid;grid-template-columns:minmax(340px,560px) minmax(420px,650px);
+ gap:80px;align-items:center;justify-content:center;padding:100px 7vw 60px}
+.profile-card{padding:38px;border-radius:34px}
+.profile-head{display:flex;gap:24px;align-items:center}
+.avatar{width:110px;height:110px;border-radius:32px;background:linear-gradient(145deg,#f3d7c2,#b9d9ec 52%,#6d83b6);
+ display:grid;place-items:center;font-size:40px;font-weight:700;color:#273246;box-shadow:inset 0 0 0 5px rgba(255,255,255,.18)}
+.profile-card h1{font-size:52px;line-height:1;margin:0 0 12px}.profile-card .lead{font-size:18px;line-height:1.8}
+.social-row{display:flex;gap:10px;margin-top:26px}.social-row a{color:#fff;text-decoration:none;padding:10px 14px;
+ border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.home-right{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.quote-card,.time-card{padding:28px;border-radius:24px;min-height:160px}
+.quote-card{font-size:20px;line-height:1.65}.quote-card .by{text-align:right;margin-top:18px;color:#c8d3e2}
+.time-card .date{font-size:15px;color:#d4dce8}.big-time{font-size:50px;font-weight:700;letter-spacing:.04em;margin:16px 0}
+.link-section{grid-column:1/-1}.link-title{margin:8px 0 14px}.home-links{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.home-link{min-height:112px;border-radius:20px;padding:20px;display:flex;align-items:flex-end;justify-content:space-between;color:#fff;
+ text-decoration:none;border:1px solid var(--line);background:rgba(18,25,35,.54);transition:.2s}
+.home-link:hover{transform:translateY(-3px);background:rgba(32,42,57,.7)}.home-link b{font-size:18px}
+
+/* START */
+.start-page{min-height:100vh;padding:88px 34px 34px 112px;background:rgba(5,8,14,.22)}
+.side-rail{position:fixed;left:18px;top:78px;bottom:24px;width:68px;border-radius:24px;padding:10px;z-index:10;
+ display:flex;flex-direction:column;gap:8px;align-items:center}
+.side-rail button{width:48px;height:48px;border:0;border-radius:15px;background:transparent;color:#c6d0df;font-size:18px}
+.side-rail button.active,.side-rail button:hover{background:#f5f7fb;color:#151a23}
+.start-top{max-width:1180px;margin:0 auto;text-align:center}
+.clock{font-size:62px;font-weight:700;letter-spacing:.04em;text-shadow:0 6px 30px rgba(0,0,0,.35)}
+.date-line{color:#d1dae8;margin-top:4px}
+.search-bar{margin:28px auto 28px;max-width:760px;height:58px;border-radius:18px;display:flex;align-items:center;gap:12px;padding:0 18px}
+.search-bar input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:17px}.search-bar span{color:#b9c5d6}
+.start-toolbar{display:flex;justify-content:space-between;align-items:center;max-width:1180px;margin:0 auto 18px}
+.start-toolbar h2{margin:0;font-size:18px}.toolbar-actions{display:flex;gap:9px}
+.grid{max-width:1180px;margin:auto;display:grid;grid-template-columns:repeat(8,1fr);grid-auto-rows:112px;gap:15px}
+.tile{border-radius:22px;border:1px solid var(--line);background:rgba(13,20,29,.7);padding:17px;color:#fff;text-decoration:none;
+ display:flex;flex-direction:column;justify-content:space-between;min-width:0;overflow:hidden;transition:.18s}
+.tile:hover{transform:translateY(-3px);background:rgba(28,39,54,.82)}.tile.w2{grid-column:span 2}
+.tile .logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-weight:800;background:rgba(255,255,255,.12)}
+.tile .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pink{background:linear-gradient(140deg,#ff6bac,#e94c8c)}.red{background:linear-gradient(140deg,#ff514e,#de2129)}
+.blue{background:linear-gradient(140deg,#5088ff,#305ac5)}.green{background:linear-gradient(140deg,#62c779,#2e8a57)}
+.amber{background:linear-gradient(140deg,#ffcb62,#da8f24)}.folder-tile{background:rgba(12,17,25,.78)}
+.mini-icons{display:grid;grid-template-columns:1fr 1fr;gap:5px}.mini-icons i{height:20px;border-radius:6px;background:rgba(255,255,255,.16)}
+
+/* BLOG */
+.blog-body{min-height:100vh;background:#f5f6f8;color:#1a2330;padding-top:72px}
+.blog-nav{height:64px;position:fixed;top:0;left:0;right:0;z-index:40;background:rgba(248,249,251,.88);backdrop-filter:blur(16px);
+ border-bottom:1px solid #e1e5eb;display:flex;align-items:center;justify-content:space-between;padding:0 max(26px,calc((100vw - 1180px)/2))}
+.blog-brand{font-weight:800;font-size:20px}.blog-nav .links{display:flex;gap:22px;color:#687386}
+.blog-wrap{max-width:1180px;margin:0 auto;padding:55px 24px 70px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:54px}
+.hero-title{font-size:48px;margin:0 0 12px}.hero-copy{font-size:18px;color:#697586;max-width:650px;line-height:1.7}
+.blog-search{margin:30px 0 28px;border:1px solid #dfe4ea;background:white;border-radius:16px;padding:15px 18px;width:100%;font-size:16px}
+.post-card{display:grid;grid-template-columns:1fr 180px;gap:24px;padding:25px 0;border-top:1px solid #dfe4ea}
+.post-card h3{font-size:24px;margin:5px 0 10px}.post-card p{color:#687386;line-height:1.7}.meta{font-size:13px;color:#9099a7}
+.cover{border-radius:18px;background:linear-gradient(135deg,#c9d7ff,#92b5e8 42%,#647ba8);min-height:128px}
+.sidebar-card{background:#fff;border:1px solid #e1e5eb;border-radius:18px;padding:22px;margin-bottom:16px}
+.tag{display:inline-block;padding:7px 10px;border-radius:999px;background:#eef2f7;margin:5px 5px 0 0;font-size:13px}
+
+/* ARTICLE */
+.article-wrap{max-width:1120px;margin:0 auto;padding:56px 24px 90px;display:grid;grid-template-columns:minmax(0,760px) 240px;gap:70px}
+.article h1{font-size:46px;line-height:1.18;margin-bottom:16px}.article .article-meta{color:#8490a0;margin-bottom:38px}
+.prose{font-size:17px;line-height:1.9;color:#303b49}.prose h2{font-size:30px;margin-top:42px}
+.prose code{background:#edf1f6;padding:2px 6px;border-radius:6px}
+.code{background:#111824;color:#d9e6f2;padding:22px;border-radius:16px;white-space:pre;overflow:auto;font-family:Consolas,monospace}
+.toc{position:sticky;top:105px;align-self:start;border-left:2px solid #dfe4ea;padding-left:18px;color:#7a8594}
+.toc b{color:#273240}.toc div{margin:11px 0}
+
+/* ADMIN */
+.admin-page{min-height:100vh;background:#0d1118;color:#e9edf4;padding:72px 0 0}
+.admin-shell{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 72px)}
+.admin-side{border-right:1px solid #242b36;background:#111722;padding:22px 16px}.admin-logo{font-size:21px;font-weight:800;padding:9px 10px 24px}
+.admin-side button{display:block;width:100%;text-align:left;border:0;background:transparent;color:#aeb8c7;padding:11px 12px;border-radius:10px;margin:3px 0}
+.admin-side button.active,.admin-side button:hover{background:#1d2634;color:#fff}.admin-main{padding:34px;overflow:hidden}
+.admin-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px}.admin-head h1{margin:0;font-size:28px}
+.primary{border:0;background:#eef2f7;color:#121822;padding:11px 15px;border-radius:11px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat{padding:19px;border:1px solid #283140;background:#141c28;border-radius:16px}
+.stat strong{display:block;font-size:28px;margin-top:8px}
+.admin-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:16px;margin-top:16px}.panel{border:1px solid #283140;background:#141c28;border-radius:17px;padding:20px}
+.table-row{display:grid;grid-template-columns:1fr 110px 100px;gap:12px;padding:14px 0;border-top:1px solid #27303c;color:#c8d1dd}.status{color:#73ddb8}
+
+/* EDITOR */
+.editor-page{min-height:100vh;background:#0d1118;padding-top:72px;color:#e7ecf3}.editor-shell{padding:24px 28px 36px}
+.editor-top{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.title-input{flex:1;background:#141c28;border:1px solid #2a3442;color:#fff;border-radius:13px;padding:13px 15px;font-size:19px}
+.editor-actions{display:flex;gap:8px}.editor-actions button{padding:11px 14px;border-radius:11px;border:1px solid #2d3745;background:#151d29;color:#dbe3ee}
+.editor-actions .publish{background:#f2f5f9;color:#101722}
+.editor-grid{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 170px);border:1px solid #283140;border-radius:18px;overflow:hidden}
+.editor-pane{background:#111722}.editor-pane textarea{width:100%;height:100%;resize:none;border:0;outline:0;background:#111722;color:#dbe4ef;
+ padding:26px;font:15px/1.75 Consolas,monospace}
+.preview-pane{background:#f7f8fa;color:#283341;padding:28px;overflow:auto}.preview-pane h1{font-size:34px}.preview-pane p{line-height:1.85}
+
+@media(max-width:1000px){
+ .prototype-switcher{left:12px;right:12px;transform:none;overflow:auto;justify-content:flex-start}
+ .home-wrap{grid-template-columns:1fr;gap:22px;padding:110px 20px 40px}.home-right{grid-template-columns:1fr}
+ .link-section{grid-column:auto}.home-links{grid-template-columns:1fr 1fr}
+ .side-rail{display:none}.start-page{padding:100px 18px 30px}.grid{grid-template-columns:repeat(4,1fr)}
+ .blog-wrap{grid-template-columns:1fr}.blog-wrap aside{display:none}.article-wrap{grid-template-columns:1fr}.toc{display:none}
+ .admin-shell{grid-template-columns:74px 1fr}.admin-side button{font-size:0}.admin-side button:before{content:"•";font-size:18px}
+ .admin-logo{font-size:0}.admin-logo:after{content:"KM";font-size:18px}.stats{grid-template-columns:1fr 1fr}.admin-grid{grid-template-columns:1fr}
+}
+@media(max-width:640px){
+ .profile-card h1{font-size:38px}.profile-head{align-items:flex-start}.avatar{width:84px;height:84px}.home-links{grid-template-columns:1fr}
+ .clock{font-size:46px}.grid{grid-template-columns:repeat(2,1fr)}.tile.w2{grid-column:span 2}
+ .post-card{grid-template-columns:1fr}.cover{display:none}.hero-title{font-size:38px}.article h1{font-size:38px}
+ .admin-main{padding:20px 14px}.stats{grid-template-columns:1fr}.admin-shell{grid-template-columns:1fr}.admin-side{display:none}
+ .editor-grid{grid-template-columns:1fr}.preview-pane{display:none}.editor-actions button:not(.publish){display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="wallpaper"></div><div class="noise"></div>
+  <nav class="prototype-switcher" aria-label="原型页面切换">
+    <button data-target="home" class="active">个人主页</button>
+    <button data-target="start">起始页</button>
+    <button data-target="blog">博客</button>
+    <button data-target="article">文章</button>
+    <button data-target="admin">管理端</button>
+    <button data-target="editor">编辑器</button>
+  </nav>
+
+  <section class="view active" id="home">
+    <main class="home-wrap">
+      <section class="profile-card glass">
+        <div class="profile-head">
+          <div class="avatar">K</div>
+          <div><div class="eyebrow">Personal Space</div><h1>know_me</h1><div class="muted">记录、创造，也把每天真正会用的东西放在这里。</div></div>
+        </div>
+        <p class="lead">一个属于自己的数字入口：主页、博客和浏览器起始页，不再分散在不同服务里。</p>
+        <div class="social-row"><a href="#">GitHub</a><a href="#">Mail</a><a href="#">RSS</a><a href="#">About</a></div>
+      </section>
+      <section class="home-right">
+        <div class="quote-card glass">生命如意志永存，青春永远年轻。<div class="by">— 今日短句</div></div>
+        <div class="time-card glass"><div class="date js-date"></div><div class="big-time js-time"></div><div class="muted">这里可以放天气，也可以保持纯粹。</div></div>
+        <div class="link-section">
+          <div class="link-title eyebrow">Explore</div>
+          <div class="home-links">
+            <a class="home-link glass" href="#"><span><b>Blog</b><br><span class="muted">文章与笔记</span></span><span>↗</span></a>
+            <a class="home-link glass" href="#"><span><b>Start</b><br><span class="muted">浏览器起始页</span></span><span>↗</span></a>
+            <a class="home-link glass" href="#"><span><b>Projects</b><br><span class="muted">项目与作品</span></span><span>↗</span></a>
+            <a class="home-link glass" href="#"><span><b>Archive</b><br><span class="muted">文章归档</span></span><span>↗</span></a>
+            <a class="home-link glass" href="#"><span><b>About</b><br><span class="muted">关于我</span></span><span>↗</span></a>
+            <a class="home-link glass" href="#"><span><b>Admin</b><br><span class="muted">管理后台</span></span><span>↗</span></a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <section class="view" id="start">
+    <aside class="side-rail glass">
+      <button class="active">⌂</button><button>社</button><button>文</button><button>框</button><button>游</button><button>工</button><button>⚙</button>
+    </aside>
+    <main class="start-page">
+      <div class="start-top">
+        <div class="clock js-time-short"></div><div class="date-line js-date"></div>
+        <div class="search-bar glass"><span>⌕</span><input placeholder="搜索网页，或输入链接…" /><span>Bing ▾</span></div>
+      </div>
+      <div class="start-toolbar"><h2>主页</h2><div class="toolbar-actions"><button class="icon-btn">＋</button><button class="icon-btn">✎</button><button class="icon-btn">◐</button></div></div>
+      <div class="grid">
+        <a class="tile w2 pink" href="#"><div class="logo">B</div><div class="name">哔哩哔哩</div></a>
+        <a class="tile w2 red" href="#"><div class="logo">▶</div><div class="name">YouTube</div></a>
+        <a class="tile w2 blue" href="#"><div class="logo">A</div><div class="name">AC Fun</div></a>
+        <a class="tile green" href="#"><div class="logo">语</div><div class="name">语雀</div></a>
+        <a class="tile" href="#"><div class="logo">AI</div><div class="name">AI 助手</div></a>
+        <a class="tile w2" href="#"><div class="logo">W</div><div class="name">WordPress</div></a>
+        <a class="tile w2" href="#"><div class="logo">♪</div><div class="name">音乐 / 视频</div></a>
+        <a class="tile amber" href="#"><div class="logo">ME</div><div class="name">我的主页</div></a>
+        <a class="tile blue" href="#"><div class="logo">PK</div><div class="name">Packages</div></a>
+        <a class="tile red" href="#"><div class="logo">✉</div><div class="name">Mail</div></a>
+        <a class="tile folder-tile" href="#"><div class="mini-icons"><i></i><i></i><i></i><i></i></div><div class="name">工作</div></a>
+        <a class="tile folder-tile" href="#"><div class="mini-icons"><i></i><i></i><i></i><i></i></div><div class="name">本地服务</div></a>
+        <a class="tile" href="#"><div class="logo">＋</div><div class="name">新增</div></a>
+      </div>
+    </main>
+  </section>
+
+  <section class="view" id="blog">
+    <div class="blog-body">
+      <header class="blog-nav"><div class="blog-brand">know_me / blog</div><div class="links"><span>文章</span><span>归档</span><span>标签</span><span>关于</span><span>◐</span></div></header>
+      <main class="blog-wrap">
+        <section>
+          <div class="eyebrow" style="color:#778395">Writing & Notes</div>
+          <h1 class="hero-title">写下值得留下的东西。</h1>
+          <p class="hero-copy">技术、项目、生活与长期笔记。重点不是更新频率，而是以后还能快速找到并读懂。</p>
+          <input class="blog-search" placeholder="搜索文章、标签或关键词…" />
+          <article class="post-card"><div><div class="meta">2026-09-18 · 8 min · #开发</div><h3>把个人主页、博客和浏览器起始页做成同一个产品</h3><p>为什么不再维护三个彼此独立的小站，以及统一数据模型后能解决什么问题。</p></div><div class="cover"></div></article>
+          <article class="post-card"><div><div class="meta">2026-09-12 · 12 min · #笔记</div><h3>Markdown 写作系统应该保留哪些能力</h3><p>从编辑、图片、代码块、修订历史到全文搜索，整理一套长期可维护的写作流程。</p></div><div class="cover" style="background:linear-gradient(135deg,#ffd9bc,#d99c87,#6a779b)"></div></article>
+          <article class="post-card"><div><div class="meta">2026-09-03 · 6 min · #生活</div><h3>主页不是简历，而是一个入口</h3><p>减少不必要的信息，留下真正希望别人点击的内容。</p></div><div class="cover" style="background:linear-gradient(135deg,#b7e4ce,#80a8b8,#536a86)"></div></article>
+        </section>
+        <aside>
+          <div class="sidebar-card"><b>标签</b><div style="margin-top:10px"><span class="tag">开发</span><span class="tag">Markdown</span><span class="tag">项目</span><span class="tag">生活</span><span class="tag">随笔</span></div></div>
+          <div class="sidebar-card"><b>归档</b><p style="color:#7a8594">2026 · 18 篇</p><p style="color:#7a8594">2025 · 31 篇</p></div>
+          <div class="sidebar-card"><b>订阅</b><p style="color:#7a8594">RSS / Atom</p></div>
+        </aside>
+      </main>
+    </div>
+  </section>
+
+  <section class="view" id="article">
+    <div class="blog-body">
+      <header class="blog-nav"><div class="blog-brand">know_me / blog</div><div class="links"><span>← 返回文章</span><span>◐</span></div></header>
+      <main class="article-wrap">
+        <article class="article">
+          <div class="eyebrow" style="color:#778395">Development</div>
+          <h1>把个人主页、博客和浏览器起始页做成同一个产品</h1>
+          <div class="article-meta">2026-09-18 · 阅读约 8 分钟 · 最后更新 19:40</div>
+          <div class="prose">
+            <p>很多个人网站最开始都只解决一个问题：展示自己。但真正长期使用以后，我更希望它同时是每天会打开的工具。</p>
+            <h2>为什么要统一</h2>
+            <p>个人主页负责“我是谁”，博客负责“我写了什么”，起始页负责“我每天去哪”。它们的主题、登录、媒体和配置其实可以共享。</p>
+            <h2>Markdown 仍然是源数据</h2>
+            <p>文章永远保存原始 Markdown。渲染结果只是缓存，这样以后切框架时仍然能完整迁移。</p>
+            <div class="code">export type PostStatus =
+  | "draft"
+  | "published"
+  | "scheduled";</div>
+            <h2>起始页不是公开导航站</h2>
+            <p>导入的导航可能包含本地地址和工作环境，所以默认需要登录，并允许对单个入口设置 <code>private</code>。</p>
+          </div>
+        </article>
+        <aside class="toc"><b>本文目录</b><div>为什么要统一</div><div>Markdown 仍然是源数据</div><div>起始页不是公开导航站</div></aside>
+      </main>
+    </div>
+  </section>
+
+  <section class="view" id="admin">
+    <div class="admin-page">
+      <div class="admin-shell">
+        <aside class="admin-side">
+          <div class="admin-logo">know_me</div>
+          <button class="active">总览</button><button>文章</button><button>分类与标签</button><button>媒体</button><button>起始页</button><button>个人主页</button><button>外观</button><button>导入 / 导出</button><button>设置</button>
+        </aside>
+        <main class="admin-main">
+          <div class="admin-head"><div><div class="eyebrow">Dashboard</div><h1>晚上好</h1></div><button class="primary" data-jump="editor">＋ 写文章</button></div>
+          <div class="stats">
+            <div class="stat"><span class="muted">已发布文章</span><strong>42</strong></div>
+            <div class="stat"><span class="muted">草稿</span><strong>3</strong></div>
+            <div class="stat"><span class="muted">导航入口</span><strong>101</strong></div>
+            <div class="stat"><span class="muted">媒体</span><strong>86</strong></div>
+          </div>
+          <div class="admin-grid">
+            <div class="panel"><b>最近文章</b>
+              <div class="table-row"><span>把三个入口做成一个产品</span><span class="status">已发布</span><span>09-18</span></div>
+              <div class="table-row"><span>Markdown 写作系统</span><span>草稿</span><span>09-18</span></div>
+              <div class="table-row"><span>主页不是简历</span><span class="status">已发布</span><span>09-03</span></div>
+            </div>
+            <div class="panel"><b>快捷操作</b><p class="muted">导入 iTab 数据</p><p class="muted">编辑起始页布局</p><p class="muted">更换主页背景</p><p class="muted">创建备份</p></div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="editor">
+    <div class="editor-page">
+      <main class="editor-shell">
+        <div class="editor-top"><input class="title-input" value="Markdown 写作系统应该保留哪些能力" />
+          <div class="editor-actions"><button>保存草稿</button><button>设置</button><button class="publish">发布</button></div>
+        </div>
+        <div class="editor-grid">
+          <section class="editor-pane"><textarea># Markdown 写作系统应该保留哪些能力
+
+个人博客真正需要长期保存的是 **Markdown 源文档**，而不是某一套渲染后的 HTML。
+
+## 编辑体验
+
+- 自动保存
+- 粘贴图片直接上传
+- 代码块高亮
+- 表格、脚注、任务列表
+- Mermaid 与数学公式
+
+## 发布
+
+发布之前需要看到最终预览，同时保留每次重要修改的 revision。</textarea></section>
+          <section class="preview-pane">
+            <div class="eyebrow" style="color:#778395">Preview</div><h1>Markdown 写作系统应该保留哪些能力</h1>
+            <p>个人博客真正需要长期保存的是 <b>Markdown 源文档</b>，而不是某一套渲染后的 HTML。</p>
+            <h2>编辑体验</h2><ul><li>自动保存</li><li>粘贴图片直接上传</li><li>代码块高亮</li><li>表格、脚注、任务列表</li><li>Mermaid 与数学公式</li></ul>
+            <h2>发布</h2><p>发布之前需要看到最终预览，同时保留每次重要修改的 revision。</p>
+          </section>
+        </div>
+      </main>
+    </div>
+  </section>
+</div>
+<script>
+const buttons=[...document.querySelectorAll(".prototype-switcher button")];
+function show(id){
+ document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===id));
+ buttons.forEach(b=>b.classList.toggle("active",b.dataset.target===id));
+ location.hash=id;
+}
+buttons.forEach(b=>b.addEventListener("click",()=>show(b.dataset.target)));
+document.querySelectorAll("[data-jump]").forEach(b=>b.addEventListener("click",()=>show(b.dataset.jump)));
+function tick(){
+ const d=new Date();
+ const time=d.toLocaleTimeString("zh-CN",{hour12:false});
+ const short=time.slice(0,5);
+ const date=d.toLocaleDateString("zh-CN",{year:"numeric",month:"2-digit",day:"2-digit",weekday:"long"});
+ document.querySelectorAll(".js-time").forEach(x=>x.textContent=time);
+ document.querySelectorAll(".js-time-short").forEach(x=>x.textContent=short);
+ document.querySelectorAll(".js-date").forEach(x=>x.textContent=date);
+}
+tick();setInterval(tick,1000);
+if(location.hash && document.querySelector(location.hash))show(location.hash.slice(1));
+</script>
+</body>
+</html>
