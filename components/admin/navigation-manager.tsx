@@ -85,11 +85,16 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
   const [dragGroupId, setDragGroupId] = useState<number | null>(null);
   const [dragItemId, setDragItemId] = useState<number | null>(null);
   const [dragChildId, setDragChildId] = useState<number | null>(null);
+  const [dragOverKey, setDragOverKey] = useState("");
   const [importRaw, setImportRaw] = useState("");
   const [importName, setImportName] = useState("");
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [overwrite, setOverwrite] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkGroupId, setBulkGroupId] = useState(initialTree.groups[0]?.id ?? 0);
+  const [bulkParentId, setBulkParentId] = useState<number | null>(null);
 
   const activeGroup = tree.groups.find((group) => group.id === activeGroupId) ?? tree.groups[0];
   const itemFormGroup = tree.groups.find((group) => group.id === itemForm?.groupId) ?? activeGroup;
@@ -97,6 +102,13 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
     () => itemFormGroup ? allItems(itemFormGroup.items).filter((item) => item.type === "folder") : [],
     [itemFormGroup]
   );
+  const bulkGroup = tree.groups.find((group) => group.id === bulkGroupId) ?? activeGroup;
+  const bulkFolders = useMemo(
+    () => bulkGroup ? allItems(bulkGroup.items).filter((item) => item.type === "folder" && !selectedIds.includes(item.id)) : [],
+    [bulkGroup, selectedIds]
+  );
+  const activeAllIds = activeGroup ? allItems(activeGroup.items).map((item) => item.id) : [];
+  const allActiveSelected = activeAllIds.length > 0 && activeAllIds.every((id) => selectedIds.includes(id));
 
   async function action(actionName: string, data: Record<string, unknown>) {
     setBusy(true);
@@ -165,6 +177,53 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
   async function removeItem(item: NavItem) {
     if (!window.confirm("删除“" + item.name + "”？文件夹会同时删除其中的子项。")) return;
     await action("delete_item", { id: item.id });
+    setSelectedIds((current) => current.filter((id) => id !== item.id));
+  }
+
+  function toggleSelection(id: number) {
+    setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  }
+
+  function toggleActiveSelection() {
+    if (allActiveSelected) {
+      setSelectedIds((current) => current.filter((id) => !activeAllIds.includes(id)));
+    } else {
+      setSelectedIds((current) => [...new Set([...current, ...activeAllIds])]);
+    }
+  }
+
+  async function bulkDelete() {
+    if (!selectedIds.length) return;
+    if (!window.confirm("确定删除选中的 " + selectedIds.length + " 个导航项？选中的文件夹会同时删除其中子项。")) return;
+    const result = await action("bulk_delete", { ids: selectedIds });
+    if (result) {
+      setMessage("已删除 " + result.deleted + " 个顶层选择项。");
+      setSelectedIds([]);
+    }
+  }
+
+  function openBulkMove() {
+    if (!selectedIds.length) return;
+    const groupId = activeGroup?.id ?? tree.groups[0]?.id ?? 0;
+    setBulkGroupId(groupId);
+    setBulkParentId(null);
+    setBulkMoveOpen(true);
+  }
+
+  async function applyBulkMove(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedIds.length || !bulkGroupId) return;
+    const result = await action("bulk_move", {
+      ids: selectedIds,
+      groupId: bulkGroupId,
+      parentId: bulkParentId
+    });
+    if (result) {
+      setMessage("已移动 " + result.moved + " 个顶层选择项。");
+      setSelectedIds([]);
+      setBulkMoveOpen(false);
+      setActiveGroupId(bulkGroupId);
+    }
   }
 
   async function dropGroup(targetId: number) {
@@ -310,11 +369,13 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
               key={group.id}
               type="button"
               draggable
-              onDragStart={() => setDragGroupId(group.id)}
+              onDragStart={() => { setDragGroupId(group.id); setDragOverKey(""); }}
+              onDragEnter={() => setDragOverKey("group:" + group.id)}
               onDragOver={(event) => event.preventDefault()}
-              onDrop={() => void dropGroup(group.id)}
-              className={group.id === activeGroup?.id ? "is-active" : ""}
-              onClick={() => setActiveGroupId(group.id)}
+              onDragEnd={() => { setDragGroupId(null); setDragOverKey(""); }}
+              onDrop={() => { setDragOverKey(""); void dropGroup(group.id); }}
+              className={[group.id === activeGroup?.id ? "is-active" : "", dragGroupId === group.id ? "is-dragging" : "", dragOverKey === "group:" + group.id && dragGroupId !== group.id ? "is-drop-target" : ""].filter(Boolean).join(" ")}
+              onClick={() => { setActiveGroupId(group.id); setSelectedIds([]); setBulkGroupId(group.id); }}
             >
               <span>{group.icon || "•"}</span>
               <strong>{group.name}</strong>
@@ -344,17 +405,38 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
           </div>
         </div>
 
+        {activeGroup && activeAllIds.length ? (
+          <div className="nav-selection-toolbar">
+            <label>
+              <input type="checkbox" checked={allActiveSelected} onChange={toggleActiveSelection} />
+              <span>全选当前分组</span>
+            </label>
+            {selectedIds.length ? (
+              <div className="nav-selection-actions">
+                <strong>已选 {selectedIds.length} 项</strong>
+                <button type="button" onClick={openBulkMove}>移动</button>
+                <button type="button" className="danger-text" onClick={() => void bulkDelete()}>删除</button>
+                <button type="button" onClick={() => setSelectedIds([])}>取消选择</button>
+              </div>
+            ) : <span className="muted">可选择普通入口或文件夹后批量操作</span>}
+          </div>
+        ) : null}
+        {message ? <p className="admin-message nav-admin-message">{message}</p> : null}
+
         {activeGroup ? (
           <div className="nav-item-list">
             {activeGroup.items.map((item) => (
               <div
-                className="nav-item-row"
+                className={["nav-item-row", dragItemId === item.id ? "is-dragging" : "", dragOverKey === "item:" + item.id && dragItemId !== item.id ? "is-drop-target" : ""].filter(Boolean).join(" ")}
                 key={item.id}
                 draggable
-                onDragStart={() => setDragItemId(item.id)}
+                onDragStart={() => { setDragItemId(item.id); setDragOverKey(""); }}
+                onDragEnter={() => setDragOverKey("item:" + item.id)}
                 onDragOver={(event) => event.preventDefault()}
-                onDrop={() => void dropItem(item.id)}
+                onDragEnd={() => { setDragItemId(null); setDragOverKey(""); }}
+                onDrop={() => { setDragOverKey(""); void dropItem(item.id); }}
               >
+                <input className="nav-select-checkbox" type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelection(item.id)} onClick={(event) => event.stopPropagation()} aria-label={"选择 " + item.name} />
                 <div className="nav-item-icon" style={item.backgroundColor ? { background: item.backgroundColor, color: contrastText(item.backgroundColor) } : undefined}>
                   {safeIconUrl(item.iconUrl) ? <img src={safeIconUrl(item.iconUrl)} alt="" /> : <span>{item.iconText || item.name.slice(0, 2)}</span>}
                 </div>
@@ -375,13 +457,16 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
                   <div className="nav-child-list">
                     {item.children.map((child) => (
                       <div
-                        className="nav-child-row"
+                        className={["nav-child-row", dragChildId === child.id ? "is-dragging" : "", dragOverKey === "child:" + child.id && dragChildId !== child.id ? "is-drop-target" : ""].filter(Boolean).join(" ")}
                         key={child.id}
                         draggable
-                        onDragStart={() => setDragChildId(child.id)}
+                        onDragStart={() => { setDragChildId(child.id); setDragOverKey(""); }}
+                        onDragEnter={() => setDragOverKey("child:" + child.id)}
                         onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => void dropChild(item, child.id)}
+                        onDragEnd={() => { setDragChildId(null); setDragOverKey(""); }}
+                        onDrop={() => { setDragOverKey(""); void dropChild(item, child.id); }}
                       >
+                        <input className="nav-select-checkbox" type="checkbox" checked={selectedIds.includes(child.id)} onChange={() => toggleSelection(child.id)} onClick={(event) => event.stopPropagation()} aria-label={"选择 " + child.name} />
                         <span>↳</span>
                         <strong>{child.name}</strong>
                         <small>{child.url || "无 URL"}</small>
@@ -427,9 +512,34 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
               </div>
             </div>
           ) : null}
-          {message ? <p className="admin-message">{message}</p> : null}
         </section>
       </section>
+
+      {bulkMoveOpen ? (
+        <div className="admin-modal-backdrop" onMouseDown={() => setBulkMoveOpen(false)}>
+          <form className="admin-modal" onSubmit={applyBulkMove} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="admin-modal-head">
+              <h3>移动 {selectedIds.length} 个导航项</h3>
+              <button type="button" onClick={() => setBulkMoveOpen(false)}>×</button>
+            </div>
+            <label>
+              目标分组
+              <select value={bulkGroupId} onChange={(event) => { setBulkGroupId(Number(event.target.value)); setBulkParentId(null); }}>
+                {tree.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+              </select>
+            </label>
+            <label>
+              目标文件夹
+              <select value={bulkParentId ?? ""} onChange={(event) => setBulkParentId(event.target.value ? Number(event.target.value) : null)}>
+                <option value="">分组根目录</option>
+                {bulkFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              </select>
+            </label>
+            <p className="field-hint">如果同时选择了文件夹和它的子项，只移动最外层文件夹，内部层级会保持不变。</p>
+            <button className="primary-button" type="submit" disabled={busy}>确认移动</button>
+          </form>
+        </div>
+      ) : null}
 
       {groupForm ? (
         <div className="admin-modal-backdrop" onMouseDown={() => setGroupForm(null)}>

@@ -405,7 +405,7 @@ export function StartClient({
         </div>
 
         {initialTree.groups.length === 0 ? (
-          <div className="glass-card start-empty">
+          <div className="glass-card start-state-card start-empty">
             <h2>还没有导航数据</h2>
             <p>可以从管理后台导入 iTab 备份，或手动添加第一个分组。</p>
             {authenticated ? <Link href="/admin/navigation">管理导航</Link> : null}
@@ -448,7 +448,7 @@ export function StartClient({
             })}
           </div>
         ) : (
-          <div className="glass-card start-search-empty">
+          <div className="glass-card start-state-card start-search-empty">
             <strong>没有匹配的导航</strong>
             <p>按 Enter 使用 {engine} 搜索“{query.trim()}”，或换一个关键词。</p>
           </div>

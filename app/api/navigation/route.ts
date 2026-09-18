@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { isSameOriginRequest } from "@/lib/auth/request";
 import {
-  createGroup, createItem, deleteGroup, deleteItem, getNavigationTree, incrementItemVisit,
+  bulkDeleteItems, bulkMoveItems, createGroup, createItem, deleteGroup, deleteItem, getNavigationTree, incrementItemVisit,
   reorderGroups, reorderItems, updateGroup, updateItem
 } from "@/lib/navigation/repository";
 
@@ -88,6 +88,18 @@ export async function POST(request: NextRequest) {
       case "delete_item":
         deleteItem(id(data.id));
         return NextResponse.json({ ok: true, tree: getNavigationTree(true) });
+      case "bulk_delete": {
+        const ids = Array.isArray(data.ids) ? data.ids.map(id) : [];
+        const deleted = bulkDeleteItems(ids);
+        return NextResponse.json({ ok: true, deleted, tree: getNavigationTree(true) });
+      }
+      case "bulk_move": {
+        const ids = Array.isArray(data.ids) ? data.ids.map(id) : [];
+        const groupId = id(data.groupId);
+        const parentId = data.parentId ? id(data.parentId) : null;
+        const moved = bulkMoveItems(ids, groupId, parentId);
+        return NextResponse.json({ ok: true, moved, tree: getNavigationTree(true) });
+      }
       case "reorder_groups": {
         const ids = Array.isArray(data.ids) ? data.ids.map(id) : [];
         reorderGroups(ids);

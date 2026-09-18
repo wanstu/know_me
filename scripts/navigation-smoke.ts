@@ -1,4 +1,6 @@
 import {
+  bulkDeleteItems,
+  bulkMoveItems,
   createGroup,
   createItem,
   deleteGroup,
@@ -86,8 +88,21 @@ try {
     "navigation_cycle"
   );
 
+  const moved = bulkMoveItems([folder2, child], groupA, null);
+  assert(moved === 1, "bulk move should collapse descendant selections");
+  tree = getNavigationTree(true);
+  const movedFolder = tree.groups.find((group) => group.id === groupA)?.items.find((item) => item.id === folder2);
+  assert(Boolean(movedFolder), "bulk move did not move folder");
+  assert(movedFolder?.children.length === 2, "bulk move did not preserve folder hierarchy");
+  assert(movedFolder?.children.every((item) => item.groupId === groupA), "bulk move did not cascade group to children");
+
+  const deleted = bulkDeleteItems([folder2, child]);
+  assert(deleted === 1, "bulk delete should collapse descendant selections");
+  tree = getNavigationTree(true);
+  assert(!tree.groups.some((group) => group.items.some((item) => item.id === folder2)), "bulk delete left folder behind");
+
   console.log("navigation smoke: PASS");
-  console.log("browser-local / cross-group / folder reorder / validation verified");
+  console.log("browser-local / cross-group / folder reorder / batch move-delete / validation verified");
 } finally {
   deleteGroup(groupA);
   deleteGroup(groupB);

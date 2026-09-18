@@ -270,6 +270,61 @@ export function deleteItem(id: number) {
   return getDb().prepare("DELETE FROM nav_items WHERE id = ?").run(id).changes > 0;
 }
 
+function collapseDescendantSelection(ids: number[]) {
+  const db = getDb();
+  const selected = new Set([...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0));
+  const parentOf = db.prepare("SELECT parent_id AS parentId FROM nav_items WHERE id = ? LIMIT 1");
+  const roots: number[] = [];
+
+  for (const id of selected) {
+    let row = parentOf.get(id) as { parentId: number | null } | undefined;
+    if (!row) continue;
+    let parentId = row.parentId;
+    let nested = false;
+    while (parentId) {
+      if (selected.has(parentId)) {
+        nested = true;
+        break;
+      }
+      row = parentOf.get(parentId) as { parentId: number | null } | undefined;
+      parentId = row?.parentId ?? null;
+    }
+    if (!nested) roots.push(id);
+  }
+  return roots;
+}
+
+export function bulkDeleteItems(ids: number[]) {
+  const unique = collapseDescendantSelection(ids);
+  if (!unique.length) return 0;
+  const db = getDb();
+  const remove = db.prepare("DELETE FROM nav_items WHERE id = ?");
+  let changes = 0;
+  db.transaction(() => {
+    for (const id of unique) changes += remove.run(id).changes;
+  })();
+  return changes;
+}
+
+export function bulkMoveItems(ids: number[], groupId: number, parentId: number | null) {
+  const unique = collapseDescendantSelection(ids);
+  if (!unique.length) return 0;
+  ensureGroupExists(groupId);
+  const db = getDb();
+  let moved = 0;
+  db.transaction(() => {
+    for (const id of unique) {
+      const row = db.prepare("SELECT id FROM nav_items WHERE id = ? LIMIT 1").get(id) as { id: number } | undefined;
+      if (!row) continue;
+      validatePlacement(id, groupId, parentId);
+    }
+    for (const id of unique) {
+      if (updateItem(id, { groupId, parentId })) moved += 1;
+    }
+  })();
+  return moved;
+}
+
 export function reorderGroups(ids: number[]) {
   const db = getDb();
   const update = db.prepare("UPDATE nav_groups SET sort_order = ?, updated_at = ? WHERE id = ?");

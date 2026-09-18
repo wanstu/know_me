@@ -28,6 +28,9 @@ export async function PATCH(request: NextRequest) {
     if (body.defaultSearchEngine !== undefined) input.defaultSearchEngine = String(body.defaultSearchEngine) as SearchEngineName;
     if (body.themeMode !== undefined) input.themeMode = String(body.themeMode) as ThemeMode;
     if (body.startDensity !== undefined) input.startDensity = String(body.startDensity) as StartDensity;
+    if (typeof body.startCardOpacity === "number") input.startCardOpacity = body.startCardOpacity;
+    if (typeof body.startCardRadius === "number") input.startCardRadius = body.startCardRadius;
+    if (typeof body.startBackgroundDim === "number") input.startBackgroundDim = body.startBackgroundDim;
 
     return NextResponse.json({ ok: true, settings: updateSiteSettings(input) });
   } catch (error) {

@@ -20,6 +20,9 @@ export type SiteSettings = {
   defaultSearchEngine: SearchEngineName;
   themeMode: ThemeMode;
   startDensity: StartDensity;
+  startCardOpacity: number;
+  startCardRadius: number;
+  startBackgroundDim: number;
 };
 
 const defaults: SiteSettings = {
@@ -37,8 +40,15 @@ const defaults: SiteSettings = {
   startPublic: false,
   defaultSearchEngine: "Bing",
   themeMode: "auto",
-  startDensity: "comfortable"
+  startDensity: "comfortable",
+  startCardOpacity: 64,
+  startCardRadius: 22,
+  startBackgroundDim: 62
 };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
 
 function object(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -86,7 +96,10 @@ export function getSiteSettings(): SiteSettings {
     startPublic: stored.startPublic === true,
     defaultSearchEngine: engine,
     themeMode,
-    startDensity
+    startDensity,
+    startCardOpacity: typeof stored.startCardOpacity === "number" ? clamp(stored.startCardOpacity, 30, 95) : defaults.startCardOpacity,
+    startCardRadius: typeof stored.startCardRadius === "number" ? clamp(stored.startCardRadius, 12, 32) : defaults.startCardRadius,
+    startBackgroundDim: typeof stored.startBackgroundDim === "number" ? clamp(stored.startBackgroundDim, 0, 90) : defaults.startBackgroundDim
   };
 }
 
@@ -118,7 +131,10 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     startDensity:
       input.startDensity === "compact" || input.startDensity === "comfortable" || input.startDensity === "spacious"
         ? input.startDensity
-        : current.startDensity
+        : current.startDensity,
+    startCardOpacity: typeof input.startCardOpacity === "number" ? clamp(input.startCardOpacity, 30, 95) : current.startCardOpacity,
+    startCardRadius: typeof input.startCardRadius === "number" ? clamp(input.startCardRadius, 12, 32) : current.startCardRadius,
+    startBackgroundDim: typeof input.startBackgroundDim === "number" ? clamp(input.startBackgroundDim, 0, 90) : current.startBackgroundDim
   };
   setSetting("site", next);
   return next;

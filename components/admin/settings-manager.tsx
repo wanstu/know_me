@@ -107,6 +107,18 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
               <option value="spacious">宽松</option>
             </select>
           </label>
+          <label className="range-setting">
+            <span>卡片透明度 <strong>{settings.startCardOpacity}%</strong></span>
+            <input type="range" min="30" max="95" value={settings.startCardOpacity} onChange={(event) => update("startCardOpacity", Number(event.target.value))} />
+          </label>
+          <label className="range-setting">
+            <span>卡片圆角 <strong>{settings.startCardRadius}px</strong></span>
+            <input type="range" min="12" max="32" value={settings.startCardRadius} onChange={(event) => update("startCardRadius", Number(event.target.value))} />
+          </label>
+          <label className="range-setting">
+            <span>背景遮罩 <strong>{settings.startBackgroundDim}%</strong></span>
+            <input type="range" min="0" max="90" value={settings.startBackgroundDim} onChange={(event) => update("startBackgroundDim", Number(event.target.value))} />
+          </label>
           <label className="settings-check">
             <input type="checkbox" checked={settings.startPublic} onChange={(event) => update("startPublic", event.target.checked)} />
             <span>

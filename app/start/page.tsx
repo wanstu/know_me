@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LogoutButton } from "@/components/logout-button";
@@ -15,9 +16,14 @@ export default async function StartPage() {
 
   const authenticated = Boolean(user);
   const tree = getNavigationTree(authenticated);
+  const startStyle = {
+    "--start-card-alpha": String(settings.startCardOpacity / 100),
+    "--start-card-radius": settings.startCardRadius + "px",
+    "--wallpaper-dim": String(settings.startBackgroundDim / 100)
+  } as CSSProperties;
 
   return (
-    <main className={"immersive-page start-page theme-" + settings.themeMode}>
+    <main className={"immersive-page start-page theme-" + settings.themeMode} style={startStyle}>
       <AmbientWallpaper url={settings.startBackgroundUrl} />
       <StartClient
         initialTree={tree}
