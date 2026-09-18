@@ -42,6 +42,12 @@ async function main() {
     const adminResponse = await fetch(`${base}/admin`, { headers: { cookie }, redirect: "manual" });
     if (adminResponse.status !== 200) throw new Error(`authenticated /admin expected 200, got ${adminResponse.status}`);
 
+    const dedicatedAdminRoutes = ["/admin/navigation", "/admin/profile", "/admin/appearance", "/admin/import-export", "/admin/settings"];
+    for (const route of dedicatedAdminRoutes) {
+      const response = await fetch(`${base}${route}`, { headers: { cookie }, redirect: "manual" });
+      if (response.status !== 200) throw new Error(`authenticated ${route} expected 200, got ${response.status}`);
+    }
+
     const logoutResponse = await fetch(`${base}/api/auth/logout`, {
       method: "POST",
       headers: { cookie, origin: base },
@@ -50,7 +56,7 @@ async function main() {
     if (logoutResponse.status !== 303) throw new Error(`logout expected 303, got ${logoutResponse.status}`);
 
     console.log("auth smoke: PASS");
-    console.log(`protected=${protectedResponse.status} login=${loginResponse.status} start=${authedResponse.status} admin=${adminResponse.status} logout=${logoutResponse.status}`);
+    console.log(`protected=${protectedResponse.status} login=${loginResponse.status} start=${authedResponse.status} admin=${adminResponse.status} dedicated-admin=200 logout=${logoutResponse.status}`);
   } finally {
     const row = db.prepare("SELECT id FROM users WHERE username = ? LIMIT 1").get(username) as { id: number } | undefined;
     if (row) {

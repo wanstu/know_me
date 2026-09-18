@@ -56,9 +56,10 @@ export default function AdminPage() {
           <strong>快捷操作</strong>
           <Link className="quick-link" href="/admin/posts/new">写一篇 Markdown</Link>
           <Link className="quick-link" href="/admin/navigation">管理起始页</Link>
-          <Link className="quick-link" href="/admin/navigation#import">导入 iTab 数据</Link>
+          <Link className="quick-link" href="/admin/import-export">导入 / 导出 iTab</Link>
           <Link className="quick-link" href="/start">查看起始页</Link>
-          <Link className="quick-link" href="/admin/settings">个人主页 / 外观设置</Link>
+          <Link className="quick-link" href="/admin/profile">个人主页设置</Link>
+          <Link className="quick-link" href="/admin/appearance">主题与外观</Link>
         </div>
       </div>
     </AdminShell>

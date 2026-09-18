@@ -14,6 +14,7 @@ import type {
 } from "@/lib/settings/repository";
 
 type MediaTarget = "avatarUrl" | "homeBackgroundUrl" | "startBackgroundUrl" | null;
+type SettingsSection = "all" | "profile" | "appearance" | "settings";
 
 const themePresets: Array<{
   id: ThemePreset;
@@ -42,10 +43,12 @@ function move<T>(items: T[], from: number, to: number) {
 
 export function SettingsManager({
   initialSettings,
-  media
+  media,
+  section = "all"
 }: {
   initialSettings: SiteSettings;
   media: MediaRecord[];
+  section?: SettingsSection;
 }) {
   const [settings, setSettings] = useState(initialSettings);
   const [message, setMessage] = useState("");
@@ -121,8 +124,8 @@ export function SettingsManager({
   }
 
   return (
-    <div className="settings-layout">
-      <section className="admin-panel settings-section">
+    <div className={"settings-layout settings-view-" + section}>
+      <section className="admin-panel settings-section" data-settings-section="profile">
         <div>
           <div className="eyebrow">Profile</div>
           <h2>个人资料</h2>
@@ -143,12 +146,12 @@ export function SettingsManager({
             </div>
           </label>
 
-          <label>主页短句<input value={settings.quote} onChange={(event) => update("quote", event.target.value)} /></label>
-          <label>短句署名<input value={settings.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
+          <label>自定义短句<input value={settings.quote} onChange={(event) => update("quote", event.target.value)} /><small className="field-hint">会与内置短句一起进入随机池，每次进入个人主页随机展示一条。</small></label>
+          <label>自定义短句署名<input value={settings.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
         </div>
       </section>
 
-      <section className="admin-panel settings-section">
+      <section className="admin-panel settings-section" data-settings-section="profile">
         <div>
           <div className="eyebrow">Social</div>
           <h2>社交入口</h2>
@@ -178,7 +181,7 @@ export function SettingsManager({
         </div>
       </section>
 
-      <section className="admin-panel settings-section">
+      <section className="admin-panel settings-section" data-settings-section="profile">
         <div>
           <div className="eyebrow">Explore</div>
           <h2>主页入口卡片</h2>
@@ -213,7 +216,7 @@ export function SettingsManager({
         </div>
       </section>
 
-      <section className="admin-panel settings-section">
+      <section className="admin-panel settings-section" data-settings-section="profile">
         <div>
           <div className="eyebrow">Projects</div>
           <h2>项目与作品</h2>
@@ -245,7 +248,7 @@ export function SettingsManager({
         </div>
       </section>
 
-      <section className="admin-panel settings-section">
+      <section className="admin-panel settings-section" data-settings-section="appearance">
         <div>
           <div className="eyebrow">Appearance</div>
           <h2>主题与背景</h2>
@@ -336,7 +339,7 @@ export function SettingsManager({
         </div>
       </section>
 
-      <section className="admin-panel settings-section">
+      <section className="admin-panel settings-section" data-settings-section="settings">
         <div>
           <div className="eyebrow">Backup</div>
           <h2>备份与恢复</h2>

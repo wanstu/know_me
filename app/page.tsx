@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
 import { getSiteSettings } from "@/lib/settings/repository";
+import { randomHomeQuote } from "@/lib/home/quotes";
 import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
@@ -35,6 +36,7 @@ export default function HomePage() {
   const projects = settings.projects
     .map((item) => ({ ...item, href: safeHref(item.url, false) }))
     .filter((item) => item.name);
+  const dailyQuote = randomHomeQuote(settings.quote, settings.quoteAuthor);
 
   return (
     <main className={"immersive-page " + themeClass(settings)}>
@@ -76,8 +78,8 @@ export default function HomePage() {
 
         <section className="home-side">
           <article className="glass-card quote-card">
-            <p>{settings.quote}</p>
-            <span>— {settings.quoteAuthor}</span>
+            <p>{dailyQuote.text}</p>
+            <span>— {dailyQuote.author}</span>
           </article>
 
           <article className="glass-card time-card">

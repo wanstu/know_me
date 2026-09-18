@@ -30,6 +30,7 @@ jobs:
       - run: npm run taxonomy:smoke
       - run: npm run media:smoke
       - run: npm run settings:smoke
+      - run: npm run quotes:smoke
       - run: npm run backup:smoke
       - run: npm run security:smoke
       - run: npm run build

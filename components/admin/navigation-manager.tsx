@@ -34,6 +34,22 @@ type ImportPreview = {
   conflicts: number;
 };
 
+const groupMarks: Record<string, string> = {
+  home: "⌂",
+  code: "</>",
+  read: "文",
+  app: "◇",
+  entertainment: "游",
+  office: "工",
+  tool: "⌘"
+};
+
+function groupMark(group: NavGroup) {
+  const icon = group.icon.trim();
+  if (groupMarks[icon]) return groupMarks[icon];
+  return icon ? icon.slice(0, 2) : group.name.slice(0, 1);
+}
+
 function move<T>(list: T[], from: number, to: number) {
   const copy = [...list];
   const [value] = copy.splice(from, 1);
@@ -76,7 +92,7 @@ function contrastText(background: string) {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.68 ? "#172033" : "#ffffff";
 }
 
-export function NavigationManager({ initialTree }: { initialTree: NavigationTree }) {
+export function NavigationManager({ initialTree, showImportPanel = false }: { initialTree: NavigationTree; showImportPanel?: boolean }) {
   const [tree, setTree] = useState(initialTree);
   const [activeGroupId, setActiveGroupId] = useState(initialTree.groups[0]?.id ?? 0);
   const [groupForm, setGroupForm] = useState<GroupFormState | null>(null);
@@ -377,8 +393,8 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
               className={[group.id === activeGroup?.id ? "is-active" : "", dragGroupId === group.id ? "is-dragging" : "", dragOverKey === "group:" + group.id && dragGroupId !== group.id ? "is-drop-target" : ""].filter(Boolean).join(" ")}
               onClick={() => { setActiveGroupId(group.id); setSelectedIds([]); setBulkGroupId(group.id); }}
             >
-              <span>{group.icon || "•"}</span>
-              <strong>{group.name}</strong>
+              <span className="nav-group-mark" title={group.icon || group.name}>{groupMark(group)}</span>
+              <strong className="nav-group-name">{group.name}</strong>
               <small>{group.items.length}</small>
             </button>
           ))}
@@ -401,7 +417,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
           </div>
           <div className="nav-admin-toolbar-actions">
             {activeGroup ? <button type="button" className="secondary-button" onClick={() => newItem()}>＋ 新增入口</button> : null}
-            <a className="secondary-button" href="/api/navigation/export">导出 iTab</a>
+            <a className="secondary-button" href="/admin/import-export">导入 / 导出</a>
           </div>
         </div>
 
@@ -484,7 +500,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
           <div className="admin-empty">先创建一个分组，或者在下面导入 iTab 备份。</div>
         )}
 
-        <section className="admin-panel nav-import-panel" id="import">
+        {showImportPanel ? <section className="admin-panel nav-import-panel" id="import">
           <div>
             <strong>iTab 导入 / 导出</strong>
             <p className="muted">支持当前备份中的分组、普通链接、文件夹、颜色、图标、访问次数和尺寸。未知字段会保留，便于再次导出。</p>
@@ -512,7 +528,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
               </div>
             </div>
           ) : null}
-        </section>
+        </section> : null}
       </section>
 
       {bulkMoveOpen ? (

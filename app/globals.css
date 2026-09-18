@@ -3410,3 +3410,115 @@ a.project-card:hover {
 .admin-page .settings-media-grid img {
   background: var(--ui-panel-2);
 }
+
+
+/* admin navigation group label fix */
+.nav-group-list > button {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+}
+.nav-group-mark {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--ui-panel-soft);
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.nav-group-list > button.is-active .nav-group-mark,
+.nav-group-list > button:hover .nav-group-mark {
+  background: rgb(var(--ui-accent-rgb) / .13);
+  color: rgb(var(--ui-accent-rgb));
+}
+.nav-group-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+
+/* dedicated admin settings pages */
+.settings-view-profile [data-settings-section]:not([data-settings-section="profile"]),
+.settings-view-appearance [data-settings-section]:not([data-settings-section="appearance"]),
+.settings-view-settings [data-settings-section]:not([data-settings-section="settings"]) {
+  display: none;
+}
+.settings-view-profile .settings-savebar,
+.settings-view-appearance .settings-savebar,
+.settings-view-settings .settings-savebar {
+  margin-top: 2px;
+}
+
+
+/* dedicated import / export page */
+.import-export-layout {
+  display: grid;
+  gap: 16px;
+}
+.import-export-card {
+  display: grid;
+  gap: 18px;
+}
+.import-export-head,
+.import-export-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.import-export-card h2 {
+  margin: 5px 0 7px;
+}
+.import-export-card p,
+.import-export-note p {
+  margin-bottom: 0;
+}
+.import-export-picker {
+  margin-top: 0;
+}
+.import-preview--standalone {
+  margin-top: 0;
+}
+.import-export-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.import-export-actions > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+.import-export-actions > div {
+  display: flex;
+  gap: 8px;
+}
+.import-export-note {
+  padding: 18px 20px;
+}
+.import-export-note > div {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .import-export-head,
+  .import-export-note,
+  .import-export-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .import-export-actions > div {
+    flex-wrap: wrap;
+  }
+  .import-preview--standalone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

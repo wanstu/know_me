@@ -9,9 +9,9 @@ const menu = [
   { key: "taxonomy", label: "分类与标签", href: "/admin/taxonomy" },
   { key: "media", label: "媒体", href: "/admin/media" },
   { key: "navigation", label: "起始页", href: "/admin/navigation" },
-  { key: "profile", label: "个人主页", href: "/admin/settings" },
-  { key: "appearance", label: "外观", href: "/admin/settings" },
-  { key: "import", label: "导入 / 导出", href: "/admin/navigation#import" },
+  { key: "profile", label: "个人主页", href: "/admin/profile" },
+  { key: "appearance", label: "外观", href: "/admin/appearance" },
+  { key: "import", label: "导入 / 导出", href: "/admin/import-export" },
   { key: "settings", label: "设置", href: "/admin/settings" }
 ];
 
