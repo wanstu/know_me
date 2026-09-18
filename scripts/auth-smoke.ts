@@ -35,6 +35,9 @@ async function main() {
 
     const authedResponse = await fetch(`${base}/start`, { headers: { cookie }, redirect: "manual" });
     if (authedResponse.status !== 200) throw new Error(`authenticated /start expected 200, got ${authedResponse.status}`);
+    const startHtml = await authedResponse.text();
+    const firstGroup = db.prepare("SELECT name FROM nav_groups ORDER BY sort_order, id LIMIT 1").get() as { name: string } | undefined;
+    if (firstGroup && !startHtml.includes(firstGroup.name)) throw new Error("authenticated /start did not render navigation data");
 
     const adminResponse = await fetch(`${base}/admin`, { headers: { cookie }, redirect: "manual" });
     if (adminResponse.status !== 200) throw new Error(`authenticated /admin expected 200, got ${adminResponse.status}`);
