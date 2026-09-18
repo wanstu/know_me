@@ -11,6 +11,7 @@
     "admin:init": "tsx scripts/init-admin.ts",
     "auth:smoke": "tsx scripts/auth-smoke.ts",
     "itab:smoke": "tsx scripts/itab-smoke.ts",
+    "navigation:smoke": "tsx scripts/navigation-smoke.ts",
     "itab:import": "tsx scripts/import-itab.ts",
     "blog:smoke": "tsx scripts/blog-smoke.ts",
     "media:smoke": "tsx scripts/media-smoke.ts",

@@ -25,6 +25,7 @@ jobs:
       - run: npm run db:migrate
       - run: npm run typecheck
       - run: npm run itab:smoke
+      - run: npm run navigation:smoke
       - run: npm run blog:smoke
       - run: npm run media:smoke
       - run: npm run settings:smoke

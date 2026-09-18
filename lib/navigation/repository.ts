@@ -120,6 +120,51 @@ export type ItemInput = {
   externalId?: string | null; extra?: Record<string, unknown>;
 };
 
+function isBrowserLocalUrl(url: string) {
+  return /^(about|moz-extension|chrome|chrome-extension|edge|file):/i.test(url.trim());
+}
+
+function validateNavUrl(url: string) {
+  const value = url.trim();
+  if (!value) return;
+  if (!/^(https?:|about:|moz-extension:|chrome:|chrome-extension:|edge:|file:)/i.test(value)) {
+    throw new Error("unsupported_nav_url");
+  }
+}
+
+function validateIconUrl(url: string) {
+  const value = url.trim();
+  if (!value) return;
+  if (!/^https?:\/\//i.test(value) && !value.startsWith("/media/")) {
+    throw new Error("unsupported_icon_url");
+  }
+}
+
+function ensureGroupExists(groupId: number) {
+  const row = getDb().prepare("SELECT 1 FROM nav_groups WHERE id = ? LIMIT 1").get(groupId);
+  if (!row) throw new Error("group_not_found");
+}
+
+function validatePlacement(itemId: number | null, groupId: number, parentId: number | null) {
+  const db = getDb();
+  ensureGroupExists(groupId);
+  if (!parentId) return;
+
+  let cursor: number | null = parentId;
+  let first = true;
+  while (cursor) {
+    if (itemId && cursor === itemId) throw new Error("navigation_cycle");
+    const row = db.prepare(
+      "SELECT id, group_id AS groupId, parent_id AS parentId, type FROM nav_items WHERE id = ? LIMIT 1"
+    ).get(cursor) as { id: number; groupId: number; parentId: number | null; type: NavItemType } | undefined;
+    if (!row) throw new Error("parent_not_found");
+    if (row.groupId !== groupId) throw new Error("parent_group_mismatch");
+    if (first && row.type !== "folder") throw new Error("parent_not_folder");
+    first = false;
+    cursor = row.parentId;
+  }
+}
+
 function nextItemSort(groupId: number, parentId: number | null) {
   const row = getDb().prepare(
     "SELECT COALESCE(MAX(sort_order), -1) AS value FROM nav_items WHERE group_id = ? AND ((parent_id IS NULL AND ? IS NULL) OR parent_id = ?)"
@@ -127,19 +172,41 @@ function nextItemSort(groupId: number, parentId: number | null) {
   return row.value + 1;
 }
 
+function moveDescendantsToGroup(itemId: number, groupId: number) {
+  const sql =
+    "WITH RECURSIVE descendants(id) AS (" +
+    " SELECT id FROM nav_items WHERE parent_id = ?" +
+    " UNION ALL" +
+    " SELECT nav_items.id FROM nav_items JOIN descendants ON nav_items.parent_id = descendants.id" +
+    ")" +
+    " UPDATE nav_items SET group_id = ?, updated_at = ? WHERE id IN (SELECT id FROM descendants)";
+  getDb().prepare(sql).run(itemId, groupId, Date.now());
+}
+
 export function createItem(input: ItemInput) {
   const db = getDb();
   const now = Date.now();
   const parentId = input.parentId ?? null;
+  const type = input.type ?? "link";
+  const name = input.name.trim();
+  const url = input.url?.trim() ?? "";
+  const iconUrl = input.iconUrl?.trim() ?? "";
+
+  if (!name) throw new Error("item_name_required");
+  validateNavUrl(url);
+  validateIconUrl(iconUrl);
+  validatePlacement(null, input.groupId, parentId);
+
+  const browserLocal = input.browserLocal ?? isBrowserLocalUrl(url);
   const result = db.prepare(
-    `INSERT INTO nav_items
-      (external_id, group_id, parent_id, type, name, url, icon_url, icon_text, background_color, size, visit_count, sort_order, visibility, browser_local, extra_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    "INSERT INTO nav_items " +
+    "(external_id, group_id, parent_id, type, name, url, icon_url, icon_text, background_color, size, visit_count, sort_order, visibility, browser_local, extra_json, created_at, updated_at) " +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(
-    input.externalId ?? null, input.groupId, parentId, input.type ?? "link", input.name.trim(), input.url?.trim() ?? "",
-    input.iconUrl?.trim() ?? "", input.iconText?.trim() ?? "", input.backgroundColor?.trim() ?? "", input.size ?? "1x1",
+    input.externalId ?? null, input.groupId, parentId, type, name, url,
+    iconUrl, input.iconText?.trim() ?? "", input.backgroundColor?.trim() ?? "", input.size ?? "1x1",
     input.visitCount ?? 0, input.sortOrder ?? nextItemSort(input.groupId, parentId), input.visibility ?? "private",
-    input.browserLocal ? 1 : 0, JSON.stringify(input.extra ?? {}), now, now
+    browserLocal ? 1 : 0, JSON.stringify(input.extra ?? {}), now, now
   );
   return Number(result.lastInsertRowid);
 }
@@ -147,27 +214,55 @@ export function createItem(input: ItemInput) {
 export function updateItem(id: number, input: Partial<ItemInput>) {
   const db = getDb();
   const current = db.prepare(
-    `SELECT external_id AS externalId, group_id AS groupId, parent_id AS parentId, type, name, url, icon_url AS iconUrl,
-            icon_text AS iconText, background_color AS backgroundColor, size, visit_count AS visitCount, sort_order AS sortOrder,
-            visibility, browser_local AS browserLocal, extra_json AS extraJson
-     FROM nav_items WHERE id = ?`
+    "SELECT external_id AS externalId, group_id AS groupId, parent_id AS parentId, type, name, url, icon_url AS iconUrl, " +
+    "icon_text AS iconText, background_color AS backgroundColor, size, visit_count AS visitCount, sort_order AS sortOrder, " +
+    "visibility, browser_local AS browserLocal, extra_json AS extraJson FROM nav_items WHERE id = ?"
   ).get(id) as ItemRow | undefined;
   if (!current) return false;
 
-  db.prepare(
-    `UPDATE nav_items SET external_id = ?, group_id = ?, parent_id = ?, type = ?, name = ?, url = ?, icon_url = ?, icon_text = ?,
-      background_color = ?, size = ?, visit_count = ?, sort_order = ?, visibility = ?, browser_local = ?, extra_json = ?, updated_at = ?
-     WHERE id = ?`
-  ).run(
-    input.externalId === undefined ? current.externalId : input.externalId, input.groupId ?? current.groupId,
-    input.parentId === undefined ? current.parentId : input.parentId, input.type ?? current.type,
-    input.name === undefined ? current.name : input.name.trim(), input.url === undefined ? current.url : input.url.trim(),
-    input.iconUrl === undefined ? current.iconUrl : input.iconUrl.trim(), input.iconText === undefined ? current.iconText : input.iconText.trim(),
-    input.backgroundColor === undefined ? current.backgroundColor : input.backgroundColor.trim(), input.size ?? current.size,
-    input.visitCount ?? current.visitCount, input.sortOrder ?? current.sortOrder, input.visibility ?? current.visibility,
-    input.browserLocal === undefined ? current.browserLocal : input.browserLocal ? 1 : 0,
-    JSON.stringify(input.extra ?? parseExtra(current.extraJson)), Date.now(), id
-  );
+  const groupId = input.groupId ?? current.groupId;
+  const parentId = input.parentId === undefined ? current.parentId : input.parentId;
+  const type = input.type ?? current.type;
+  const name = input.name === undefined ? current.name : input.name.trim();
+  const url = input.url === undefined ? current.url : input.url.trim();
+  const iconUrl = input.iconUrl === undefined ? current.iconUrl : input.iconUrl.trim();
+
+  if (!name) throw new Error("item_name_required");
+  validateNavUrl(url);
+  validateIconUrl(iconUrl);
+  validatePlacement(id, groupId, parentId);
+
+  if (current.type === "folder" && type !== "folder") {
+    const child = db.prepare("SELECT 1 FROM nav_items WHERE parent_id = ? LIMIT 1").get(id);
+    if (child) throw new Error("folder_has_children");
+  }
+
+  const moved = groupId !== current.groupId || parentId !== current.parentId;
+  const sortOrder = input.sortOrder ?? (moved ? nextItemSort(groupId, parentId) : current.sortOrder);
+  const browserLocal = input.browserLocal === undefined
+    ? (input.url === undefined ? current.browserLocal === 1 : isBrowserLocalUrl(url))
+    : input.browserLocal;
+
+  db.transaction(() => {
+    db.prepare(
+      "UPDATE nav_items SET external_id = ?, group_id = ?, parent_id = ?, type = ?, name = ?, url = ?, icon_url = ?, icon_text = ?, " +
+      "background_color = ?, size = ?, visit_count = ?, sort_order = ?, visibility = ?, browser_local = ?, extra_json = ?, updated_at = ? " +
+      "WHERE id = ?"
+    ).run(
+      input.externalId === undefined ? current.externalId : input.externalId,
+      groupId, parentId, type, name, url, iconUrl,
+      input.iconText === undefined ? current.iconText : input.iconText.trim(),
+      input.backgroundColor === undefined ? current.backgroundColor : input.backgroundColor.trim(),
+      input.size ?? current.size, input.visitCount ?? current.visitCount, sortOrder,
+      input.visibility ?? current.visibility, browserLocal ? 1 : 0,
+      JSON.stringify(input.extra ?? parseExtra(current.extraJson)), Date.now(), id
+    );
+
+    if (groupId !== current.groupId && current.type === "folder") {
+      moveDescendantsToGroup(id, groupId);
+    }
+  })();
+
   return true;
 }
 

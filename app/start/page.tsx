@@ -23,6 +23,7 @@ export default async function StartPage() {
         initialTree={tree}
         defaultEngine={settings.defaultSearchEngine}
         authenticated={authenticated}
+        density={settings.startDensity}
       />
       <div className="start-logout">
         {authenticated ? <LogoutButton compact /> : <Link className="public-login-chip" href="/login?next=%2Fstart">登录</Link>}

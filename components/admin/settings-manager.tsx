@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { SearchEngineName, SiteSettings, ThemeMode } from "@/lib/settings/repository";
+import type { SearchEngineName, SiteSettings, ThemeMode, StartDensity } from "@/lib/settings/repository";
 
 export function SettingsManager({ initialSettings }: { initialSettings: SiteSettings }) {
   const [settings, setSettings] = useState(initialSettings);
@@ -97,6 +97,14 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
               <option value="auto">跟随系统</option>
               <option value="dark">深色</option>
               <option value="light">浅色</option>
+            </select>
+          </label>
+          <label>
+            起始页卡片密度
+            <select value={settings.startDensity} onChange={(event) => update("startDensity", event.target.value as StartDensity)}>
+              <option value="compact">紧凑</option>
+              <option value="comfortable">舒适</option>
+              <option value="spacious">宽松</option>
             </select>
           </label>
           <label className="settings-check">

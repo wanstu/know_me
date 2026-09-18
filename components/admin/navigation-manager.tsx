@@ -45,6 +45,27 @@ function allItems(items: NavItem[]): NavItem[] {
   return items.flatMap((item) => [item, ...allItems(item.children)]);
 }
 
+function humanError(message: string) {
+  const map: Record<string, string> = {
+    unsupported_nav_url: "导航地址只支持 http/https 或 about:/chrome:/edge:/moz-extension: 等浏览器内部协议。",
+    unsupported_icon_url: "图标地址只支持 http/https 或本站 /media/... 地址。",
+    parent_group_mismatch: "目标文件夹不属于所选分组，请重新选择。",
+    parent_not_folder: "只能把导航项放入文件夹。",
+    parent_not_found: "目标文件夹已经不存在，请刷新后重试。",
+    navigation_cycle: "不能把文件夹移动到自己或自己的子级中。",
+    folder_has_children: "这个文件夹还有子项，不能直接改成普通链接。",
+    group_not_found: "目标分组不存在，请刷新后重试。",
+    item_name_required: "导航名称不能为空。"
+  };
+  return map[message] ?? message;
+}
+
+function safeIconUrl(value: string) {
+  const url = value.trim();
+  if (/^https?:\/\//i.test(url) || url.startsWith("/media/")) return url;
+  return "";
+}
+
 function contrastText(background: string) {
   const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(background.trim());
   if (!match) return "#ffffff";
@@ -63,6 +84,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
   const [busy, setBusy] = useState(false);
   const [dragGroupId, setDragGroupId] = useState<number | null>(null);
   const [dragItemId, setDragItemId] = useState<number | null>(null);
+  const [dragChildId, setDragChildId] = useState<number | null>(null);
   const [importRaw, setImportRaw] = useState("");
   const [importName, setImportName] = useState("");
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
@@ -70,9 +92,10 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
   const [message, setMessage] = useState("");
 
   const activeGroup = tree.groups.find((group) => group.id === activeGroupId) ?? tree.groups[0];
+  const itemFormGroup = tree.groups.find((group) => group.id === itemForm?.groupId) ?? activeGroup;
   const folders = useMemo(
-    () => activeGroup ? allItems(activeGroup.items).filter((item) => item.type === "folder") : [],
-    [activeGroup]
+    () => itemFormGroup ? allItems(itemFormGroup.items).filter((item) => item.type === "folder") : [],
+    [itemFormGroup]
   );
 
   async function action(actionName: string, data: Record<string, unknown>) {
@@ -93,6 +116,9 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
         }
       }
       return payload;
+    } catch (error) {
+      setMessage(humanError(error instanceof Error ? error.message : "操作失败"));
+      return null;
     } finally {
       setBusy(false);
     }
@@ -107,8 +133,8 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
       icon: groupForm.icon,
       visibility: groupForm.visibility
     };
-    await action(groupForm.mode === "create" ? "create_group" : "update_group", data);
-    setGroupForm(null);
+    const result = await action(groupForm.mode === "create" ? "create_group" : "update_group", data);
+    if (result) setGroupForm(null);
   }
 
   async function submitItem(event: FormEvent<HTMLFormElement>) {
@@ -127,8 +153,8 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
       size: itemForm.size,
       visibility: itemForm.visibility
     };
-    await action(itemForm.mode === "create" ? "create_item" : "update_item", data);
-    setItemForm(null);
+    const result = await action(itemForm.mode === "create" ? "create_item" : "update_item", data);
+    if (result) setItemForm(null);
   }
 
   async function removeGroup(group: NavGroup) {
@@ -163,6 +189,25 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
     });
     setDragItemId(null);
     await action("reorder_items", { groupId: activeGroup.id, parentId: null, ids: items.map((item) => item.id) });
+  }
+
+  async function dropChild(folder: NavItem, targetId: number) {
+    if (!activeGroup || !dragChildId || dragChildId === targetId) return;
+    const from = folder.children.findIndex((item) => item.id === dragChildId);
+    const to = folder.children.findIndex((item) => item.id === targetId);
+    if (from < 0 || to < 0) return;
+
+    const children = move(folder.children, from, to);
+    const items = activeGroup.items.map((item) => item.id === folder.id ? { ...item, children } : item);
+    setTree({
+      groups: tree.groups.map((group) => group.id === activeGroup.id ? { ...group, items } : group)
+    });
+    setDragChildId(null);
+    await action("reorder_items", {
+      groupId: activeGroup.id,
+      parentId: folder.id,
+      ids: children.map((item) => item.id)
+    });
   }
 
   function newItem(parentId: number | null = null) {
@@ -246,7 +291,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
       setImportRaw("");
       setImportName("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "导入失败");
+      setMessage(humanError(error instanceof Error ? error.message : "导入失败"));
     } finally {
       setBusy(false);
     }
@@ -311,7 +356,7 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
                 onDrop={() => void dropItem(item.id)}
               >
                 <div className="nav-item-icon" style={item.backgroundColor ? { background: item.backgroundColor, color: contrastText(item.backgroundColor) } : undefined}>
-                  {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <span>{item.iconText || item.name.slice(0, 2)}</span>}
+                  {safeIconUrl(item.iconUrl) ? <img src={safeIconUrl(item.iconUrl)} alt="" /> : <span>{item.iconText || item.name.slice(0, 2)}</span>}
                 </div>
                 <div className="nav-item-copy">
                   <strong>{item.name}</strong>
@@ -329,7 +374,14 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
                 {item.children.length ? (
                   <div className="nav-child-list">
                     {item.children.map((child) => (
-                      <div className="nav-child-row" key={child.id}>
+                      <div
+                        className="nav-child-row"
+                        key={child.id}
+                        draggable
+                        onDragStart={() => setDragChildId(child.id)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => void dropChild(item, child.id)}
+                      >
                         <span>↳</span>
                         <strong>{child.name}</strong>
                         <small>{child.url || "无 URL"}</small>
@@ -404,13 +456,14 @@ export function NavigationManager({ initialTree }: { initialTree: NavigationTree
             <div className="admin-form-grid">
               <label>名称<input value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} required /></label>
               <label>类型<select value={itemForm.type} onChange={(event) => setItemForm({ ...itemForm, type: event.target.value as "link" | "folder" })}><option value="link">链接</option><option value="folder">文件夹</option></select></label>
-              <label className="span-2">URL<input value={itemForm.url} onChange={(event) => setItemForm({ ...itemForm, url: event.target.value })} placeholder="https://..." /></label>
-              <label className="span-2">图标 URL<input value={itemForm.iconUrl} onChange={(event) => setItemForm({ ...itemForm, iconUrl: event.target.value })} /></label>
+              <label className="span-2">URL<input value={itemForm.url} onChange={(event) => setItemForm({ ...itemForm, url: event.target.value })} placeholder="https://..." /><small className="field-hint">支持 http/https，也保留 about:、chrome:、edge: 等浏览器内部地址。</small></label>
+              <label className="span-2">图标 URL<input value={itemForm.iconUrl} onChange={(event) => setItemForm({ ...itemForm, iconUrl: event.target.value })} /><small className="field-hint">留空时起始页会尝试读取站点 favicon，失败后使用文字图标。</small></label>
               <label>文字图标<input value={itemForm.iconText} onChange={(event) => setItemForm({ ...itemForm, iconText: event.target.value })} /></label>
               <label>背景色<input value={itemForm.backgroundColor} onChange={(event) => setItemForm({ ...itemForm, backgroundColor: event.target.value })} placeholder="#1681ff" /></label>
               <label>尺寸<select value={itemForm.size} onChange={(event) => setItemForm({ ...itemForm, size: event.target.value as "1x1" | "2x1" | "2x2" })}><option value="1x1">1 × 1</option><option value="2x1">2 × 1</option><option value="2x2">2 × 2</option></select></label>
               <label>可见性<select value={itemForm.visibility} onChange={(event) => setItemForm({ ...itemForm, visibility: event.target.value as "private" | "public" })}><option value="private">私有</option><option value="public">公开</option></select></label>
-              <label className="span-2">所属文件夹<select value={itemForm.parentId ?? ""} onChange={(event) => setItemForm({ ...itemForm, parentId: event.target.value ? Number(event.target.value) : null })}><option value="">不放入文件夹</option>{folders.filter((folder) => folder.id !== itemForm.id).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+              <label>所属分组<select value={itemForm.groupId} onChange={(event) => setItemForm({ ...itemForm, groupId: Number(event.target.value), parentId: null })}>{tree.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+              <label>所属文件夹<select value={itemForm.parentId ?? ""} onChange={(event) => setItemForm({ ...itemForm, parentId: event.target.value ? Number(event.target.value) : null })}><option value="">不放入文件夹</option>{folders.filter((folder) => folder.id !== itemForm.id).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
             </div>
             <button className="primary-button" type="submit" disabled={busy}>保存</button>
           </form>

@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
 export type ThemeMode = "auto" | "dark" | "light";
+export type StartDensity = "compact" | "comfortable" | "spacious";
 
 export type SiteSettings = {
   profileName: string;
@@ -18,6 +19,7 @@ export type SiteSettings = {
   startPublic: boolean;
   defaultSearchEngine: SearchEngineName;
   themeMode: ThemeMode;
+  startDensity: StartDensity;
 };
 
 const defaults: SiteSettings = {
@@ -34,7 +36,8 @@ const defaults: SiteSettings = {
   startBackgroundUrl: "",
   startPublic: false,
   defaultSearchEngine: "Bing",
-  themeMode: "auto"
+  themeMode: "auto",
+  startDensity: "comfortable"
 };
 
 function object(value: unknown) {
@@ -66,6 +69,7 @@ export function getSiteSettings(): SiteSettings {
       ? stored.defaultSearchEngine
       : "Bing";
   const themeMode: ThemeMode = stored.themeMode === "dark" || stored.themeMode === "light" ? stored.themeMode : "auto";
+  const startDensity: StartDensity = stored.startDensity === "compact" || stored.startDensity === "spacious" ? stored.startDensity : "comfortable";
 
   return {
     profileName: typeof stored.profileName === "string" ? stored.profileName : defaults.profileName,
@@ -81,7 +85,8 @@ export function getSiteSettings(): SiteSettings {
     startBackgroundUrl: typeof stored.startBackgroundUrl === "string" ? stored.startBackgroundUrl : defaults.startBackgroundUrl,
     startPublic: stored.startPublic === true,
     defaultSearchEngine: engine,
-    themeMode
+    themeMode,
+    startDensity
   };
 }
 
@@ -109,7 +114,11 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     themeMode:
       input.themeMode === "dark" || input.themeMode === "light" || input.themeMode === "auto"
         ? input.themeMode
-        : current.themeMode
+        : current.themeMode,
+    startDensity:
+      input.startDensity === "compact" || input.startDensity === "comfortable" || input.startDensity === "spacious"
+        ? input.startDensity
+        : current.startDensity
   };
   setSetting("site", next);
   return next;
