@@ -270,6 +270,69 @@ export function listAdminPosts() {
   return (getDb().prepare(SELECT_POST + " ORDER BY updated_at DESC, id DESC").all() as PostRow[]).map(mapRow);
 }
 
+export type TaxonomyKind = "tag" | "category";
+
+export type TaxonomyDetail = {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
+};
+
+function taxonomyTable(kind: TaxonomyKind) {
+  return kind === "tag"
+    ? { table: "tags", joinTable: "post_tags", foreignKey: "tag_id" }
+    : { table: "categories", joinTable: "post_categories", foreignKey: "category_id" };
+}
+
+export function listTaxonomyDetails() {
+  const db = getDb();
+  const tags = db.prepare(
+    "SELECT tags.id AS id, tags.name AS name, tags.slug AS slug, COUNT(post_tags.post_id) AS count " +
+    "FROM tags LEFT JOIN post_tags ON post_tags.tag_id = tags.id GROUP BY tags.id ORDER BY tags.name"
+  ).all() as TaxonomyDetail[];
+  const categories = db.prepare(
+    "SELECT categories.id AS id, categories.name AS name, categories.slug AS slug, COUNT(post_categories.post_id) AS count " +
+    "FROM categories LEFT JOIN post_categories ON post_categories.category_id = categories.id GROUP BY categories.id ORDER BY categories.name"
+  ).all() as TaxonomyDetail[];
+  return { tags, categories };
+}
+
+export function createTaxonomy(kind: TaxonomyKind, rawName: string) {
+  const name = rawName.trim();
+  if (!name) throw new Error("taxonomy_name_required");
+  const db = getDb();
+  const meta = taxonomyTable(kind);
+  const existing = db.prepare("SELECT id FROM " + meta.table + " WHERE name = ? COLLATE NOCASE LIMIT 1").get(name);
+  if (existing) throw new Error("taxonomy_name_exists");
+  return kind === "tag" ? ensureTag(name) : ensureCategory(name);
+}
+
+export function renameTaxonomy(kind: TaxonomyKind, id: number, rawName: string) {
+  const name = rawName.trim();
+  if (!name) throw new Error("taxonomy_name_required");
+  const db = getDb();
+  const meta = taxonomyTable(kind);
+  const current = db.prepare("SELECT id, name, slug FROM " + meta.table + " WHERE id = ? LIMIT 1").get(id) as { id: number; name: string; slug: string } | undefined;
+  if (!current) throw new Error("taxonomy_not_found");
+
+  const duplicate = db.prepare("SELECT id FROM " + meta.table + " WHERE name = ? COLLATE NOCASE AND id != ? LIMIT 1").get(name, id);
+  if (duplicate) throw new Error("taxonomy_name_exists");
+
+  let slug = normalizeSlug(name);
+  let suffix = 2;
+  while (db.prepare("SELECT id FROM " + meta.table + " WHERE slug = ? AND id != ? LIMIT 1").get(slug, id)) {
+    slug = normalizeSlug(name) + "-" + suffix++;
+  }
+
+  db.prepare("UPDATE " + meta.table + " SET name = ?, slug = ?, updated_at = ? WHERE id = ?").run(name, slug, Date.now(), id);
+}
+
+export function deleteTaxonomy(kind: TaxonomyKind, id: number) {
+  const meta = taxonomyTable(kind);
+  return getDb().prepare("DELETE FROM " + meta.table + " WHERE id = ?").run(id).changes > 0;
+}
+
 export function listTaxonomy() {
   const db = getDb();
   return {

@@ -4,7 +4,7 @@ import { LogoutButton } from "@/components/logout-button";
 const menu = [
   { key: "dashboard", label: "总览", href: "/admin" },
   { key: "posts", label: "文章", href: "/admin/posts" },
-  { key: "taxonomy", label: "分类与标签", href: "/admin/posts" },
+  { key: "taxonomy", label: "分类与标签", href: "/admin/taxonomy" },
   { key: "media", label: "媒体", href: "/admin/media" },
   { key: "navigation", label: "起始页", href: "/admin/navigation" },
   { key: "profile", label: "个人主页", href: "/admin/settings" },

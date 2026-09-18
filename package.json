@@ -14,6 +14,7 @@
     "navigation:smoke": "tsx scripts/navigation-smoke.ts",
     "itab:import": "tsx scripts/import-itab.ts",
     "blog:smoke": "tsx scripts/blog-smoke.ts",
+    "taxonomy:smoke": "tsx scripts/taxonomy-smoke.ts",
     "media:smoke": "tsx scripts/media-smoke.ts",
     "settings:smoke": "tsx scripts/settings-smoke.ts",
     "backup:smoke": "tsx scripts/backup-smoke.ts",

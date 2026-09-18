@@ -2196,3 +2196,239 @@ button { cursor: pointer; }
   color: var(--muted);
   line-height: 1.65;
 }
+
+
+/* Phase 4.2 Markdown writing refinement */
+.editor-top {
+  flex-wrap: wrap;
+}
+.editor-title {
+  flex: 1 1 360px;
+}
+.editor-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.editor-action-link {
+  padding: 11px 14px;
+  border-radius: 11px;
+  border: 1px solid #2d3745;
+  background: #151d29;
+  color: #dbe3ee;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.editor-markdown-toolbar {
+  min-height: 46px;
+  margin-bottom: 10px;
+  border: 1px solid #283140;
+  border-radius: 13px;
+  background: #111925;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.editor-markdown-toolbar button {
+  min-width: 34px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #b9c5d4;
+  padding: 0 8px;
+}
+.editor-markdown-toolbar button:hover {
+  border-color: #344153;
+  background: #1a2532;
+  color: #fff;
+}
+.editor-toolbar-hint {
+  margin-left: auto;
+  color: #778596;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.editor-grid--post {
+  height: calc(100vh - 188px);
+}
+.editor-preview-header .post-status {
+  color: #667386;
+}
+.editor-preview-notice {
+  margin-bottom: 24px;
+  border: 1px solid #d5dce6;
+  border-radius: 11px;
+  background: #eef2f6;
+  color: #667386;
+  padding: 9px 11px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .editor-shell {
+    padding: 12px;
+  }
+  .editor-top {
+    gap: 8px;
+  }
+  .editor-title {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .editor-actions {
+    margin-left: auto;
+  }
+  .editor-action-link {
+    display: none;
+  }
+  .editor-markdown-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .editor-markdown-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .editor-toolbar-hint {
+    display: none;
+  }
+  .editor-grid--post {
+    height: calc(100vh - 210px);
+    min-height: 480px;
+  }
+}
+
+
+/* Phase 4.2 taxonomy management */
+.taxonomy-layout {
+  display: grid;
+  gap: 14px;
+}
+.taxonomy-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 1fr) minmax(220px, 320px);
+  gap: 14px;
+  align-items: center;
+}
+.taxonomy-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #2d3847;
+  border-radius: 12px;
+  background: #101823;
+}
+.taxonomy-tabs button {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #8d9aac;
+  padding: 8px 11px;
+}
+.taxonomy-tabs button.is-active {
+  background: #202c3a;
+  color: #fff;
+}
+.taxonomy-tabs button span {
+  margin-left: 5px;
+  color: #718095;
+  font-size: 11px;
+}
+.taxonomy-create {
+  display: flex;
+  gap: 8px;
+}
+.taxonomy-create input,
+.taxonomy-search {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #303c4c;
+  border-radius: 10px;
+  background: #0f1721;
+  color: #fff;
+  padding: 10px 11px;
+  outline: none;
+}
+.taxonomy-list {
+  padding: 0;
+  overflow: hidden;
+}
+.taxonomy-head,
+.taxonomy-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1fr) 90px 180px;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 16px;
+}
+.taxonomy-head {
+  color: #748294;
+  font-size: 12px;
+  border-bottom: 1px solid #283240;
+}
+.taxonomy-row {
+  border-bottom: 1px solid #252f3c;
+  color: #d8e1ec;
+}
+.taxonomy-row:last-child {
+  border-bottom: 0;
+}
+.taxonomy-row code {
+  color: #8da0b6;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.taxonomy-row > div {
+  display: flex;
+  gap: 9px;
+}
+.taxonomy-row button {
+  border: 0;
+  background: transparent;
+  color: #aab8c8;
+  padding: 3px 0;
+}
+.taxonomy-row button:disabled {
+  opacity: .45;
+}
+@media (max-width: 900px) {
+  .taxonomy-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .taxonomy-tabs {
+    grid-column: 1 / -1;
+  }
+  .taxonomy-head,
+  .taxonomy-row {
+    grid-template-columns: minmax(0, 1fr) 80px 150px;
+  }
+  .taxonomy-head span:nth-child(2),
+  .taxonomy-row code {
+    display: none;
+  }
+}
+@media (max-width: 620px) {
+  .taxonomy-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .taxonomy-tabs {
+    grid-column: auto;
+  }
+  .taxonomy-head {
+    display: none;
+  }
+  .taxonomy-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .taxonomy-row > span {
+    display: none;
+  }
+  .taxonomy-row > div {
+    justify-self: end;
+  }
+}

@@ -58,10 +58,108 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
   const savingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const markdownInputRef = useRef<HTMLInputElement | null>(null);
 
   function update<K extends keyof DraftState>(key: K, value: DraftState[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
     setDirty(true);
+  }
+
+  function replaceSelection(before: string, after = before, placeholder = "文字") {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? draft.contentMd.length;
+    const end = textarea?.selectionEnd ?? start;
+    const selected = draft.contentMd.slice(start, end) || placeholder;
+    const insertion = before + selected + after;
+
+    setDraft((current) => ({
+      ...current,
+      contentMd: current.contentMd.slice(0, start) + insertion + current.contentMd.slice(end)
+    }));
+    setDirty(true);
+
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      const selectionStart = start + before.length;
+      textarea?.setSelectionRange(selectionStart, selectionStart + selected.length);
+    });
+  }
+
+  function prefixSelectionLines(prefix: string, placeholder = "内容") {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? draft.contentMd.length;
+    const end = textarea?.selectionEnd ?? start;
+    const selected = draft.contentMd.slice(start, end) || placeholder;
+    const insertion = selected.split(/\r?\n/).map((line) => prefix + line).join("\n");
+
+    setDraft((current) => ({
+      ...current,
+      contentMd: current.contentMd.slice(0, start) + insertion + current.contentMd.slice(end)
+    }));
+    setDirty(true);
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start, start + insertion.length);
+    });
+  }
+
+  function insertBlock(content: string) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? draft.contentMd.length;
+    const end = textarea?.selectionEnd ?? start;
+    const before = draft.contentMd.slice(0, start);
+    const needsLeadingBreak = before.length > 0 && !before.endsWith("\n");
+    const insertion = (needsLeadingBreak ? "\n" : "") + content;
+
+    setDraft((current) => ({
+      ...current,
+      contentMd: current.contentMd.slice(0, start) + insertion + current.contentMd.slice(end)
+    }));
+    setDirty(true);
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start + insertion.length, start + insertion.length);
+    });
+  }
+
+  function handleEditorKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLocaleLowerCase();
+    if (key === "b") {
+      event.preventDefault();
+      replaceSelection("**", "**", "加粗文字");
+    } else if (key === "i") {
+      event.preventDefault();
+      replaceSelection("_", "_", "斜体文字");
+    } else if (key === "k") {
+      event.preventDefault();
+      replaceSelection("[", "](https://)", "链接文字");
+    }
+  }
+
+  async function importMarkdown(file: File) {
+    if (dirty && !window.confirm("当前有未保存修改，导入 Markdown 会替换正文，确定继续？")) return;
+    const content = await file.text();
+    const filename = file.name.replace(/\.md(?:own)?$/i, "");
+    setDraft((current) => ({
+      ...current,
+      title: current.title.trim() ? current.title : filename,
+      contentMd: content
+    }));
+    setDirty(true);
+    setMessage("已导入 Markdown");
+  }
+
+  function exportMarkdown() {
+    const blob = new Blob([draft.contentMd], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const base = (draft.slug || draft.title || "article").replace(/[\\/:*?"<>|]+/g, "-");
+    link.href = url;
+    link.download = base + ".md";
+    link.click();
+    URL.revokeObjectURL(url);
+    setMessage("Markdown 已导出");
   }
 
   async function persist(statusOverride?: PostStatus, silent = false) {
@@ -130,6 +228,30 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
     return () => window.clearTimeout(timer);
   }, [draft, dirty, postId]);
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") {
+        event.preventDefault();
+        void persist();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "Enter") {
+        event.preventDefault();
+        void persist("published");
+      }
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [dirty, draft, postId, storedPublishedAt]);
+
   async function uploadImage(file: File) {
     if (!file.type.startsWith("image/")) return;
     setMessage("正在上传图片…");
@@ -191,6 +313,13 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
     setMessage("已恢复历史版本");
   }
 
+  async function openPreview() {
+    const saved = dirty ? await persist() : postId ? { id: postId } : await persist();
+    const id = saved?.id ?? postId;
+    if (!id) return;
+    window.open("/admin/posts/" + id + "/preview", "_blank", "noopener,noreferrer");
+  }
+
   async function remove() {
     if (!postId || !window.confirm("确定删除这篇文章？这个操作不会删除历史备份之外的数据。")) return;
     const response = await fetch("/api/posts/" + postId, { method: "DELETE" });
@@ -200,7 +329,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
   return (
     <section className="editor-shell">
       <div className="editor-top">
-        <Link href="/admin/posts" className="editor-back">←</Link>
+        <Link href="/admin/posts" className="editor-back" onClick={(event) => { if (dirty && !window.confirm("还有未保存修改，确定离开编辑器？")) event.preventDefault(); }}>←</Link>
         <input
           className="editor-title"
           value={draft.title}
@@ -214,7 +343,11 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
           <button type="button" onClick={() => setSettingsOpen((value) => !value)}>设置</button>
           {postId ? <button type="button" onClick={() => void loadHistory()}>历史</button> : null}
           <button type="button" onClick={() => imageInputRef.current?.click()}>图片</button>
+          <button type="button" onClick={() => markdownInputRef.current?.click()}>导入 MD</button>
+          <button type="button" onClick={exportMarkdown}>导出 MD</button>
+          <button type="button" onClick={() => void openPreview()}>预览</button>
           <input ref={imageInputRef} className="editor-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); event.currentTarget.value = ""; }} />
+          <input ref={markdownInputRef} className="editor-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importMarkdown(file); event.currentTarget.value = ""; }} />
           {postId ? <button type="button" className="editor-delete" onClick={() => void remove()}>删除</button> : null}
           <button className="publish" type="button" onClick={() => void persist("published")}>发布</button>
         </div>
@@ -257,12 +390,28 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         </section>
       ) : null}
 
+      <div className="editor-markdown-toolbar" aria-label="Markdown 工具栏">
+        <button type="button" title="二级标题" onMouseDown={(event) => event.preventDefault()} onClick={() => prefixSelectionLines("## ", "标题")}>H2</button>
+        <button type="button" title="加粗 Ctrl+B" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("**", "**", "加粗文字")}><strong>B</strong></button>
+        <button type="button" title="斜体 Ctrl+I" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("_", "_", "斜体文字")}><em>I</em></button>
+        <button type="button" title="链接 Ctrl+K" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("[", "](https://)", "链接文字")}>链接</button>
+        <button type="button" title="引用" onMouseDown={(event) => event.preventDefault()} onClick={() => prefixSelectionLines("> ", "引用内容")}>❯</button>
+        <button type="button" title="无序列表" onMouseDown={(event) => event.preventDefault()} onClick={() => prefixSelectionLines("- ", "列表项")}>• 列表</button>
+        <button type="button" title="任务列表" onMouseDown={(event) => event.preventDefault()} onClick={() => prefixSelectionLines("- [ ] ", "待办事项")}>☐ 待办</button>
+        <button type="button" title="行内代码" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("`", "`", "code")}>{"</>"}</button>
+        <button type="button" title="代码块" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("```\n", "\n```", "code")}>代码块</button>
+        <button type="button" title="分隔线" onMouseDown={(event) => event.preventDefault()} onClick={() => insertBlock("\n---\n")}>—</button>
+        <button type="button" title="插入图片" onMouseDown={(event) => event.preventDefault()} onClick={() => imageInputRef.current?.click()}>图片</button>
+        <span className="editor-toolbar-hint">Ctrl+S 保存 · Ctrl+Shift+Enter 发布</span>
+      </div>
+
       <div className="editor-grid editor-grid--post">
         <section className="editor-pane">
           <textarea
             ref={textareaRef}
             value={draft.contentMd}
             onChange={(event) => update("contentMd", event.target.value)}
+            onKeyDown={handleEditorKeyDown}
             onPaste={(event) => { const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/")); if (file) { event.preventDefault(); void uploadImage(file); } }}
             aria-label="Markdown 编辑器"
             spellCheck={false}
