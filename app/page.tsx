@@ -1,48 +1,61 @@
 import Link from "next/link";
+import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
+import { getSiteSettings } from "@/lib/settings/repository";
+
+export const runtime = "nodejs";
 
 const entrances = [
   { name: "Blog", desc: "文章与笔记", href: "/blog" },
   { name: "Start", desc: "浏览器起始页", href: "/start" },
   { name: "Projects", desc: "项目与作品", href: "#" },
-  { name: "Archive", desc: "文章归档", href: "/blog" },
-  { name: "About", desc: "关于我", href: "#" },
+  { name: "Archive", desc: "文章归档", href: "/blog#archive" },
+  { name: "About", desc: "关于我", href: "#about" },
   { name: "Admin", desc: "管理后台", href: "/admin" }
 ];
 
+function avatarSafe(value: string) {
+  return /^https?:\/\//i.test(value) || value.startsWith("/media/");
+}
+
 export default function HomePage() {
+  const settings = getSiteSettings();
+
   return (
     <main className="immersive-page">
-      <div className="ambient-wallpaper" aria-hidden="true" />
+      <AmbientWallpaper url={settings.homeBackgroundUrl} />
       <section className="home-layout container-wide">
-        <article className="glass-card profile-card">
+        <article className="glass-card profile-card" id="about">
           <div className="profile-heading">
-            <div className="avatar-placeholder">K</div>
+            <div className="avatar-placeholder">
+              {settings.avatarUrl && avatarSafe(settings.avatarUrl)
+                ? <img src={settings.avatarUrl} alt={settings.profileName} />
+                : settings.profileName.slice(0, 1).toLocaleUpperCase()}
+            </div>
             <div>
               <div className="eyebrow">Personal Space</div>
-              <h1>know_me</h1>
-              <p className="muted">记录、创造，也把每天真正会用的东西放在这里。</p>
+              <h1>{settings.profileName}</h1>
+              <p className="muted">{settings.profileTagline}</p>
             </div>
           </div>
-          <p className="profile-lead">
-            一个属于自己的数字入口：主页、博客和浏览器起始页，不再分散在不同服务里。
-          </p>
+          <p className="profile-lead">{settings.profileBio}</p>
           <div className="chip-row">
-            <a href="#" className="chip">GitHub</a>
-            <a href="#" className="chip">Mail</a>
-            <Link href="/blog" className="chip">RSS</Link>
-            <a href="#" className="chip">About</a>
+            {settings.githubUrl ? <a href={settings.githubUrl} className="chip" target="_blank" rel="noreferrer">GitHub</a> : null}
+            {settings.emailUrl ? <a href={settings.emailUrl} className="chip">Mail</a> : null}
+            <Link href="/blog" className="chip">Blog</Link>
+            <Link href="/feed.xml" className="chip">RSS</Link>
+            {settings.aboutUrl ? <a href={settings.aboutUrl} className="chip" target="_blank" rel="noreferrer">About</a> : null}
           </div>
         </article>
 
         <section className="home-side">
           <article className="glass-card quote-card">
-            <p>生命如意志永存，青春永远年轻。</p>
-            <span>— 今日短句</span>
+            <p>{settings.quote}</p>
+            <span>— {settings.quoteAuthor}</span>
           </article>
           <article className="glass-card time-card">
             <LiveClock />
-            <p className="muted">时间、天气与短句都可以在后台自由配置。</p>
+            <p className="muted">主页内容与背景可以在管理后台调整。</p>
           </article>
 
           <div className="entrance-block">

@@ -7,7 +7,9 @@ dist/
 .env.*.local
 data/*.db
 data/*.db-*
+data/*.itabdata
 uploads/
 *.log
 *.tsbuildinfo
+.idea/
 .DS_Store

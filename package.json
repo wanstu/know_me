@@ -6,17 +6,32 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "admin:init": "tsx scripts/init-admin.ts",
+    "auth:smoke": "tsx scripts/auth-smoke.ts",
+    "itab:smoke": "tsx scripts/itab-smoke.ts",
+    "blog:smoke": "tsx scripts/blog-smoke.ts",
+    "media:smoke": "tsx scripts/media-smoke.ts",
+    "settings:smoke": "tsx scripts/settings-smoke.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "github-slugger": "^2.0.0",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "tsx": "^4.23.13",
     "typescript": "latest"
   }
 }

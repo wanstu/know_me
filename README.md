@@ -10,8 +10,22 @@
 
 - [x] Phase 1：需求分析
 - [x] Phase 2：信息架构 / UI 设计 / HTML 静态原型
-- [ ] Phase 3：正式实现
+- [~] Phase 3：正式实现（3.1～3.5 完成；3.6 个人主页 / 外观基础完成；下一步 3.7 收尾）
 - [ ] Phase 4：测试、部署、备份与发布
+
+## 本地启动
+
+```powershell
+cd D:\projects\know_me
+npm install
+npm run db:migrate
+npm run admin:init -- --username admin
+npm run dev
+```
+
+打开 `http://127.0.0.1:3000`。管理员初始化命令未指定密码时会生成随机强密码并只显示一次。
+
+常用入口：`/`、`/start`、`/blog`、`/admin`、`/admin/navigation`、`/admin/posts`、`/admin/media`、`/admin/settings`。
 
 设计文档位于 docs，静态原型位于 prototype/index.html。
 

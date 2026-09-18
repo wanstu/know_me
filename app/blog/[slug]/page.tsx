@@ -1,13 +1,49 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { demoPosts } from "@/lib/demo-data";
+import { MarkdownRenderer } from "@/components/blog/markdown-renderer";
+import { extractToc } from "@/lib/blog/toc";
+import { getAdjacentPublishedPosts, getPublishedPostBySlug, markdownToText } from "@/lib/blog/repository";
 
-export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+export const runtime = "nodejs";
+
+type ArticlePageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+function formatDate(value: number | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(value));
+}
+
+export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = demoPosts.find((item) => item.slug === slug);
+  const post = getPublishedPostBySlug(decodeURIComponent(slug));
+  if (!post) return { title: "文章不存在" };
+  return {
+    title: post.seoTitle || post.title,
+    description: post.seoDescription || post.excerpt,
+    openGraph: {
+      title: post.seoTitle || post.title,
+      description: post.seoDescription || post.excerpt,
+      type: "article",
+      publishedTime: post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined
+    }
+  };
+}
+
+export default async function ArticlePage({ params }: ArticlePageProps) {
+  const { slug } = await params;
+  const post = getPublishedPostBySlug(decodeURIComponent(slug));
   if (!post) notFound();
 
-  const codeSample = 'export type PostStatus =\n  | "draft"\n  | "published"\n  | "scheduled";';
+  const toc = extractToc(post.contentMd);
+  const adjacent = getAdjacentPublishedPosts(post.id);
+  const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
 
   return (
     <main className="paper-page">
@@ -21,41 +57,38 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
       <section className="article-layout">
         <article className="article">
-          <div className="eyebrow" style={{ color: "#778395" }}>{post.tag}</div>
-          <h1>{post.title}</h1>
-          <div className="article-meta">{post.date} · 阅读约 {post.reading}</div>
-
-          <div className="prose">
-            <p>
-              很多个人网站最开始都只解决一个问题：展示自己。但真正长期使用以后，
-              我更希望它同时是每天会打开的工具。
-            </p>
-
-            <h2 id="why">为什么要统一</h2>
-            <p>
-              个人主页负责“我是谁”，博客负责“我写了什么”，起始页负责“我每天去哪”。
-              它们的主题、登录、媒体和配置其实可以共享。
-            </p>
-
-            <h2 id="markdown">Markdown 仍然是源数据</h2>
-            <p>
-              文章永远保存原始 Markdown。渲染结果只是缓存，这样以后切换框架时仍然能完整迁移。
-            </p>
-            <pre><code>{codeSample}</code></pre>
-
-            <h2 id="privacy">起始页不是公开导航站</h2>
-            <p>
-              导入的导航可能包含本地地址和工作环境，所以默认需要登录，并允许对单个入口设置
-              <code>private</code>。
-            </p>
+          <div className="eyebrow" style={{ color: "#778395" }}>
+            {post.categories[0] || post.tags[0] || "Article"}
           </div>
+          <h1>{post.title}</h1>
+          <div className="article-meta">
+            {formatDate(post.publishedAt)} · 阅读约 {minutes} 分钟
+            {post.updatedAt > (post.publishedAt ?? 0) ? " · 更新于 " + formatDate(post.updatedAt) : ""}
+          </div>
+
+          <MarkdownRenderer content={post.contentMd} />
+
+          <footer className="article-footer">
+            {post.tags.length ? (
+              <div className="article-tags">
+                {post.tags.map((tag) => <Link key={tag} href={"/blog?tag=" + encodeURIComponent(tag)}>#{tag}</Link>)}
+              </div>
+            ) : null}
+            <div className="article-adjacent">
+              {adjacent.older ? <Link href={"/blog/" + encodeURIComponent(adjacent.older.slug)}>← {adjacent.older.title}</Link> : <span />}
+              {adjacent.newer ? <Link href={"/blog/" + encodeURIComponent(adjacent.newer.slug)}>{adjacent.newer.title} →</Link> : <span />}
+            </div>
+          </footer>
         </article>
 
         <aside className="article-toc">
           <strong>本文目录</strong>
-          <a href="#why">为什么要统一</a>
-          <a href="#markdown">Markdown 仍然是源数据</a>
-          <a href="#privacy">起始页不是公开导航站</a>
+          {toc.map((item) => (
+            <a key={item.id} href={"#" + item.id} style={{ paddingLeft: Math.max(0, item.level - 2) * 12 }}>
+              {item.text}
+            </a>
+          ))}
+          {toc.length === 0 ? <span className="toc-empty">本文没有二级标题</span> : null}
         </aside>
       </section>
     </main>
