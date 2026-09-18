@@ -42,7 +42,7 @@ docker compose up -d --build
 
 GitHub Actions 已配置两条流水线：
 
-- `.github/workflows/ci.yml`：master push / PR 自动执行迁移、TypeScript 检查、全部 smoke test、生产构建和真实生产服务验收；master 通过后构建 `linux/amd64` + `linux/arm64` Docker 镜像并推送到 GHCR。
+- `.github/workflows/ci.yml`：master push / PR 自动执行迁移、TypeScript 检查、全部 smoke test、生产构建和真实生产服务验收；master 通过后构建 `linux/amd64` Docker 镜像并推送到 GHCR。
 - `.github/workflows/release.yml`：推送 `v*` Tag 时构建版本镜像，同时自动创建 GitHub Release。
 
 master 镜像：
