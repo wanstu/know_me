@@ -1,5 +1,8 @@
 # know_me
 
+[![CI / CD](https://github.com/wanstu/know_me/actions/workflows/ci.yml/badge.svg)](https://github.com/wanstu/know_me/actions/workflows/ci.yml)
+
+
 个人网站项目，目标是把三个长期使用场景统一到一个站点中：
 
 1. **浏览器起始页**：管理常用链接、分组、文件夹、搜索、壁纸，并兼容 iTab 数据导入/导出。
@@ -34,6 +37,36 @@ docker compose up -d --build
 ```
 
 健康检查：`/api/health`。完整备份与恢复位于 `/admin/settings`。
+
+## CI / CD
+
+GitHub Actions 已配置两条流水线：
+
+- `.github/workflows/ci.yml`：master push / PR 自动执行迁移、TypeScript 检查、全部 smoke test、生产构建和真实生产服务验收；master 通过后构建 `linux/amd64` + `linux/arm64` Docker 镜像并推送到 GHCR。
+- `.github/workflows/release.yml`：推送 `v*` Tag 时构建版本镜像，同时自动创建 GitHub Release。
+
+master 镜像：
+
+```text
+ghcr.io/wanstu/know_me:latest
+ghcr.io/wanstu/know_me:sha-<commit>
+```
+
+生产服务器可使用：
+
+```powershell
+Copy-Item .env.production.example .env
+# 编辑 .env，将 SITE_URL 改成正式 HTTPS 域名
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+发布正式版本示例：
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 设计文档位于 docs，静态原型位于 prototype/index.html。
 

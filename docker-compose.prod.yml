@@ -1,0 +1,19 @@
+services:
+  know-me:
+    image: ghcr.io/wanstu/know_me:${KNOW_ME_TAG:-latest}
+    container_name: know-me
+    restart: unless-stopped
+    ports:
+      - "${KNOW_ME_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: ./data/know-me.db
+      SITE_URL: ${SITE_URL:?set SITE_URL in .env}
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

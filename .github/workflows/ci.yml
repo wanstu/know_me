@@ -1,39 +1,71 @@
-name: CI
+name: CI / CD
 
 on:
   push:
     branches: [master]
   pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DATABASE_URL: ./data/ci.db
+  SITE_URL: http://127.0.0.1:3000
 
 jobs:
   test:
+    name: Test & Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      DATABASE_URL: ./data/ci.db
-      SITE_URL: http://127.0.0.1:3000
+    timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      - run: npm ci
-      - run: npm run db:migrate
-      - run: npm run typecheck
-      - run: npm run itab:smoke
-      - run: npm run navigation:smoke
-      - run: npm run blog:smoke
-      - run: npm run taxonomy:smoke
-      - run: npm run media:smoke
-      - run: npm run settings:smoke
-      - run: npm run quotes:smoke
-      - run: npm run backup:smoke
-      - run: npm run security:smoke
-      - run: npm run build
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Migrate database
+        run: npm run db:migrate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Navigation smoke tests
+        run: |
+          npm run itab:smoke
+          npm run navigation:smoke
+
+      - name: Blog smoke tests
+        run: |
+          npm run blog:smoke
+          npm run taxonomy:smoke
+
+      - name: Media and settings smoke tests
+        run: |
+          npm run media:smoke
+          npm run settings:smoke
+          npm run quotes:smoke
+
+      - name: Backup and security smoke tests
+        run: |
+          npm run backup:smoke
+          npm run security:smoke
+
+      - name: Production build
+        run: npm run build
 
       - name: Start production server
         shell: bash
@@ -49,9 +81,56 @@ jobs:
           cat server.log
           exit 1
 
-      - run: npm run site:smoke
-      - run: npm run auth:smoke
+      - name: Site smoke test
+        run: npm run site:smoke
+
+      - name: Auth smoke test
+        run: npm run auth:smoke
 
       - name: Show server log on failure
         if: failure()
         run: cat server.log || true
+
+  docker:
+    name: Publish Docker image
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
