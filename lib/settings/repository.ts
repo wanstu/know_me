@@ -3,6 +3,9 @@ import { getDb } from "@/lib/db";
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
 export type ThemeMode = "auto" | "dark" | "light";
 export type StartDensity = "compact" | "comfortable" | "spacious";
+export type SocialLink = { id: string; label: string; url: string };
+export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
+export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
 
 export type SiteSettings = {
   profileName: string;
@@ -23,6 +26,9 @@ export type SiteSettings = {
   startCardOpacity: number;
   startCardRadius: number;
   startBackgroundDim: number;
+  socialLinks: SocialLink[];
+  homeEntries: HomeEntry[];
+  projects: ProjectEntry[];
 };
 
 const defaults: SiteSettings = {
@@ -43,7 +49,17 @@ const defaults: SiteSettings = {
   startDensity: "comfortable",
   startCardOpacity: 64,
   startCardRadius: 22,
-  startBackgroundDim: 62
+  startBackgroundDim: 62,
+  socialLinks: [],
+  homeEntries: [
+    { id: "blog", name: "Blog", description: "文章与笔记", url: "/blog", newTab: false },
+    { id: "start", name: "Start", description: "浏览器起始页", url: "/start", newTab: false },
+    { id: "projects", name: "Projects", description: "项目与作品", url: "#projects", newTab: false },
+    { id: "archive", name: "Archive", description: "文章归档", url: "/blog#archive", newTab: false },
+    { id: "about", name: "About", description: "关于我", url: "#about", newTab: false },
+    { id: "admin", name: "Admin", description: "管理后台", url: "/admin", newTab: false }
+  ],
+  projects: []
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -54,6 +70,50 @@ function object(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function text(value: unknown, max: number) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function normalizeSocialLinks(value: unknown, fallback: SocialLink[] = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value.slice(0, 20).map((entry, index) => {
+    const row = object(entry);
+    return {
+      id: text(row.id, 80) || "social-" + index,
+      label: text(row.label, 80),
+      url: text(row.url, 1000)
+    };
+  }).filter((entry) => entry.label && entry.url);
+}
+
+function normalizeHomeEntries(value: unknown, fallback: HomeEntry[] = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value.slice(0, 24).map((entry, index) => {
+    const row = object(entry);
+    return {
+      id: text(row.id, 80) || "entry-" + index,
+      name: text(row.name, 80),
+      description: text(row.description, 160),
+      url: text(row.url, 1000),
+      newTab: row.newTab === true
+    };
+  }).filter((entry) => entry.name && entry.url);
+}
+
+function normalizeProjects(value: unknown, fallback: ProjectEntry[] = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value.slice(0, 24).map((entry, index) => {
+    const row = object(entry);
+    return {
+      id: text(row.id, 80) || "project-" + index,
+      name: text(row.name, 100),
+      description: text(row.description, 300),
+      url: text(row.url, 1000),
+      tag: text(row.tag, 80)
+    };
+  }).filter((entry) => entry.name);
 }
 
 export function getSetting<T>(key: string, fallback: T): T {
@@ -80,6 +140,14 @@ export function getSiteSettings(): SiteSettings {
       : "Bing";
   const themeMode: ThemeMode = stored.themeMode === "dark" || stored.themeMode === "light" ? stored.themeMode : "auto";
   const startDensity: StartDensity = stored.startDensity === "compact" || stored.startDensity === "spacious" ? stored.startDensity : "comfortable";
+  const githubUrl = typeof stored.githubUrl === "string" ? stored.githubUrl : defaults.githubUrl;
+  const emailUrl = typeof stored.emailUrl === "string" ? stored.emailUrl : defaults.emailUrl;
+  const aboutUrl = typeof stored.aboutUrl === "string" ? stored.aboutUrl : defaults.aboutUrl;
+  const legacySocialLinks: SocialLink[] = [
+    githubUrl ? { id: "github", label: "GitHub", url: githubUrl } : null,
+    emailUrl ? { id: "mail", label: "Mail", url: emailUrl } : null,
+    aboutUrl ? { id: "about", label: "About", url: aboutUrl } : null
+  ].filter((item): item is SocialLink => Boolean(item));
 
   return {
     profileName: typeof stored.profileName === "string" ? stored.profileName : defaults.profileName,
@@ -88,9 +156,9 @@ export function getSiteSettings(): SiteSettings {
     avatarUrl: typeof stored.avatarUrl === "string" ? stored.avatarUrl : defaults.avatarUrl,
     quote: typeof stored.quote === "string" ? stored.quote : defaults.quote,
     quoteAuthor: typeof stored.quoteAuthor === "string" ? stored.quoteAuthor : defaults.quoteAuthor,
-    githubUrl: typeof stored.githubUrl === "string" ? stored.githubUrl : defaults.githubUrl,
-    emailUrl: typeof stored.emailUrl === "string" ? stored.emailUrl : defaults.emailUrl,
-    aboutUrl: typeof stored.aboutUrl === "string" ? stored.aboutUrl : defaults.aboutUrl,
+    githubUrl,
+    emailUrl,
+    aboutUrl,
     homeBackgroundUrl: typeof stored.homeBackgroundUrl === "string" ? stored.homeBackgroundUrl : defaults.homeBackgroundUrl,
     startBackgroundUrl: typeof stored.startBackgroundUrl === "string" ? stored.startBackgroundUrl : defaults.startBackgroundUrl,
     startPublic: stored.startPublic === true,
@@ -99,7 +167,10 @@ export function getSiteSettings(): SiteSettings {
     startDensity,
     startCardOpacity: typeof stored.startCardOpacity === "number" ? clamp(stored.startCardOpacity, 30, 95) : defaults.startCardOpacity,
     startCardRadius: typeof stored.startCardRadius === "number" ? clamp(stored.startCardRadius, 12, 32) : defaults.startCardRadius,
-    startBackgroundDim: typeof stored.startBackgroundDim === "number" ? clamp(stored.startBackgroundDim, 0, 90) : defaults.startBackgroundDim
+    startBackgroundDim: typeof stored.startBackgroundDim === "number" ? clamp(stored.startBackgroundDim, 0, 90) : defaults.startBackgroundDim,
+    socialLinks: normalizeSocialLinks(stored.socialLinks, legacySocialLinks),
+    homeEntries: normalizeHomeEntries(stored.homeEntries, defaults.homeEntries),
+    projects: normalizeProjects(stored.projects, defaults.projects)
   };
 }
 
@@ -134,7 +205,10 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
         : current.startDensity,
     startCardOpacity: typeof input.startCardOpacity === "number" ? clamp(input.startCardOpacity, 30, 95) : current.startCardOpacity,
     startCardRadius: typeof input.startCardRadius === "number" ? clamp(input.startCardRadius, 12, 32) : current.startCardRadius,
-    startBackgroundDim: typeof input.startBackgroundDim === "number" ? clamp(input.startBackgroundDim, 0, 90) : current.startBackgroundDim
+    startBackgroundDim: typeof input.startBackgroundDim === "number" ? clamp(input.startBackgroundDim, 0, 90) : current.startBackgroundDim,
+    socialLinks: input.socialLinks === undefined ? current.socialLinks : normalizeSocialLinks(input.socialLinks, current.socialLinks),
+    homeEntries: input.homeEntries === undefined ? current.homeEntries : normalizeHomeEntries(input.homeEntries, current.homeEntries),
+    projects: input.projects === undefined ? current.projects : normalizeProjects(input.projects, current.projects)
   };
   setSetting("site", next);
   return next;

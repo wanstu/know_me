@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsManager } from "@/components/admin/settings-manager";
 import { getSiteSettings } from "@/lib/settings/repository";
+import { listMedia } from "@/lib/media/repository";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export default function SettingsPage() {
           <Link className="secondary-button" href="/start">查看起始页</Link>
         </div>
       </div>
-      <SettingsManager initialSettings={getSiteSettings()} />
+      <SettingsManager initialSettings={getSiteSettings()} media={listMedia(120)} />
     </AdminShell>
   );
 }

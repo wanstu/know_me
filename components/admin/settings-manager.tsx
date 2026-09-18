@@ -1,15 +1,64 @@
 "use client";
 
 import { useState } from "react";
-import type { SearchEngineName, SiteSettings, ThemeMode, StartDensity } from "@/lib/settings/repository";
+import type { MediaRecord } from "@/lib/media/repository";
+import type {
+  HomeEntry,
+  ProjectEntry,
+  SearchEngineName,
+  SiteSettings,
+  SocialLink,
+  StartDensity,
+  ThemeMode
+} from "@/lib/settings/repository";
 
-export function SettingsManager({ initialSettings }: { initialSettings: SiteSettings }) {
+type MediaTarget = "avatarUrl" | "homeBackgroundUrl" | "startBackgroundUrl" | null;
+
+function id(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return prefix + "-" + crypto.randomUUID();
+  return prefix + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+function move<T>(items: T[], from: number, to: number) {
+  if (to < 0 || to >= items.length || from === to) return items;
+  const copy = [...items];
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
+export function SettingsManager({
+  initialSettings,
+  media
+}: {
+  initialSettings: SiteSettings;
+  media: MediaRecord[];
+}) {
   const [settings, setSettings] = useState(initialSettings);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mediaTarget, setMediaTarget] = useState<MediaTarget>(null);
 
   function update<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateSocial(index: number, patch: Partial<SocialLink>) {
+    update("socialLinks", settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function updateEntry(index: number, patch: Partial<HomeEntry>) {
+    update("homeEntries", settings.homeEntries.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function updateProject(index: number, patch: Partial<ProjectEntry>) {
+    update("projects", settings.projects.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function chooseMedia(url: string) {
+    if (!mediaTarget) return;
+    update(mediaTarget, url);
+    setMediaTarget(null);
   }
 
   async function restoreBackup(file: File | null) {
@@ -56,18 +105,24 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
       <section className="admin-panel settings-section">
         <div>
           <div className="eyebrow">Profile</div>
-          <h2>个人主页</h2>
-          <p className="muted">这些内容会直接显示在公开个人主页。</p>
+          <h2>个人资料</h2>
+          <p className="muted">公开主页顶部的头像、名称和介绍。</p>
         </div>
 
         <div className="settings-grid">
           <label>显示名称<input value={settings.profileName} onChange={(event) => update("profileName", event.target.value)} /></label>
           <label>一句话简介<input value={settings.profileTagline} onChange={(event) => update("profileTagline", event.target.value)} /></label>
           <label className="span-2">个人介绍<textarea value={settings.profileBio} onChange={(event) => update("profileBio", event.target.value)} /></label>
-          <label>头像 URL<input value={settings.avatarUrl} onChange={(event) => update("avatarUrl", event.target.value)} placeholder="/media/... 或 https://..." /></label>
-          <label>GitHub URL<input value={settings.githubUrl} onChange={(event) => update("githubUrl", event.target.value)} /></label>
-          <label>邮箱链接<input value={settings.emailUrl} onChange={(event) => update("emailUrl", event.target.value)} placeholder="mailto:you@example.com" /></label>
-          <label>About URL<input value={settings.aboutUrl} onChange={(event) => update("aboutUrl", event.target.value)} /></label>
+
+          <label className="span-2">
+            头像
+            <div className="settings-inline-field">
+              <input value={settings.avatarUrl} onChange={(event) => update("avatarUrl", event.target.value)} placeholder="/media/... 或 https://..." />
+              <button type="button" onClick={() => setMediaTarget("avatarUrl")}>从媒体库选择</button>
+              {settings.avatarUrl ? <button type="button" onClick={() => update("avatarUrl", "")}>清除</button> : null}
+            </div>
+          </label>
+
           <label>主页短句<input value={settings.quote} onChange={(event) => update("quote", event.target.value)} /></label>
           <label>短句署名<input value={settings.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
         </div>
@@ -75,14 +130,126 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
 
       <section className="admin-panel settings-section">
         <div>
+          <div className="eyebrow">Social</div>
+          <h2>社交入口</h2>
+          <p className="muted">显示在个人介绍下方。支持 HTTPS、mailto: 和站内路径。</p>
+        </div>
+
+        <div className="settings-collection">
+          {settings.socialLinks.map((item, index) => (
+            <div className="settings-collection-row settings-collection-row--social" key={item.id}>
+              <input value={item.label} onChange={(event) => updateSocial(index, { label: event.target.value })} placeholder="名称，如 GitHub" />
+              <input value={item.url} onChange={(event) => updateSocial(index, { url: event.target.value })} placeholder="https://... 或 mailto:..." />
+              <div className="settings-row-actions">
+                <button type="button" disabled={index === 0} onClick={() => update("socialLinks", move(settings.socialLinks, index, index - 1))}>↑</button>
+                <button type="button" disabled={index === settings.socialLinks.length - 1} onClick={() => update("socialLinks", move(settings.socialLinks, index, index + 1))}>↓</button>
+                <button type="button" className="danger-text" onClick={() => update("socialLinks", settings.socialLinks.filter((_, itemIndex) => itemIndex !== index))}>删除</button>
+              </div>
+            </div>
+          ))}
+          {settings.socialLinks.length === 0 ? <div className="settings-collection-empty">还没有社交入口。</div> : null}
+          <button
+            type="button"
+            className="secondary-button settings-add-button"
+            onClick={() => update("socialLinks", [...settings.socialLinks, { id: id("social"), label: "", url: "" }])}
+          >
+            ＋ 添加社交入口
+          </button>
+        </div>
+      </section>
+
+      <section className="admin-panel settings-section">
+        <div>
+          <div className="eyebrow">Explore</div>
+          <h2>主页入口卡片</h2>
+          <p className="muted">控制主页 Explore 区域的入口、文案、顺序和打开方式。</p>
+        </div>
+
+        <div className="settings-collection">
+          {settings.homeEntries.map((item, index) => (
+            <div className="settings-collection-row settings-collection-row--entry" key={item.id}>
+              <input value={item.name} onChange={(event) => updateEntry(index, { name: event.target.value })} placeholder="名称" />
+              <input value={item.description} onChange={(event) => updateEntry(index, { description: event.target.value })} placeholder="说明" />
+              <input value={item.url} onChange={(event) => updateEntry(index, { url: event.target.value })} placeholder="/blog、#projects 或 https://..." />
+              <label className="settings-inline-check">
+                <input type="checkbox" checked={item.newTab} onChange={(event) => updateEntry(index, { newTab: event.target.checked })} />
+                新标签页
+              </label>
+              <div className="settings-row-actions">
+                <button type="button" disabled={index === 0} onClick={() => update("homeEntries", move(settings.homeEntries, index, index - 1))}>↑</button>
+                <button type="button" disabled={index === settings.homeEntries.length - 1} onClick={() => update("homeEntries", move(settings.homeEntries, index, index + 1))}>↓</button>
+                <button type="button" className="danger-text" onClick={() => update("homeEntries", settings.homeEntries.filter((_, itemIndex) => itemIndex !== index))}>删除</button>
+              </div>
+            </div>
+          ))}
+          {settings.homeEntries.length === 0 ? <div className="settings-collection-empty">主页暂时没有入口卡片。</div> : null}
+          <button
+            type="button"
+            className="secondary-button settings-add-button"
+            onClick={() => update("homeEntries", [...settings.homeEntries, { id: id("entry"), name: "", description: "", url: "/", newTab: false }])}
+          >
+            ＋ 添加主页入口
+          </button>
+        </div>
+      </section>
+
+      <section className="admin-panel settings-section">
+        <div>
+          <div className="eyebrow">Projects</div>
+          <h2>项目与作品</h2>
+          <p className="muted">项目会显示在公开主页的 Projects 区域。</p>
+        </div>
+
+        <div className="settings-collection">
+          {settings.projects.map((item, index) => (
+            <div className="settings-collection-row settings-collection-row--project" key={item.id}>
+              <input value={item.name} onChange={(event) => updateProject(index, { name: event.target.value })} placeholder="项目名称" />
+              <input value={item.tag} onChange={(event) => updateProject(index, { tag: event.target.value })} placeholder="标签，如 Go / Wails" />
+              <input value={item.description} onChange={(event) => updateProject(index, { description: event.target.value })} placeholder="一句话说明" />
+              <input value={item.url} onChange={(event) => updateProject(index, { url: event.target.value })} placeholder="项目地址，可留空" />
+              <div className="settings-row-actions">
+                <button type="button" disabled={index === 0} onClick={() => update("projects", move(settings.projects, index, index - 1))}>↑</button>
+                <button type="button" disabled={index === settings.projects.length - 1} onClick={() => update("projects", move(settings.projects, index, index + 1))}>↓</button>
+                <button type="button" className="danger-text" onClick={() => update("projects", settings.projects.filter((_, itemIndex) => itemIndex !== index))}>删除</button>
+              </div>
+            </div>
+          ))}
+          {settings.projects.length === 0 ? <div className="settings-collection-empty">还没有项目。可以先添加常用或想展示的作品。</div> : null}
+          <button
+            type="button"
+            className="secondary-button settings-add-button"
+            onClick={() => update("projects", [...settings.projects, { id: id("project"), name: "", description: "", url: "", tag: "" }])}
+          >
+            ＋ 添加项目
+          </button>
+        </div>
+      </section>
+
+      <section className="admin-panel settings-section">
+        <div>
           <div className="eyebrow">Appearance</div>
           <h2>背景与起始页</h2>
-          <p className="muted">可以使用媒体库中的 /media/... 地址，也可以填写外部 HTTPS 图片地址。</p>
+          <p className="muted">可以直接从媒体库选图，也可以填写外部 HTTPS 图片地址。</p>
         </div>
 
         <div className="settings-grid">
-          <label className="span-2">个人主页背景<input value={settings.homeBackgroundUrl} onChange={(event) => update("homeBackgroundUrl", event.target.value)} placeholder="/media/..." /></label>
-          <label className="span-2">浏览器起始页背景<input value={settings.startBackgroundUrl} onChange={(event) => update("startBackgroundUrl", event.target.value)} placeholder="/media/..." /></label>
+          <label className="span-2">
+            个人主页背景
+            <div className="settings-inline-field">
+              <input value={settings.homeBackgroundUrl} onChange={(event) => update("homeBackgroundUrl", event.target.value)} placeholder="/media/..." />
+              <button type="button" onClick={() => setMediaTarget("homeBackgroundUrl")}>从媒体库选择</button>
+              {settings.homeBackgroundUrl ? <button type="button" onClick={() => update("homeBackgroundUrl", "")}>清除</button> : null}
+            </div>
+          </label>
+          <label className="span-2">
+            浏览器起始页背景
+            <div className="settings-inline-field">
+              <input value={settings.startBackgroundUrl} onChange={(event) => update("startBackgroundUrl", event.target.value)} placeholder="/media/..." />
+              <button type="button" onClick={() => setMediaTarget("startBackgroundUrl")}>从媒体库选择</button>
+              {settings.startBackgroundUrl ? <button type="button" onClick={() => update("startBackgroundUrl", "")}>清除</button> : null}
+            </div>
+          </label>
+
           <label>
             默认搜索引擎
             <select value={settings.defaultSearchEngine} onChange={(event) => update("defaultSearchEngine", event.target.value as SearchEngineName)}>
@@ -155,6 +322,35 @@ export function SettingsManager({ initialSettings }: { initialSettings: SiteSett
           {busy ? "保存中…" : "保存设置"}
         </button>
       </div>
+
+      {mediaTarget ? (
+        <div className="admin-modal-backdrop" onMouseDown={() => setMediaTarget(null)}>
+          <section className="admin-modal admin-modal-wide media-picker-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="admin-modal-head">
+              <div>
+                <div className="eyebrow">Media Library</div>
+                <h3>选择图片</h3>
+              </div>
+              <button type="button" onClick={() => setMediaTarget(null)}>×</button>
+            </div>
+
+            {media.length ? (
+              <div className="settings-media-grid">
+                {media.map((item) => (
+                  <button type="button" key={item.id} onClick={() => chooseMedia(item.url)} title={item.originalName}>
+                    <img src={item.url} alt={item.alt || item.originalName} loading="lazy" />
+                    <span>{item.originalName}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="settings-collection-empty">
+                媒体库还是空的。先到媒体库上传图片，再回来选择。
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
