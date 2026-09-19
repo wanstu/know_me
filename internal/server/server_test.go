@@ -58,7 +58,7 @@ func TestServerHealthAndKitAssets(t *testing.T) {
 		t.Fatalf("unexpected health: %#v", health)
 	}
 
-	for _, path := range []string{"/", "/desktopkit/tokens.css", "/desktopkit/theme.js", "/some/spa/route"} {
+	for _, path := range []string{"/", "/desktopkit/tokens.css", "/desktopkit/theme.js", "/desktopkit-theme/aurora.css", "/some/spa/route"} {
 		response, err := http.Get(base + path)
 		if err != nil {
 			t.Fatal(err)

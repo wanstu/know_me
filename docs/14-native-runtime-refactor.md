@@ -1,7 +1,7 @@
 # Phase 5：Go Native Runtime 重构
 
 状态：进行中  
-基线：`know_me master@2b98e91`；Desktop Kit 使用最新正式版 `v0.2.2`。
+基线：`know_me master@2b98e91`；Desktop Kit 使用最新正式版 `v0.3.0`，可选主题使用 `wails-desktop-kit-theme v0.1.0`。
 
 ## 目标
 
@@ -19,11 +19,12 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ## Kit 使用边界
 
-直接复用 Desktop Kit v0.2.2：
+直接复用 Desktop Kit v0.3.0 与 Theme v0.1.0：
 
-- `ui.Mount`：同一份前端静态资源可同时暴露 Kit CSS / JS。
+- `theme.MountWithKit`：同一份前端静态资源同时暴露 Kit CSS / JS 与可选主题包。
 - `tokens.css / base.css / components.css / navigation.css`：作为 Native Web UI 基础。
-- `theme.js`：复用 light / dark / system 明暗切换。
+- `theme.js`：复用 light / dark / system 与 `data-dk-theme-pack` 协议。
+- Native Runtime 默认使用通用 `aurora` pack，不把 Know Me 产品样式写回 Kit。
 - 后续 Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动与三平台 reusable workflow。
 
 暂不放进 Kit：
@@ -31,24 +32,26 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - HTTP Server、SQLite、博客、认证、导航、媒体、备份：这些属于 Know Me 业务或通用 Web Server，不是 Wails Desktop 基础设施。
 - CLI `serve` 编排：Kit 当前明确不接管产品 CLI。
 
-计划抽象进 Kit：
+已经完成的公共抽象：
 
-- 将 Know Me 已验证的“极光 / 海洋 / 森林 / 落日”整理为**可选通用 Palette Pack**，只覆盖通用 `--dk-*` token，不引入 Know Me 产品命名。
+- Kit v0.3.0 已增加 Theme Pack 协议，保持明暗模式和配色包正交。
+- `wails-desktop-kit-theme v0.1.0` 已独立提供极光 / 海洋 / 森林 / 落日四套通用主题，只覆盖 `--dk-*` token。
 - 如后续 Desktop wrapper 出现多个消费者共同需要的“启动本地 HTTP Core + 生命周期协同”，再评估是否抽象；本阶段不提前设计。
 
 ## 迁移阶段
 
 ### 5.1 Native Runtime 基线
 
-- [x] 根 Go Module，固定 Desktop Kit v0.2.2。
+- [x] 根 Go Module，固定 Desktop Kit v0.3.0 + Theme v0.1.0。
 - [x] `know-me serve`。
 - [x] `know-me version`。
 - [x] 默认 `127.0.0.1:3000`，公网必须显式 `--listen`。
 - [x] `--data-dir`、`--uploads-dir`、`--site-url`。
 - [x] `/api/health`、`/api/version`。
-- [x] 嵌入静态前端并通过 `kitui.Mount` 暴露 Kit 资源。
+- [x] 嵌入静态前端并通过 `theme.MountWithKit` 暴露 Kit + Theme 资源。
 - [x] SPA fallback 与基础安全响应头。
-- [ ] 三平台 CLI Release。
+- [x] Windows amd64 / Linux amd64 / macOS amd64 / macOS arm64 CLI CI 构建产物。
+- [ ] 正式版本 Tag 时发布 CLI Release 资产（待业务迁移完成后切换主发布流程）。
 
 ### 5.2 数据层
 

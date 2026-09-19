@@ -1,0 +1,116 @@
+name: Native CLI
+
+on:
+  push:
+    branches:
+      - master
+      - "refactor/**"
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: native-cli-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+
+  build:
+    name: ${{ matrix.name }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows amd64
+            os: windows-latest
+            goos: windows
+            goarch: amd64
+            asset: windows-amd64
+            ext: .exe
+          - name: Linux amd64
+            os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            asset: linux-amd64
+            ext: ""
+          - name: macOS amd64
+            os: macos-latest
+            goos: darwin
+            goarch: amd64
+            asset: darwin-amd64
+            ext: ""
+          - name: macOS arm64
+            os: macos-latest
+            goos: darwin
+            goarch: arm64
+            asset: darwin-arm64
+            ext: ""
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          version="dev-${GITHUB_SHA::7}"
+          build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          file="know-me-${version}-${{ matrix.asset }}${{ matrix.ext }}"
+          go build -trimpath -ldflags "-s -w -X main.version=${version} -X main.commit=${GITHUB_SHA::7} -X main.buildTime=${build_time}" -o "dist/${file}" ./cmd/know-me
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${file}" > "${file}.sha256"
+          else
+            shasum -a 256 "${file}" > "${file}.sha256"
+          fi
+      - name: Linux runtime smoke
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$(find dist -maxdepth 1 -type f -name 'know-me-*-linux-amd64' -print -quit)"
+          chmod +x "$file"
+          "$file" serve --listen 127.0.0.1:3041 --data-dir .tmp/data --uploads-dir .tmp/uploads > native-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3041/api/health >/dev/null; then
+              curl -fsS http://127.0.0.1:3041/desktopkit/tokens.css >/dev/null
+              curl -fsS http://127.0.0.1:3041/desktopkit-theme/aurora.css >/dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+          cat native-server.log
+          exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: know-me-${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

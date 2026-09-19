@@ -10,8 +10,10 @@ github.com/wailsapp/mimetype v1.4.1 h1:pQN9ycO7uo4vsUUuPeHEYoUkLVkaRntMnHJxVwYhw
 github.com/wailsapp/mimetype v1.4.1/go.mod h1:9aV5k31bBOv5z6u+QP8TltzvNGJPmNJD4XlAL3U+j3o=
 github.com/wailsapp/wails/v2 v2.15.0 h1:u7cHK+UesZOlYxyJxfYLteaCPhws6UsZoDdqUejuX6Q=
 github.com/wailsapp/wails/v2 v2.15.0/go.mod h1:scxrgwfsv6yR6fE6cCF+Flfl+JeU+SR87T9x4kILJ6M=
-github.com/wanstu/wails-desktop-kit v0.2.2 h1:hEvj+GyODZqIvwv8iNdgY3ixG70uhj6VrH7zjEZALFY=
-github.com/wanstu/wails-desktop-kit v0.2.2/go.mod h1:qJVMsGjyzQC5UHpaQa15wwM90oVs5odcO94QzcFeJnk=
+github.com/wanstu/wails-desktop-kit v0.3.0 h1:7p4OWPe3RUF2QHHsYHbhduju+hnLwnAaBYWibBWYPQc=
+github.com/wanstu/wails-desktop-kit v0.3.0/go.mod h1:qJVMsGjyzQC5UHpaQa15wwM90oVs5odcO94QzcFeJnk=
+github.com/wanstu/wails-desktop-kit-theme v0.1.0 h1:4v1A5nSyxC0yK4M0i9kYPcbOcJrtksXKWN1lwYhZM10=
+github.com/wanstu/wails-desktop-kit-theme v0.1.0/go.mod h1:YhQ3p1YN7ynaNIGiNUPaXN4mKP3UY3tlaFzayZ0W8ao=
 golang.org/x/net v0.56.0 h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
 golang.org/x/net v0.56.0/go.mod h1:D3Ku6r+V6JROoZK144D2XfMHFcMq/0zSfLelVTCFKec=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=

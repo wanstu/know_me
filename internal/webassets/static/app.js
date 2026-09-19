@@ -1,6 +1,8 @@
 (() => {
   const saved = localStorage.getItem("know-me.native.theme") || "system";
+  const pack = localStorage.getItem("know-me.native.theme-pack") || "aurora";
   window.desktopKitTheme.apply(saved);
+  window.desktopKitTheme.setPack(pack);
 
   async function refresh() {
     try {

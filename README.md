@@ -38,6 +38,43 @@ docker compose up -d --build
 
 健康检查：`/api/health`。完整备份与恢复位于 `/admin/settings`。
 
+## Native Runtime（Phase 5）
+
+项目正在迁移到 **Go Core + 跨平台 CLI + 可选 Wails Desktop**。当前原生运行时基线已经可以单独启动 HTTP Server：
+
+~~~powershell
+go run ./cmd/know-me serve --listen 127.0.0.1:3000
+~~~
+
+也可以构建当前平台：
+
+~~~powershell
+./scripts/build-native.ps1 -Version dev
+~~~
+
+或一次生成四个平台 CLI：
+
+~~~powershell
+./scripts/build-native-all.ps1 -Version dev
+~~~
+
+当前产物目标：
+
+~~~text
+know-me-<version>-windows-amd64.exe
+know-me-<version>-linux-amd64
+know-me-<version>-darwin-amd64
+know-me-<version>-darwin-arm64
+~~~
+
+CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址：
+
+~~~bash
+./know-me-linux-amd64 serve --listen 0.0.0.0:3000
+~~~
+
+Native UI 使用 `wails-desktop-kit v0.3.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。当前 5.1 只完成 Runtime / 静态资源 / Health API 基线，博客、认证、导航、SQLite 等业务会继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+
 ## CI / CD
 
 GitHub Actions 已配置两条流水线：
