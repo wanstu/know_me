@@ -4,6 +4,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Write-Host "Building Native Web assets"
+npm run native:web:build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $commit = (git rev-parse --short HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $buildTime = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")

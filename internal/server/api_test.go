@@ -52,6 +52,16 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 	client := &http.Client{Jar: jar}
 	base := "http://" + addr
 
+	publicResp, err := http.Get(base + "/api/site")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publicResp.StatusCode != http.StatusOK {
+		publicResp.Body.Close()
+		t.Fatalf("site status = %d", publicResp.StatusCode)
+	}
+	publicResp.Body.Close()
+
 	loginBody := bytes.NewBufferString(`{"username":"admin","password":"0123456789-password"}`)
 	req, _ := http.NewRequest(http.MethodPost, base+"/api/auth/login", loginBody)
 	req.Header.Set("Content-Type", "application/json")

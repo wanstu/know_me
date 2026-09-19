@@ -73,7 +73,7 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 使用 `wails-desktop-kit v0.4.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.4 后端迁移已经完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体和完整备份都已经由 Go Core 提供，并保持现有数据库和备份格式兼容。Kit v0.4.0 的统一配置目录也已接入；普通运行配置位于 `~/.config/know-me/settings.json`，数据库与上传文件仍由 `data/`、`uploads/` 持久化目录管理。下一阶段进入静态前端迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 使用 `wails-desktop-kit v0.4.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.5 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份以及 Vite + React 静态前端都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。后台菜单已经拆成真实独立 URL，文章/导航/分类标签/媒体/站点设置均可直接编辑。Kit v0.4.0 的统一配置目录也已接入；普通运行配置位于 `~/.config/know-me/settings.json`，数据库与上传文件仍由 `data/`、`uploads/` 持久化目录管理。下一阶段进入 Wails Desktop wrapper。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 配置与数据初始化：
 

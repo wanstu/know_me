@@ -5,6 +5,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Write-Host "Building Native Web assets"
+npm run native:web:build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 if (-not $Commit) {
   $Commit = (git rev-parse --short HEAD).Trim()
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

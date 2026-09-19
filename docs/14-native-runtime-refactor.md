@@ -88,6 +88,20 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 保留 React/TypeScript，但去掉 Next Server Runtime。产物编译为纯静态文件后 embed 进 Go 二进制；前端统一调用 Go HTTP API。
 
+- [x] 新建 `native-web/`：Vite + React + TypeScript，生产产物直接写入 `internal/webassets/static` 并由 Go embed。
+- [x] 公共页：个人主页、随机“今日短句”、Blog 列表/搜索/分类标签、Markdown 文章页、登录页。
+- [x] 起始页：分组导航、全局搜索、文件夹、browser-local 标记、公开/私有策略、壁纸/密度/透明度/圆角配置。
+- [x] 后台路由改为真实独立 URL：总览、导航、文章、分类标签、媒体、设置、备份，不再依赖单页锚点滚动。
+- [x] 导航管理：分组/链接/文件夹新增编辑删除、排序、iTab 合并/替换导入与导出。
+- [x] 文章管理：Markdown 双栏实时预览、工具栏、草稿/发布/定时、置顶、分类标签、SEO、历史版本恢复、图片上传/粘贴、Markdown 导入导出。
+- [x] 分类标签管理：新增、重命名、删除并保持文章关联。
+- [x] 媒体管理：图片上传、URL/Markdown 复制、删除。
+- [x] 站点设置：主题、背景、起始页参数、社交链接、主页入口、项目卡片。
+- [x] 备份管理：浏览器下载完整 ZIP 与上传恢复。
+- [x] Desktop Kit Theme Pack：light/dark/system + aurora/ocean/forest/sunset 继续由 Kit token 驱动。
+- [x] Native Web 已接入 `build-native*.ps1` 与 Native CLI CI；CI 校验生成的 embed 静态资产没有漂移。
+- [x] 使用现有 7 分组 / 101 项 iTab 数据进行浏览器验证；`/`、`/blog`、`/start`、全部 `/admin/*` 路由均已在真实 Native Server 下打开验证，文章新建也已通过 UI 实测。
+
 ### 5.6 Desktop wrapper
 
 使用 Desktop Kit 最新正式版：

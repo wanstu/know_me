@@ -27,6 +27,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run native:web:build
+      - name: Verify committed Native Web assets
+        shell: bash
+        run: git diff --exit-code -- internal/webassets/static
       - run: go test ./...
       - run: go vet ./...
 
@@ -100,6 +110,8 @@ jobs:
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in {1..20}; do
             if curl -fsS http://127.0.0.1:3041/api/health >/dev/null; then
+              curl -fsS http://127.0.0.1:3041/ >/dev/null
+              curl -fsS http://127.0.0.1:3041/api/site >/dev/null
               curl -fsS http://127.0.0.1:3041/desktopkit/tokens.css >/dev/null
               curl -fsS http://127.0.0.1:3041/desktopkit-theme/aurora.css >/dev/null
               exit 0

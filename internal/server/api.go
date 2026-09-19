@@ -75,11 +75,21 @@ func (l *loginLimiter) clear(key string) {
 func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/version", s.handleVersion)
+	mux.HandleFunc("GET /api/site", s.handleSiteGet)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", s.handleMe)
 	mux.HandleFunc("GET /api/settings", s.handleSettingsGet)
 	mux.HandleFunc("PATCH /api/settings", s.handleSettingsPatch)
+}
+
+func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
+	value, err := s.settings.GetSite(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings_failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"settings": value})
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
