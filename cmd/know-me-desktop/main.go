@@ -157,13 +157,14 @@ func run() error {
 
 	var shutdownErr error
 	err = desktopkit.Run(desktopkit.Config{
-		ID:             appID,
-		Title:          appTitle,
-		Assets:         assets,
-		Bind:           []interface{}{bridge},
-		Launch:         launch,
-		Window:         window,
-		SingleInstance: true,
+		ID:                   appID,
+		Title:                appTitle,
+		Assets:               assets,
+		Bind:                 []interface{}{bridge},
+		Launch:               launch,
+		Window:               window,
+		SingleInstance:       true,
+		SecondInstancePolicy: desktopkit.SecondInstanceWakeManual,
 		Tray: desktopkit.TrayConfig{
 			Enabled:            true,
 			Icon:               appIcon,
@@ -175,12 +176,10 @@ func run() error {
 			AutoStart:          login,
 			Items: []desktopkit.TrayItem{
 				desktopkit.Action("在系统浏览器打开", func(controller *desktopkit.Controller) error {
-					ctx := controller.Context()
-					if ctx == nil {
-						return errors.New("desktop context is not ready")
+					if controller == nil {
+						return errors.New("desktop controller is not ready")
 					}
-					wailsruntime.BrowserOpenURL(ctx, coreURL)
-					return nil
+					return controller.OpenURL(coreURL)
 				}),
 			},
 		},

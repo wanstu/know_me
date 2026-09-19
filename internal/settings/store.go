@@ -5,17 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
+
+	kittheme "github.com/wanstu/wails-desktop-kit/theme"
 )
 
 type SearchEngineName string
 type ThemeMode string
 type ThemePreset string
 type StartDensity string
-
-var themePresetPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 const (
 	SearchBing       SearchEngineName = "Bing"
@@ -283,7 +282,7 @@ func normalize(v SiteSettings) SiteSettings {
 	default:
 		v.ThemeMode = ThemeAuto
 	}
-	if !themePresetPattern.MatchString(string(v.ThemePreset)) {
+	if err := kittheme.ValidatePackName(string(v.ThemePreset)); err != nil {
 		v.ThemePreset = PresetAurora
 	}
 	switch v.StartDensity {

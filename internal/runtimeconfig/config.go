@@ -1,14 +1,13 @@
 package runtimeconfig
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/wanstu/wails-desktop-kit/jsonstore"
 	kitpaths "github.com/wanstu/wails-desktop-kit/paths"
 )
 
@@ -28,42 +27,46 @@ type Config struct {
 	SiteURL    string `json:"siteUrl,omitempty"`
 }
 
-// Default returns the built-in defaults with environment overrides.
-// It intentionally does not access the filesystem.
-func Default() Config {
-	config := Config{
+func baseDefault() Config {
+	return Config{
 		Listen:     DefaultListen,
 		DataDir:    DefaultDataDir,
 		UploadsDir: DefaultUploadsDir,
 	}
+}
+
+// Default returns the built-in defaults with environment overrides.
+// It intentionally does not access the filesystem.
+func Default() Config {
+	config := baseDefault()
 	applyEnvironment(&config)
 	return config
+}
+
+func configStore(path string, validate bool) *jsonstore.Store[Config] {
+	options := jsonstore.Options[Config]{
+		Default: baseDefault,
+		Normalize: func(config *Config) {
+			normalizeDefaults(config)
+		},
+	}
+	if validate {
+		options.Validate = func(config Config) error { return config.Validate() }
+	}
+	return jsonstore.New(path, options)
 }
 
 // Load reads ~/.config/know-me/settings.json (or $XDG_CONFIG_HOME/know-me/settings.json)
 // and then applies environment overrides. CLI flags are applied by callers last.
 func Load() (Config, error) {
-	config := Config{
-		Listen:     DefaultListen,
-		DataDir:    DefaultDataDir,
-		UploadsDir: DefaultUploadsDir,
-	}
 	path, err := ConfigPath()
 	if err != nil {
 		return Config{}, err
 	}
-	body, err := os.ReadFile(path)
-	switch {
-	case err == nil:
-		if err := json.Unmarshal(body, &config); err != nil {
-			return Config{}, fmt.Errorf("decode config %s: %w", path, err)
-		}
-	case errors.Is(err, os.ErrNotExist):
-		// First run: defaults remain in effect until a config file is created.
-	default:
+	config, err := configStore(path, false).Load()
+	if err != nil {
 		return Config{}, fmt.Errorf("read config %s: %w", path, err)
 	}
-	normalizeDefaults(&config)
 	applyEnvironment(&config)
 	return config, nil
 }
@@ -83,43 +86,12 @@ func EnsureConfigDir() (string, error) {
 // Save writes only ordinary runtime settings. Passwords, tokens, session secrets,
 // and other sensitive values must not be added to this file.
 func Save(config Config) (string, error) {
-	normalizeDefaults(&config)
-	if err := config.Validate(); err != nil {
-		return "", err
-	}
-	dir, err := EnsureConfigDir()
+	path, err := ConfigPath()
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, ConfigFileName)
-	body, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("encode config: %w", err)
-	}
-	body = append(body, '\n')
-	temp, err := os.CreateTemp(dir, ".settings-*.tmp")
-	if err != nil {
-		return "", fmt.Errorf("create config temp file: %w", err)
-	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if err := temp.Chmod(0o600); err != nil {
-		_ = temp.Close()
-		return "", fmt.Errorf("protect config temp file: %w", err)
-	}
-	if _, err := temp.Write(body); err != nil {
-		_ = temp.Close()
-		return "", fmt.Errorf("write config temp file: %w", err)
-	}
-	if err := temp.Sync(); err != nil {
-		_ = temp.Close()
-		return "", fmt.Errorf("sync config temp file: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		return "", fmt.Errorf("close config temp file: %w", err)
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return "", fmt.Errorf("replace config file: %w", err)
+	if err := configStore(path, true).Save(config); err != nil {
+		return "", fmt.Errorf("save config: %w", err)
 	}
 	return path, nil
 }
