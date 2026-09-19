@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN" data-dk-theme="dark" data-dk-theme-mode="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Know Me · Native Runtime</title>
+  <link rel="stylesheet" href="/desktopkit/tokens.css">
+  <link rel="stylesheet" href="/desktopkit/base.css">
+  <link rel="stylesheet" href="/desktopkit/components.css">
+  <link rel="stylesheet" href="/desktopkit/navigation.css">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/desktopkit/theme.js"></script>
+</head>
+<body class="dk-app-shell">
+  <main class="native-shell">
+    <section class="dk-panel native-card">
+      <div class="native-brand">
+        <span class="native-logo">K</span>
+        <div>
+          <div class="native-kicker">KNOW ME</div>
+          <h1>Native Runtime 已启动</h1>
+        </div>
+      </div>
+      <p class="dk-muted">这是 Go 原生运行时的第一阶段。现有 Next.js 版本继续保留，功能会逐模块迁移到同一个 Go Core。</p>
+      <div class="native-grid">
+        <div class="native-stat"><span>Runtime</span><strong id="runtime">checking…</strong></div>
+        <div class="native-stat"><span>HTTP API</span><strong id="health">checking…</strong></div>
+        <div class="native-stat"><span>Desktop Kit</span><strong>v0.2.2</strong></div>
+      </div>
+      <div class="dk-row native-actions">
+        <button class="dk-button dk-button-primary" id="theme-toggle" type="button">切换明暗</button>
+        <a class="dk-button" href="/api/health" target="_blank" rel="noreferrer">Health JSON</a>
+      </div>
+      <p class="native-foot">CLI 默认仅监听 127.0.0.1；公网部署需要显式指定 <code>--listen 0.0.0.0:3000</code>。</p>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
