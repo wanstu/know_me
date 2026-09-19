@@ -76,10 +76,13 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.4 Blog / Media / Backup
 
-- [ ] posts / revisions / taxonomy。
-- [ ] Markdown / FTS 搜索。
-- [ ] media。
-- [ ] backup export / restore。
+- [x] posts / revisions / taxonomy：草稿、发布、定时发布、置顶、历史版本恢复、标签和分类管理均已迁移到 Go。
+- [x] Markdown / FTS 搜索：继续使用 SQLite FTS5，正文索引使用与 Node 版一致的 Markdown→纯文本规则。
+- [x] media：JPEG / PNG / WebP / GIF、10MB 限制、年月目录、公开 `/media/...`、删除与路径穿越保护均已迁移。
+- [x] backup export / restore：保持 `know_me_backup` v1 ZIP 格式与表集合兼容，继续排除 users / sessions，并在恢复后重建 FTS。
+- [x] 原生 API：`/api/posts`、revisions、taxonomy、media、backup 与公开 blog API 已接入 Native session / same-origin 校验。
+- [x] CLI：`know-me backup export` / `know-me backup restore`。
+- [x] 现有本地 Node SQLite 数据兼容验证：Native CLI 可直接打开现有数据库，识别 101 个导航项并完成备份导出/恢复。
 
 ### 5.5 前端迁移
 
@@ -107,7 +110,7 @@ know-me backup export
 know-me backup restore
 ```
 
-当前已经交付 `serve`、`version`、`db migrate` 和 `admin init`。`backup export / restore` 会在 5.4 迁移备份模块后开放，避免存在“能执行但功能未实现”的占位命令。
+当前已经交付 `serve`、`version`、`db migrate`、`admin init`、`config path/show/init`、`backup export` 和 `backup restore`。下一阶段主要工作已经从后端迁移转为 5.5 静态前端迁移与 5.6 Desktop wrapper。
 
 ## 发布目标
 

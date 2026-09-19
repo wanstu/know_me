@@ -13,7 +13,10 @@ import (
 	"time"
 
 	"github.com/wanstu/know_me/internal/auth"
+	"github.com/wanstu/know_me/internal/backup"
+	"github.com/wanstu/know_me/internal/blog"
 	"github.com/wanstu/know_me/internal/database"
+	"github.com/wanstu/know_me/internal/media"
 	"github.com/wanstu/know_me/internal/navigation"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/settings"
@@ -36,6 +39,9 @@ type Server struct {
 	auth         *auth.Store
 	settings     *settings.Store
 	navigation   *navigation.Store
+	blog         *blog.Store
+	media        *media.Store
+	backup       *backup.Store
 	loginLimiter *loginLimiter
 }
 
@@ -59,6 +65,17 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("mount web assets: %w", err)
 	}
 
+	mediaStore, err := media.NewStore(db.SQL, config.UploadsDir)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("media: %w", err)
+	}
+	backupStore, err := backup.NewStore(db.SQL, config.UploadsDir)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("backup: %w", err)
+	}
+
 	s := &Server{
 		config:       config,
 		build:        build,
@@ -67,11 +84,17 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		auth:         auth.NewStore(db.SQL),
 		settings:     settings.NewStore(db.SQL),
 		navigation:   navigation.NewStore(db.SQL),
+		blog:         blog.NewStore(db.SQL),
+		media:        mediaStore,
+		backup:       backupStore,
 		loginLimiter: newLoginLimiter(),
 	}
 	mux := http.NewServeMux()
 	s.registerAPI(mux)
 	s.registerNavigationAPI(mux)
+	s.registerBlogAPI(mux)
+	s.registerMediaAPI(mux)
+	s.registerBackupAPI(mux)
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{

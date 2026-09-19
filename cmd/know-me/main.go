@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/wanstu/know_me/internal/auth"
+	backupstore "github.com/wanstu/know_me/internal/backup"
 	"github.com/wanstu/know_me/internal/database"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/server"
@@ -44,6 +47,8 @@ func run(args []string) error {
 		return adminCommand(args[1:])
 	case "config":
 		return configCommand(args[1:])
+	case "backup":
+		return backupCommand(args[1:])
 	case "version", "--version", "-v":
 		fmt.Printf("know-me %s (%s) %s/%s built %s\n", version, commit, runtime.GOOS, runtime.GOARCH, buildTime)
 		return nil
@@ -258,6 +263,119 @@ func configCommand(args []string) error {
 	}
 }
 
+func backupCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing backup command; expected: export or restore")
+	}
+	switch args[0] {
+	case "export":
+		return backupExport(args[1:])
+	case "restore":
+		return backupRestore(args[1:])
+	default:
+		return fmt.Errorf("unknown backup command %q; expected: export or restore", args[0])
+	}
+}
+
+func backupExport(args []string) error {
+	config, err := runtimeconfig.Load()
+	if err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("backup export", flag.ContinueOnError)
+	addStorageFlags(flags, &config)
+	output := ""
+	flags.StringVar(&output, "output", output, "backup ZIP output path")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := config.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	dbPath := database.ResolvePath(config.DataDir, config.Database)
+	db, err := database.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	store, err := backupstore.NewStore(db.SQL, config.UploadsDir)
+	if err != nil {
+		return err
+	}
+	body, err := store.Create(context.Background())
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(output) == "" {
+		output = "know_me-backup-" + time.Now().Format("2006-01-02_15-04") + ".zip"
+	}
+	output = filepath.Clean(output)
+	if dir := filepath.Dir(output); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(output, body, 0o600); err != nil {
+		return err
+	}
+	fmt.Printf("Backup written: %s\n", output)
+	fmt.Printf("Bytes: %d\n", len(body))
+	return nil
+}
+
+func backupRestore(args []string) error {
+	config, err := runtimeconfig.Load()
+	if err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("backup restore", flag.ContinueOnError)
+	addStorageFlags(flags, &config)
+	input := ""
+	flags.StringVar(&input, "file", input, "backup ZIP to restore")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(input) == "" {
+		return fmt.Errorf("backup file is required")
+	}
+	if err := config.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	info, err := os.Stat(input)
+	if err != nil {
+		return err
+	}
+	if info.Size() <= 0 || info.Size() > int64(backupstore.MaxBytes) {
+		return fmt.Errorf("backup_size_invalid")
+	}
+	body, err := os.ReadFile(input)
+	if err != nil {
+		return err
+	}
+
+	dbPath := database.ResolvePath(config.DataDir, config.Database)
+	db, err := database.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	store, err := backupstore.NewStore(db.SQL, config.UploadsDir)
+	if err != nil {
+		return err
+	}
+	result, err := store.Restore(context.Background(), body)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Backup restored: %s\n", input)
+	fmt.Printf("Posts: %d, navigation items: %d, media: %d\n", result.Posts, result.NavigationItems, result.Media)
+	return nil
+}
+
 func addStorageFlags(flags *flag.FlagSet, config *runtimeconfig.Config) {
 	flags.StringVar(&config.DataDir, "data-dir", config.DataDir, "persistent data directory")
 	flags.StringVar(&config.UploadsDir, "uploads-dir", config.UploadsDir, "media uploads directory")
@@ -285,6 +403,8 @@ func printHelp() {
 		"  know-me db migrate [options]\n" +
 		"  know-me admin init [options]\n" +
 		"  know-me config path|show|init\n" +
+		"  know-me backup export [--output file.zip]\n" +
+		"  know-me backup restore --file file.zip\n" +
 		"  know-me version\n\n" +
 		"Serve options:\n" +
 		"  --listen       HTTP listen address (default 127.0.0.1:3000)\n" +

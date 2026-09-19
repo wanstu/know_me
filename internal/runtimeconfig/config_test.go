@@ -22,11 +22,11 @@ func TestLoadUsesKitConfigDirAndEnvironmentPrecedence(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := json.Marshal(Config{
-		Listen: "127.0.0.1:3456",
-		DataDir: "site-data",
+		Listen:     "127.0.0.1:3456",
+		DataDir:    "site-data",
 		UploadsDir: "site-uploads",
-		Database: "site-data/site.db",
-		SiteURL: "https://example.test",
+		Database:   "site-data/site.db",
+		SiteURL:    "https://example.test",
 	})
 	if err := os.WriteFile(filepath.Join(dir, ConfigFileName), body, 0o600); err != nil {
 		t.Fatal(err)
@@ -56,10 +56,10 @@ func TestSaveWritesOrdinaryConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", root)
 
 	path, err := Save(Config{
-		Listen: "127.0.0.1:3000",
-		DataDir: "./data",
+		Listen:     "127.0.0.1:3000",
+		DataDir:    "./data",
 		UploadsDir: "./uploads",
-		SiteURL: "https://example.test",
+		SiteURL:    "https://example.test",
 	})
 	if err != nil {
 		t.Fatal(err)

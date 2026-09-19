@@ -73,7 +73,7 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 使用 `wails-desktop-kit v0.4.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.3 已完成：使用 pure-Go SQLite，兼容现有 migration / settings / scrypt 密码 / session 数据，并已迁移导航 CRUD、公开起始页导航 API 与 iTab preview / import / export。Kit v0.4.0 的统一配置目录也已接入；普通运行配置位于 `~/.config/know-me/settings.json`，数据库与上传文件仍由 `data/`、`uploads/` 持久化目录管理。博客、媒体与备份继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 使用 `wails-desktop-kit v0.4.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.4 后端迁移已经完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体和完整备份都已经由 Go Core 提供，并保持现有数据库和备份格式兼容。Kit v0.4.0 的统一配置目录也已接入；普通运行配置位于 `~/.config/know-me/settings.json`，数据库与上传文件仍由 `data/`、`uploads/` 持久化目录管理。下一阶段进入静态前端迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 配置与数据初始化：
 
@@ -84,6 +84,9 @@ go run ./cmd/know-me config show
 
 go run ./cmd/know-me db migrate
 go run ./cmd/know-me admin init --username admin
+
+go run ./cmd/know-me backup export --output ./know_me-backup.zip
+go run ./cmd/know-me backup restore --file ./know_me-backup.zip
 ~~~
 
 配置优先级为：CLI flags > 环境变量 > `~/.config/know-me/settings.json` > 内置默认值。普通配置文件不保存密码、Token 或 Session Secret；这类敏感配置后续统一使用 Kit `secureconfig`。站点数据库和媒体文件不会因为 Kit 配置目录升级而搬到 `~/.config`。
