@@ -113,15 +113,16 @@ jobs:
   desktop:
     name: Desktop packages
     needs: verify
-    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.6.1
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.8.0
     with:
       app-name: know-me-desktop
       desktop-dir: cmd/know-me-desktop
-      desktopkit-cli-version: v0.6.1
+      desktopkit-cli-version: v0.8.0
       test-command: ""
       vet-command: ""
       build-command-windows: ./scripts/build-desktop.ps1
-      build-command-unix: bash ./scripts/build-desktop.sh
+      build-command-linux: bash ./scripts/build-desktop.sh
+      build-command-macos: bash ./scripts/build-desktop.sh
       linux-package-formats: raw,deb,tar.gz
       linux-package-name: know-me-desktop
       linux-package-description: Know Me desktop application
