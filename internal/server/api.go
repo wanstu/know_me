@@ -76,6 +76,8 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/version", s.handleVersion)
 	mux.HandleFunc("GET /api/site", s.handleSiteGet)
+	mux.HandleFunc("GET /api/auth/setup", s.handleAuthSetupGet)
+	mux.HandleFunc("POST /api/auth/setup", s.handleAuthSetupPost)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", s.handleMe)
@@ -90,6 +92,57 @@ func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"settings": value})
+}
+
+func (s *Server) handleAuthSetupGet(w http.ResponseWriter, r *http.Request) {
+	hasUsers, err := s.auth.HasUsers(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "auth_setup_failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"needsSetup": !hasUsers})
+}
+
+func (s *Server) handleAuthSetupPost(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	var body struct {
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request"})
+		return
+	}
+
+	userID, created, err := s.auth.CreateInitialAdmin(r.Context(), body.Username, body.Password, body.DisplayName)
+	if err != nil {
+		code := err.Error()
+		if code == "username_required" || code == "password_too_short" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": code})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "auth_setup_failed"})
+		return
+	}
+	if !created {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "already_initialized"})
+		return
+	}
+
+	session, err := s.auth.CreateSession(r.Context(), userID, r.UserAgent())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "session_failed"})
+		return
+	}
+	s.setSessionCookie(w, r, session)
+	user, _ := s.auth.UserForSession(r.Context(), session.Token)
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "user": user, "expiresAt": session.ExpiresAt.UnixMilli()})
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -136,15 +189,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.loginLimiter.clear(key)
-	http.SetCookie(w, &http.Cookie{
-		Name:     auth.SessionCookie,
-		Value:    session.Token,
-		Path:     "/",
-		Expires:  session.ExpiresAt,
-		HttpOnly: true,
-		Secure:   s.secureCookie(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	s.setSessionCookie(w, r, session)
 	if wantsJSON {
 		user, _ := s.auth.UserForSession(r.Context(), session.Token)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": user, "expiresAt": session.ExpiresAt.UnixMilli()})
@@ -309,6 +354,18 @@ func clientKey(r *http.Request, username string) string {
 		ip = "unknown"
 	}
 	return ip + "|" + strings.ToLower(strings.TrimSpace(username))
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, session auth.Session) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.SessionCookie,
+		Value:    session.Token,
+		Path:     "/",
+		Expires:  session.ExpiresAt,
+		HttpOnly: true,
+		Secure:   s.secureCookie(r),
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func (s *Server) secureCookie(r *http.Request) bool {

@@ -29,6 +29,18 @@ export async function getSession(): Promise<SessionUser | null> {
   return payload.user as SessionUser;
 }
 
+export async function getAuthSetup() {
+  return requestJSON<{ needsSetup: boolean }>("/api/auth/setup");
+}
+
+export async function registerAdmin(username: string, password: string, displayName = "") {
+  return requestJSON<{ ok: true; user: SessionUser; expiresAt: number }>("/api/auth/setup", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password, displayName })
+  });
+}
+
 export async function login(username: string, password: string) {
   return requestJSON<{ ok: true; user: SessionUser; expiresAt: number }>("/api/auth/login", {
     method: "POST",

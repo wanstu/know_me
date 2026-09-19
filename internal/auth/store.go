@@ -42,6 +42,50 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+func (s *Store) HasUsers(ctx context.Context) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users LIMIT 1)").Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
+func (s *Store) CreateInitialAdmin(ctx context.Context, username, password, displayName string) (userID int64, created bool, err error) {
+	username = strings.TrimSpace(username)
+	displayName = strings.TrimSpace(displayName)
+	if username == "" {
+		return 0, false, fmt.Errorf("username_required")
+	}
+	if displayName == "" {
+		displayName = username
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return 0, false, err
+	}
+	now := time.Now().UnixMilli()
+	result, err := s.db.ExecContext(ctx,
+		"INSERT INTO users (username, password_hash, display_name, avatar, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)",
+		username, hash, displayName, "", now, now,
+	)
+	if err != nil {
+		return 0, false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, false, err
+	}
+	if rows == 0 {
+		return 0, false, nil
+	}
+	userID, err = result.LastInsertId()
+	if err != nil {
+		return 0, false, err
+	}
+	return userID, true, nil
+}
+
 func (s *Store) CredentialsByUsername(ctx context.Context, username string) (Credentials, bool, error) {
 	var value Credentials
 	err := s.db.QueryRowContext(ctx,
