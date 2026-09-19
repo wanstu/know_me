@@ -17,7 +17,7 @@ export type SiteSettings = {
   startPublic: boolean;
   defaultSearchEngine: "Bing" | "Google" | "DuckDuckGo";
   themeMode: "auto" | "dark" | "light";
-  themePreset: "aurora" | "ocean" | "forest" | "sunset";
+  themePreset: string;
   startDensity: "compact" | "comfortable" | "spacious";
   startCardOpacity: number;
   startCardRadius: number;

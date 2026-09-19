@@ -62,6 +62,43 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 	}
 	publicResp.Body.Close()
 
+	themeResp, err := http.Get(base + "/desktopkit-theme/manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if themeResp.StatusCode != http.StatusOK {
+		themeResp.Body.Close()
+		t.Fatalf("theme catalog status = %d", themeResp.StatusCode)
+	}
+	var themeCatalog struct {
+		Source string `json:"source"`
+		Packs  []struct {
+			Name string `json:"name"`
+		} `json:"packs"`
+	}
+	if err := json.NewDecoder(themeResp.Body).Decode(&themeCatalog); err != nil {
+		themeResp.Body.Close()
+		t.Fatal(err)
+	}
+	themeResp.Body.Close()
+	if len(themeCatalog.Packs) < 4 {
+		t.Fatalf("theme catalog packs = %d source=%s", len(themeCatalog.Packs), themeCatalog.Source)
+	}
+
+	themeCSS, err := http.Get(base + "/desktopkit-theme/aurora.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if themeCSS.StatusCode != http.StatusOK {
+		themeCSS.Body.Close()
+		t.Fatalf("theme css status = %d", themeCSS.StatusCode)
+	}
+	if got := themeCSS.Header.Get("Content-Type"); got != "text/css; charset=utf-8" {
+		themeCSS.Body.Close()
+		t.Fatalf("theme css content-type = %q", got)
+	}
+	themeCSS.Body.Close()
+
 	loginBody := bytes.NewBufferString(`{"username":"admin","password":"0123456789-password"}`)
 	req, _ := http.NewRequest(http.MethodPost, base+"/api/auth/login", loginBody)
 	req.Header.Set("Content-Type", "application/json")
@@ -94,7 +131,7 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	patch := bytes.NewBufferString(`{"themePreset":"forest","themeMode":"light","profileName":"Native"}`)
+	patch := bytes.NewBufferString(`{"themePreset":"midnight","themeMode":"light","profileName":"Native"}`)
 	req, _ = http.NewRequest(http.MethodPatch, base+"/api/settings", patch)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", base)
@@ -116,7 +153,7 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if payload.Settings.ThemePreset != "forest" || payload.Settings.ThemeMode != "light" || payload.Settings.ProfileName != "Native" {
+	if payload.Settings.ThemePreset != "midnight" || payload.Settings.ThemeMode != "light" || payload.Settings.ProfileName != "Native" {
 		t.Fatalf("settings payload = %#v", payload.Settings)
 	}
 

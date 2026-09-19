@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -13,6 +14,8 @@ type SearchEngineName string
 type ThemeMode string
 type ThemePreset string
 type StartDensity string
+
+var themePresetPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
 const (
 	SearchBing       SearchEngineName = "Bing"
@@ -280,9 +283,7 @@ func normalize(v SiteSettings) SiteSettings {
 	default:
 		v.ThemeMode = ThemeAuto
 	}
-	switch v.ThemePreset {
-	case PresetAurora, PresetOcean, PresetForest, PresetSunset:
-	default:
+	if !themePresetPattern.MatchString(string(v.ThemePreset)) {
 		v.ThemePreset = PresetAurora
 	}
 	switch v.StartDensity {

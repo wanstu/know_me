@@ -1,7 +1,7 @@
 # Phase 5：Go Native Runtime 重构
 
 状态：进行中  
-基线：`know_me master@2b98e91`；Desktop Kit 使用最新正式版 `v0.4.0`，可选主题使用 `wails-desktop-kit-theme v0.1.0`。
+基线：`know_me master@2b98e91`；Desktop Kit 使用正式版 `v0.5.0`，主题改用 Kit Runtime Theme，不再直接依赖 `wails-desktop-kit-theme` Go Module。
 
 ## 目标
 
@@ -19,12 +19,14 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ## Kit 使用边界
 
-直接复用 Desktop Kit v0.4.0 与 Theme v0.1.0：
+直接复用 Desktop Kit v0.5.0：
 
-- `theme.MountWithKit`：同一份前端静态资源同时暴露 Kit CSS / JS 与可选主题包。
+- `ui.Mount`：暴露 Kit 基础 CSS / JS；应用静态资源仍由 Know Me 自己 embed。
+- `theme.Manager`：CLI HTTP Server 直接挂载 `/desktopkit-theme/*` Runtime Theme 服务，不依赖 Wails Desktop 才能使用。
 - `tokens.css / base.css / components.css / navigation.css`：作为 Native Web UI 基础。
-- `theme.js`：复用 light / dark / system 与 `data-dk-theme-pack` 协议。
-- Native Runtime 默认使用通用 `aurora` pack，不把 Know Me 产品样式写回 Kit。
+- `theme.js`：复用 light / dark / system、动态 catalog、`applyPack()` 与 `data-dk-theme-pack` 协议。
+- Runtime Theme 固定内置 `aurora / ocean / forest / sunset` 4 套离线 fallback；联网后同步独立 Theme 仓库完整 manifest、校验 SHA-256 并保存 last-known-good 快照。
+- Native Runtime 默认使用通用 `aurora` pack，不把 Know Me 产品样式写回 Kit；数据库保存稳定 Theme Pack ID，不限制为内置 4 套，因此 Theme 仓库新增主题无需升级 Know Me。
 - Kit `paths` 统一普通应用配置目录为 `~/.config/know-me`；数据库和媒体数据继续独立外置。
 - Kit `secureconfig` 作为未来 SMTP / API Token / 远程凭据等敏感配置的统一存储能力；管理员密码仍只保存 scrypt hash，不重复加密明文密码。
 - 后续 Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动、图标生成器与三平台 reusable workflow。
@@ -36,21 +38,21 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 已经完成的公共抽象：
 
-- Kit v0.3.0 已增加 Theme Pack 协议，保持明暗模式和配色包正交；当前消费者已升级到 v0.4.0。
-- `wails-desktop-kit-theme v0.1.0` 已独立提供极光 / 海洋 / 森林 / 落日四套通用主题，只覆盖 `--dk-*` token。
+- Kit v0.3.0 建立 Theme Pack 协议；v0.5.0 进一步加入 Runtime Theme Manager，保持明暗模式和配色包正交，并让主题更新与消费者构建解耦。
+- `wails-desktop-kit-theme` 继续作为独立主题内容仓库维护完整 manifest；Know Me 不再把它作为 Go Module 编译依赖。
 - 如后续 Desktop wrapper 出现多个消费者共同需要的“启动本地 HTTP Core + 生命周期协同”，再评估是否抽象；本阶段不提前设计。
 
 ## 迁移阶段
 
 ### 5.1 Native Runtime 基线
 
-- [x] 根 Go Module，固定 Desktop Kit v0.4.0 + Theme v0.1.0。
+- [x] 根 Go Module，固定 Desktop Kit v0.5.0；移除编译期 `wails-desktop-kit-theme` 依赖。
 - [x] `know-me serve`。
 - [x] `know-me version`。
 - [x] 默认 `127.0.0.1:3000`，公网必须显式 `--listen`。
 - [x] `--data-dir`、`--uploads-dir`、`--site-url`。
 - [x] `/api/health`、`/api/version`。
-- [x] 嵌入静态前端并通过 `theme.MountWithKit` 暴露 Kit + Theme 资源。
+- [x] 嵌入静态前端并通过 `ui.Mount` 暴露 Kit 基础资源；Runtime Theme 由 `theme.Manager` 提供 `/desktopkit-theme/*`。
 - [x] SPA fallback 与基础安全响应头。
 - [x] Windows amd64 / Linux amd64 / macOS amd64 / macOS arm64 CLI CI 构建产物。
 - [ ] 正式版本 Tag 时发布 CLI Release 资产（待业务迁移完成后切换主发布流程）。
@@ -64,7 +66,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - [x] `admin init`：支持创建 / 重置管理员并清除旧 session；未传密码时生成一次性随机密码。
 - [x] 原生 API：`/api/auth/login`、`/api/auth/logout`、`/api/auth/me`、`/api/settings`。
 - [x] `know-me db migrate`。
-- [x] Kit v0.4.0 `paths` 配置层：`~/.config/know-me/settings.json`，支持 `config path/show/init`，并保持 CLI > env > file > defaults 优先级。
+- [x] Kit v0.4.0+ `paths` 配置层：`~/.config/know-me/settings.json`，支持 `config path/show/init`，并保持 CLI > env > file > defaults 优先级。
 - [x] 明确 Secure Config 边界：敏感凭据使用 Kit `secureconfig`，管理员密码与 session 继续采用 hash-only 数据模型。
 
 ### 5.3 导航与 iTab
@@ -98,7 +100,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - [x] 媒体管理：图片上传、URL/Markdown 复制、删除。
 - [x] 站点设置：主题、背景、起始页参数、社交链接、主页入口、项目卡片。
 - [x] 备份管理：浏览器下载完整 ZIP 与上传恢复。
-- [x] Desktop Kit Theme Pack：light/dark/system + aurora/ocean/forest/sunset 继续由 Kit token 驱动。
+- [x] Desktop Kit Runtime Theme：light/dark/system 与 Theme Pack 正交；4 套离线 fallback + 运行时完整 catalog，Theme 仓库更新无需重新构建 Know Me。
 - [x] Native Web 已接入 `build-native*.ps1` 与 Native CLI CI；CI 校验生成的 embed 静态资产没有漂移。
 - [x] 使用现有 7 分组 / 101 项 iTab 数据进行浏览器验证；`/`、`/blog`、`/start`、全部 `/admin/*` 路由均已在真实 Native Server 下打开验证，文章新建也已通过 UI 实测。
 
@@ -124,7 +126,7 @@ know-me backup export
 know-me backup restore
 ```
 
-当前已经交付 `serve`、`version`、`db migrate`、`admin init`、`config path/show/init`、`backup export` 和 `backup restore`。下一阶段主要工作已经从后端迁移转为 5.5 静态前端迁移与 5.6 Desktop wrapper。
+当前已经交付 `serve`、`version`、`db migrate`、`admin init`、`config path/show/init`、`backup export` 和 `backup restore`。Phase 5.5 静态前端已经完成，下一阶段主要工作转为 5.6 Desktop wrapper。
 
 ## 发布目标
 

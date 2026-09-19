@@ -14,7 +14,7 @@
 - [x] Phase 1：需求分析
 - [x] Phase 2：信息架构 / UI 设计 / HTML 静态原型
 - [x] Phase 3：正式实现（3.1～3.7 已完成）
-- [~] Phase 4：起始页、博客写作、个人主页与主题系统精修已完成；内置极光 / 海洋 / 森林 / 落日主题，CI / Docker / 备份恢复基线已完成，等待真实域名部署验证
+- [~] Phase 4：起始页、博客写作、个人主页与主题系统精修已完成；Phase 5 Native Runtime 已升级到 Kit Runtime Theme，保留 4 套离线 fallback 并可运行时同步完整主题集，CI / Docker / 备份恢复基线已完成
 
 ## 本地启动
 
@@ -73,7 +73,7 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 使用 `wails-desktop-kit v0.4.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.5 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份以及 Vite + React 静态前端都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。后台菜单已经拆成真实独立 URL，文章/导航/分类标签/媒体/站点设置均可直接编辑。Kit v0.4.0 的统一配置目录也已接入；普通运行配置位于 `~/.config/know-me/settings.json`，数据库与上传文件仍由 `data/`、`uploads/` 持久化目录管理。下一阶段进入 Wails Desktop wrapper。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 已升级到 `wails-desktop-kit v0.5.0`。Phase 5.2～5.5 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份以及 Vite + React 静态前端都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。后台菜单已经拆成真实独立 URL，文章/导航/分类标签/媒体/站点设置均可直接编辑。Kit v0.5.0 Runtime Theme 已直接接入 CLI HTTP Server：不再把 `wails-desktop-kit-theme` 编译进二进制，启动时由 Kit 提供 4 套离线 fallback，并可从独立 Theme 仓库同步完整主题集和 last-known-good 缓存，因此新增/更新主题不再要求重新构建 Know Me。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。下一阶段进入 Wails Desktop wrapper。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 配置与数据初始化：
 

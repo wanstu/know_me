@@ -28,7 +28,7 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 
 	name := "Native Know Me"
 	mode := ThemeLight
-	preset := PresetForest
+	preset := ThemePreset("midnight")
 	opacity := 101
 	public := true
 	value, err = store.UpdateSite(ctx, SitePatch{
@@ -41,7 +41,7 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value.ProfileName != name || value.ThemeMode != ThemeLight || value.ThemePreset != PresetForest {
+	if value.ProfileName != name || value.ThemeMode != ThemeLight || value.ThemePreset != ThemePreset("midnight") {
 		t.Fatalf("patch not applied: %#v", value)
 	}
 	if value.StartCardOpacity != 95 || !value.StartPublic {
@@ -52,7 +52,7 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.ProfileName != name || again.ThemePreset != PresetForest {
+	if again.ProfileName != name || again.ThemePreset != ThemePreset("midnight") {
 		t.Fatalf("settings not persisted: %#v", again)
 	}
 }

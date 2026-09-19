@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getSession, logout, requestJSON } from "../api";
+import { applyTheme, loadThemeCatalog, type ThemeCatalog } from "../kit";
 import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ErrorCard, LoadingCard } from "../ui";
 import { MediaManager } from "./admin/media-manager";
@@ -92,10 +93,53 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   const [draft, setDraft] = useState(settings);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [catalog, setCatalog] = useState<ThemeCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+
+  useEffect(() => {
+    void loadThemeCatalog(false)
+      .then((value) => {
+        setCatalog(value);
+        setCatalogError(value.last_error ?? "");
+        if (value.source === "builtin" || value.stale) {
+          void loadThemeCatalog(true)
+            .then((fresh) => {
+              setCatalog(fresh);
+              setCatalogError(fresh.last_error ?? "");
+            })
+            .catch((reason) => setCatalogError(reason instanceof Error ? reason.message : value.last_error ?? "theme_catalog_refresh_failed"));
+        }
+      })
+      .catch((reason) => setCatalogError(reason instanceof Error ? reason.message : "theme_catalog_failed"));
+  }, []);
+
+  useEffect(() => {
+    void applyTheme(draft.themeMode, draft.themePreset);
+  }, [draft.themeMode, draft.themePreset]);
+
+  async function refreshThemes() {
+    setCatalogError("");
+    try {
+      const value = await loadThemeCatalog(true);
+      setCatalog(value);
+      setCatalogError(value.last_error ?? "");
+    } catch (reason) {
+      setCatalogError(reason instanceof Error ? reason.message : "theme_catalog_failed");
+    }
+  }
 
   function update<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
+
+  const fallbackThemePacks = [
+    { name: "aurora", display_name: "极光", description: "离线默认主题" },
+    { name: "ocean", display_name: "海洋", description: "离线默认主题" },
+    { name: "forest", display_name: "森林", description: "离线默认主题" },
+    { name: "sunset", display_name: "落日", description: "离线默认主题" }
+  ];
+  const themePacks = catalog?.packs?.length ? catalog.packs : fallbackThemePacks;
+  const selectedTheme = themePacks.find((pack) => pack.name === draft.themePreset);
 
   function updateSocial(index: number, key: "label" | "url", value: string) {
     setDraft((current) => ({
@@ -152,7 +196,21 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
           <label className="dk-field">今日短句<input value={draft.quote} onChange={(e) => update("quote", e.target.value)} /></label>
           <label className="dk-field">短句署名<input value={draft.quoteAuthor} onChange={(e) => update("quoteAuthor", e.target.value)} /></label>
           <label className="dk-field">主题模式<select value={draft.themeMode} onChange={(e) => update("themeMode", e.target.value as SiteSettings["themeMode"])}><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
-          <label className="dk-field">主题包<select value={draft.themePreset} onChange={(e) => update("themePreset", e.target.value as SiteSettings["themePreset"])}><option value="aurora">极光</option><option value="ocean">海洋</option><option value="forest">森林</option><option value="sunset">落日</option></select></label>
+          <div className="dk-field km-theme-picker">
+            <span>主题包</span>
+            <div className="km-theme-picker-row">
+              <select value={draft.themePreset} onChange={(e) => update("themePreset", e.target.value)}>
+                {!themePacks.some((pack) => pack.name === draft.themePreset) ? <option value={draft.themePreset}>{draft.themePreset}</option> : null}
+                {themePacks.map((pack) => <option key={pack.name} value={pack.name}>{pack.display_name} · {pack.name}</option>)}
+              </select>
+              <button type="button" className="dk-button" onClick={() => void refreshThemes()}>刷新主题</button>
+            </div>
+            <small>{selectedTheme?.description ?? "由 Desktop Kit Runtime Theme 提供"}</small>
+            <small>
+              {catalog ? `来源：${catalog.source} · ${catalog.packs.length} 套${catalog.stale ? " · 缓存待刷新" : ""}` : "正在使用 Kit 内置离线主题"}
+              {catalogError ? " · " + catalogError : ""}
+            </small>
+          </div>
           <label className="dk-field">默认搜索<select value={draft.defaultSearchEngine} onChange={(e) => update("defaultSearchEngine", e.target.value as SiteSettings["defaultSearchEngine"])}><option>Bing</option><option>Google</option><option>DuckDuckGo</option></select></label>
           <label className="dk-field">起始页密度<select value={draft.startDensity} onChange={(e) => update("startDensity", e.target.value as SiteSettings["startDensity"])}><option value="compact">紧凑</option><option value="comfortable">舒适</option><option value="spacious">宽松</option></select></label>
           <label className="dk-field">卡片透明度 <b>{draft.startCardOpacity}%</b><input type="range" min={30} max={95} value={draft.startCardOpacity} onChange={(e) => update("startCardOpacity", Number(e.target.value))} /></label>

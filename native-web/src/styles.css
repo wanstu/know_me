@@ -570,3 +570,13 @@ img { max-width: 100%; }
   border-radius: 7px; min-width: 32px; padding: 5px 8px; cursor: pointer; font-size: 10px;
 }
 .km-editor-file-button:hover { border-color: var(--dk-primary); color: var(--dk-primary); }
+
+
+.km-theme-picker { display: grid; gap: 6px; }
+.km-theme-picker > span { font-size: 11px; color: var(--dk-text-secondary); }
+.km-theme-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.km-theme-picker-row select { min-width: 0; }
+.km-theme-picker > small { color: var(--dk-text-muted); font-size: 9px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .km-theme-picker-row { grid-template-columns: 1fr; }
+}

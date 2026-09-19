@@ -23,7 +23,7 @@ export function App() {
     void getSiteSettings()
       .then((value) => {
         setSettings(value);
-        applyTheme(value.themeMode, value.themePreset);
+        void applyTheme(value.themeMode, value.themePreset);
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "site_failed"));
   }, []);
@@ -46,7 +46,7 @@ export function App() {
   } else if (path === "/admin" || path.startsWith("/admin/")) {
     page = <AdminPage settings={settings} path={path} onSettingsChange={(next) => {
       setSettings(next);
-      applyTheme(next.themeMode, next.themePreset);
+      void applyTheme(next.themeMode, next.themePreset);
     }} />;
   } else {
     page = (

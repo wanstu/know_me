@@ -4,7 +4,7 @@ import (
 	"embed"
 	"io/fs"
 
-	theme "github.com/wanstu/wails-desktop-kit-theme"
+	kitui "github.com/wanstu/wails-desktop-kit/ui"
 )
 
 //go:embed all:static
@@ -15,5 +15,5 @@ func FS() (fs.FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	return theme.MountWithKit(app), nil
+	return kitui.Mount(app), nil
 }

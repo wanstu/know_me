@@ -21,6 +21,7 @@ import (
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/settings"
 	"github.com/wanstu/know_me/internal/webassets"
+	kittheme "github.com/wanstu/wails-desktop-kit/theme"
 )
 
 type BuildInfo struct {
@@ -42,6 +43,7 @@ type Server struct {
 	blog         *blog.Store
 	media        *media.Store
 	backup       *backup.Store
+	theme        *kittheme.Manager
 	loginLimiter *loginLimiter
 }
 
@@ -75,6 +77,11 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		db.Close()
 		return nil, fmt.Errorf("backup: %w", err)
 	}
+	themeManager, err := kittheme.New(kittheme.DefaultConfig())
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("theme runtime: %w", err)
+	}
 
 	s := &Server{
 		config:       config,
@@ -87,6 +94,7 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		blog:         blog.NewStore(db.SQL),
 		media:        mediaStore,
 		backup:       backupStore,
+		theme:        themeManager,
 		loginLimiter: newLoginLimiter(),
 	}
 	mux := http.NewServeMux()
@@ -95,6 +103,7 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 	s.registerBlogAPI(mux)
 	s.registerMediaAPI(mux)
 	s.registerBackupAPI(mux)
+	mux.Handle("/desktopkit-theme/", themeManager.Handler())
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{
