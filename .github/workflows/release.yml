@@ -14,25 +14,137 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Release ${{ github.ref_name }}
+  verify:
+    name: Verify source
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run native:web:build
+      - name: Verify committed Native Web assets
+        run: git diff --exit-code -- internal/webassets/static
+      - run: go test ./...
+      - run: go vet ./...
 
+  cli:
+    name: CLI / ${{ matrix.name }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows amd64
+            os: windows-latest
+            goos: windows
+            goarch: amd64
+            asset: windows-amd64
+            ext: .exe
+          - name: Linux amd64
+            os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            asset: linux-amd64
+            ext: ""
+          - name: macOS amd64
+            os: macos-latest
+            goos: darwin
+            goarch: amd64
+            asset: macos-amd64
+            ext: ""
+          - name: macOS arm64
+            os: macos-latest
+            goos: darwin
+            goarch: arm64
+            asset: macos-arm64
+            ext: ""
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build CLI
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          ASSET: ${{ matrix.asset }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tag="$GITHUB_REF_NAME"
+          commit="${GITHUB_SHA::7}"
+          build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          file="know-me-${tag}-${ASSET}${EXT}"
+          go build -trimpath             -ldflags "-s -w -X main.version=${tag} -X main.commit=${commit} -X main.buildTime=${build_time}"             -o "dist/${file}" ./cmd/know-me
+          (
+            cd dist
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "${file}" > "${file}.sha256"
+            else
+              shasum -a 256 "${file}" > "${file}.sha256"
+            fi
+          )
+      - uses: actions/upload-artifact@v4
+        with:
+          name: know-me-cli-${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop:
+    name: Desktop packages
+    needs: verify
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.6.0
+    with:
+      app-name: know-me-desktop
+      desktop-dir: cmd/know-me-desktop
+      desktopkit-cli-version: v0.6.0
+      test-command: ""
+      vet-command: ""
+      build-command-windows: ./scripts/build-desktop.ps1
+      build-command-unix: bash ./scripts/build-desktop.sh
+      linux-package-formats: raw,deb,tar.gz
+      linux-package-name: know-me-desktop
+      linux-package-description: Know Me desktop application
+      linux-deb-depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+      linux-desktop-file: cmd/know-me-desktop/packaging/know-me-desktop.desktop
+      linux-icon-file: cmd/know-me-desktop/build/appicon.png
+      publish-release: false
+
+  docker:
+    name: Docker image
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -42,7 +154,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
-
       - name: Build and push versioned image
         uses: docker/build-push-action@v6
         with:
@@ -54,7 +165,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create GitHub Release
+  release:
+    name: Publish GitHub Release
+    needs: [cli, desktop, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: know-me-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Release assets:"
+          find dist -maxdepth 1 -type f -printf '%f\n' | sort
+
+          required=(
+            "know-me-${GITHUB_REF_NAME}-windows-amd64.exe"
+            "know-me-${GITHUB_REF_NAME}-linux-amd64"
+            "know-me-${GITHUB_REF_NAME}-macos-amd64"
+            "know-me-${GITHUB_REF_NAME}-macos-arm64"
+            "know-me-desktop-${GITHUB_REF_NAME}-windows-amd64.exe"
+            "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64"
+            "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64.deb"
+            "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64.tar.gz"
+            "know-me-desktop-${GITHUB_REF_NAME}-macos-universal.app.zip"
+          )
+          for file in "${required[@]}"; do
+            test -s "dist/${file}" || { echo "Missing release asset: ${file}" >&2; exit 1; }
+            test -s "dist/${file}.sha256" || { echo "Missing checksum: ${file}.sha256" >&2; exit 1; }
+          done
+
+          (
+            cd dist
+            for checksum in *.sha256; do
+              sha256sum --check "$checksum"
+            done
+          )
+
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*             --repo "$GITHUB_REPOSITORY"             --title "Know Me $GITHUB_REF_NAME"             --generate-notes             "${prerelease[@]}"

@@ -1,7 +1,7 @@
 # Phase 5：Go Native Runtime 重构
 
 状态：进行中  
-基线：`know_me master@2b98e91`；Desktop Kit 使用正式版 `v0.5.0`，主题改用 Kit Runtime Theme，不再直接依赖 `wails-desktop-kit-theme` Go Module。
+基线：`know_me master@2b98e91`；Desktop Kit 使用正式版 `v0.6.0`，主题使用 Kit Runtime Theme，发布使用 Kit Packaging Pipeline。
 
 ## 目标
 
@@ -19,7 +19,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ## Kit 使用边界
 
-直接复用 Desktop Kit v0.5.0：
+直接复用 Desktop Kit v0.6.0：
 
 - `ui.Mount`：暴露 Kit 基础 CSS / JS；应用静态资源仍由 Know Me 自己 embed。
 - `theme.Manager`：CLI HTTP Server 直接挂载 `/desktopkit-theme/*` Runtime Theme 服务，不依赖 Wails Desktop 才能使用。
@@ -29,7 +29,8 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - Native Runtime 默认使用通用 `aurora` pack，不把 Know Me 产品样式写回 Kit；数据库保存稳定 Theme Pack ID，不限制为内置 4 套，因此 Theme 仓库新增主题无需升级 Know Me。
 - Kit `paths` 统一普通应用配置目录为 `~/.config/know-me`；数据库和媒体数据继续独立外置。
 - Kit `secureconfig` 作为未来 SMTP / API Token / 远程凭据等敏感配置的统一存储能力；管理员密码仍只保存 scrypt hash，不重复加密明文密码。
-- 后续 Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动、图标生成器与三平台 reusable workflow。
+- Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动、图标生成器与三平台 reusable workflow。
+- Kit v0.6.0 Packaging Pipeline 统一 Linux raw / `.deb` / `.tar.gz` 与 SHA256；复杂新格式通过 post-package hook 扩展，未来接 AppImage 时无需重写 Release 聚合。
 
 暂不放进 Kit：
 
@@ -46,7 +47,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.1 Native Runtime 基线
 
-- [x] 根 Go Module，固定 Desktop Kit v0.5.0；移除编译期 `wails-desktop-kit-theme` 依赖。
+- [x] 根 Go Module，固定 Desktop Kit v0.6.0；移除编译期 `wails-desktop-kit-theme` 依赖。
 - [x] `know-me serve`。
 - [x] `know-me version`。
 - [x] 默认 `127.0.0.1:3000`，公网必须显式 `--listen`。
@@ -55,7 +56,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - [x] 嵌入静态前端并通过 `ui.Mount` 暴露 Kit 基础资源；Runtime Theme 由 `theme.Manager` 提供 `/desktopkit-theme/*`。
 - [x] SPA fallback 与基础安全响应头。
 - [x] Windows amd64 / Linux amd64 / macOS amd64 / macOS arm64 CLI CI 构建产物。
-- [ ] 正式版本 Tag 时发布 CLI Release 资产（待业务迁移完成后切换主发布流程）。
+- [x] 正式版本 Tag 发布 Windows amd64 / Linux amd64 / macOS amd64 / macOS arm64 四个平台 CLI 与 SHA256。
 
 ### 5.2 数据层
 
@@ -106,14 +107,18 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.6 Desktop wrapper
 
-使用 Desktop Kit 最新正式版：
+使用 Desktop Kit v0.6.0：
 
-- 托盘。
-- 单实例。
-- 登录自启。
-- 关闭策略。
-- Kit Theme。
-- 复用 Go Core。
+- [x] Desktop wrapper 启动内嵌 Go Core，并绑定私有 loopback 随机端口。
+- [x] 托盘：显示 / 隐藏、浏览器打开、退出。
+- [x] 单实例：重复启动唤醒已有窗口。
+- [x] 登录自启：交给 Kit autostart。
+- [x] 关闭与 Shutdown hook：退出时停止内嵌 Go Core。
+- [x] Kit Runtime Theme：Desktop 和 CLI 共用同一套 HTTP Core / Theme Runtime。
+- [x] Windows amd64、Linux amd64、macOS universal Desktop CI。
+- [x] Linux Desktop 发布 raw / `.deb` / `.tar.gz`；`.deb` 带 desktop entry、图标与 GTK/WebKitGTK 依赖。
+- [x] Desktop 构建 wrapper 注入版本、commit、build time。
+- [x] Tag Release 将 CLI、Desktop、Docker 汇总到同一 GitHub Release。
 
 ## CLI 目标
 
@@ -126,16 +131,26 @@ know-me backup export
 know-me backup restore
 ```
 
-当前已经交付 `serve`、`version`、`db migrate`、`admin init`、`config path/show/init`、`backup export` 和 `backup restore`。Phase 5.5 静态前端已经完成，下一阶段主要工作转为 5.6 Desktop wrapper。
+当前已经交付 `serve`、`version`、`db migrate`、`admin init`、`config path/show/init`、`backup export` 和 `backup restore`。Phase 5 Native Runtime 与 Desktop wrapper 已完成，后续重点转为真实 Tag Release 与部署验收。
 
 ## 发布目标
 
-```text
+~~~text
+CLI
 know-me-vX.Y.Z-windows-amd64.exe
 know-me-vX.Y.Z-linux-amd64
-know-me-vX.Y.Z-darwin-amd64
-know-me-vX.Y.Z-darwin-arm64
-```
+know-me-vX.Y.Z-macos-amd64
+know-me-vX.Y.Z-macos-arm64
+
+Desktop
+know-me-desktop-vX.Y.Z-windows-amd64.exe
+know-me-desktop-vX.Y.Z-linux-amd64
+know-me-desktop-vX.Y.Z-linux-amd64.deb
+know-me-desktop-vX.Y.Z-linux-amd64.tar.gz
+know-me-desktop-vX.Y.Z-macos-universal.app.zip
+~~~
+
+所有二进制 / 安装包都发布对应 `.sha256`。Linux Desktop `.deb` 是安装型产物，`.tar.gz` 是免安装分发型产物；未来 AppImage 通过 Kit post-package hook 增加。
 
 服务器最终无需 Node.js 或 Docker：
 

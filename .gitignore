@@ -10,6 +10,9 @@ data/*.db
 data/*.db-*
 data/*.itabdata
 uploads/
+cmd/know-me-desktop/build/bin/
+cmd/know-me-desktop/data/
+cmd/know-me-desktop/frontend/wailsjs/
 *.log
 *.tsbuildinfo
 .idea/

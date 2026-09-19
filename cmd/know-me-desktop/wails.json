@@ -1,0 +1,6 @@
+{
+  "name": "know-me-desktop",
+  "outputfilename": "know-me-desktop",
+  "frontend:dir": "frontend",
+  "wailsjsdir": "frontend/wailsjs"
+}
