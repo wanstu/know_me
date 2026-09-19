@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -41,6 +42,8 @@ func run(args []string) error {
 		return databaseCommand(args[1:])
 	case "admin":
 		return adminCommand(args[1:])
+	case "config":
+		return configCommand(args[1:])
 	case "version", "--version", "-v":
 		fmt.Printf("know-me %s (%s) %s/%s built %s\n", version, commit, runtime.GOOS, runtime.GOARCH, buildTime)
 		return nil
@@ -53,7 +56,10 @@ func run(args []string) error {
 }
 
 func serve(args []string) error {
-	config := runtimeconfig.Default()
+	config, err := runtimeconfig.Load()
+	if err != nil {
+		return err
+	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.StringVar(&config.Listen, "listen", config.Listen, "HTTP listen address")
 	addStorageFlags(flags, &config)
@@ -80,6 +86,9 @@ func serve(args []string) error {
 	fmt.Printf("Data:     %s\n", config.DataDir)
 	fmt.Printf("Database: %s\n", database.ResolvePath(config.DataDir, config.Database))
 	fmt.Printf("Uploads:  %s\n", config.UploadsDir)
+	if configPath, pathErr := runtimeconfig.ConfigPath(); pathErr == nil {
+		fmt.Printf("Config:   %s\n", configPath)
+	}
 	if config.SiteURL != "" {
 		fmt.Printf("Site:     %s\n", config.SiteURL)
 	}
@@ -95,7 +104,10 @@ func databaseCommand(args []string) error {
 	}
 	switch args[0] {
 	case "migrate":
-		config := runtimeconfig.Default()
+		config, err := runtimeconfig.Load()
+		if err != nil {
+			return err
+		}
 		flags := flag.NewFlagSet("db migrate", flag.ContinueOnError)
 		addStorageFlags(flags, &config)
 		if err := flags.Parse(args[1:]); err != nil {
@@ -135,7 +147,10 @@ func adminCommand(args []string) error {
 }
 
 func adminInit(args []string) error {
-	config := runtimeconfig.Default()
+	config, err := runtimeconfig.Load()
+	if err != nil {
+		return err
+	}
 	flags := flag.NewFlagSet("admin init", flag.ContinueOnError)
 	addStorageFlags(flags, &config)
 
@@ -193,6 +208,56 @@ func adminInit(args []string) error {
 	return nil
 }
 
+func configCommand(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing config command; expected: path, show, or init")
+	}
+	switch args[0] {
+	case "path":
+		path, err := runtimeconfig.ConfigPath()
+		if err != nil {
+			return err
+		}
+		fmt.Println(path)
+		return nil
+	case "show":
+		config, err := runtimeconfig.Load()
+		if err != nil {
+			return err
+		}
+		path, err := runtimeconfig.ConfigPath()
+		if err != nil {
+			return err
+		}
+		payload := struct {
+			Path   string               `json:"path"`
+			Config runtimeconfig.Config `json:"config"`
+		}{Path: path, Config: config}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(payload)
+	case "init":
+		path, err := runtimeconfig.ConfigPath()
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(path); err == nil {
+			return fmt.Errorf("config already exists: %s", path)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		config := runtimeconfig.Default()
+		path, err = runtimeconfig.Save(config)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Created config: %s\n", path)
+		return nil
+	default:
+		return fmt.Errorf("unknown config command %q; expected: path, show, or init", args[0])
+	}
+}
+
 func addStorageFlags(flags *flag.FlagSet, config *runtimeconfig.Config) {
 	flags.StringVar(&config.DataDir, "data-dir", config.DataDir, "persistent data directory")
 	flags.StringVar(&config.UploadsDir, "uploads-dir", config.UploadsDir, "media uploads directory")
@@ -219,6 +284,7 @@ func printHelp() {
 		"  know-me serve [options]\n" +
 		"  know-me db migrate [options]\n" +
 		"  know-me admin init [options]\n" +
+		"  know-me config path|show|init\n" +
 		"  know-me version\n\n" +
 		"Serve options:\n" +
 		"  --listen       HTTP listen address (default 127.0.0.1:3000)\n" +

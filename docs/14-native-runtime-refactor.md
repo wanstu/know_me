@@ -1,7 +1,7 @@
 # Phase 5：Go Native Runtime 重构
 
 状态：进行中  
-基线：`know_me master@2b98e91`；Desktop Kit 使用最新正式版 `v0.3.0`，可选主题使用 `wails-desktop-kit-theme v0.1.0`。
+基线：`know_me master@2b98e91`；Desktop Kit 使用最新正式版 `v0.4.0`，可选主题使用 `wails-desktop-kit-theme v0.1.0`。
 
 ## 目标
 
@@ -19,13 +19,15 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ## Kit 使用边界
 
-直接复用 Desktop Kit v0.3.0 与 Theme v0.1.0：
+直接复用 Desktop Kit v0.4.0 与 Theme v0.1.0：
 
 - `theme.MountWithKit`：同一份前端静态资源同时暴露 Kit CSS / JS 与可选主题包。
 - `tokens.css / base.css / components.css / navigation.css`：作为 Native Web UI 基础。
 - `theme.js`：复用 light / dark / system 与 `data-dk-theme-pack` 协议。
 - Native Runtime 默认使用通用 `aurora` pack，不把 Know Me 产品样式写回 Kit。
-- 后续 Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动与三平台 reusable workflow。
+- Kit `paths` 统一普通应用配置目录为 `~/.config/know-me`；数据库和媒体数据继续独立外置。
+- Kit `secureconfig` 作为未来 SMTP / API Token / 远程凭据等敏感配置的统一存储能力；管理员密码仍只保存 scrypt hash，不重复加密明文密码。
+- 后续 Desktop wrapper 使用 Kit Runtime、托盘、单实例、自启动、图标生成器与三平台 reusable workflow。
 
 暂不放进 Kit：
 
@@ -34,7 +36,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 已经完成的公共抽象：
 
-- Kit v0.3.0 已增加 Theme Pack 协议，保持明暗模式和配色包正交。
+- Kit v0.3.0 已增加 Theme Pack 协议，保持明暗模式和配色包正交；当前消费者已升级到 v0.4.0。
 - `wails-desktop-kit-theme v0.1.0` 已独立提供极光 / 海洋 / 森林 / 落日四套通用主题，只覆盖 `--dk-*` token。
 - 如后续 Desktop wrapper 出现多个消费者共同需要的“启动本地 HTTP Core + 生命周期协同”，再评估是否抽象；本阶段不提前设计。
 
@@ -42,7 +44,7 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.1 Native Runtime 基线
 
-- [x] 根 Go Module，固定 Desktop Kit v0.3.0 + Theme v0.1.0。
+- [x] 根 Go Module，固定 Desktop Kit v0.4.0 + Theme v0.1.0。
 - [x] `know-me serve`。
 - [x] `know-me version`。
 - [x] 默认 `127.0.0.1:3000`，公网必须显式 `--listen`。
@@ -62,6 +64,8 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 - [x] `admin init`：支持创建 / 重置管理员并清除旧 session；未传密码时生成一次性随机密码。
 - [x] 原生 API：`/api/auth/login`、`/api/auth/logout`、`/api/auth/me`、`/api/settings`。
 - [x] `know-me db migrate`。
+- [x] Kit v0.4.0 `paths` 配置层：`~/.config/know-me/settings.json`，支持 `config path/show/init`，并保持 CLI > env > file > defaults 优先级。
+- [x] 明确 Secure Config 边界：敏感凭据使用 Kit `secureconfig`，管理员密码与 session 继续采用 hash-only 数据模型。
 
 ### 5.3 导航与 iTab
 
