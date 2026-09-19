@@ -73,7 +73,7 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 已升级到 `wails-desktop-kit v0.6.0`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.6.0 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 已升级到 `wails-desktop-kit v0.6.1`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.6.1 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 配置与数据初始化：
 
@@ -99,7 +99,7 @@ GitHub Actions 已配置四条主要流水线：
 
 - `.github/workflows/ci.yml`：master push / PR 自动执行原 Next.js 兼容链路、全部 smoke test、生产构建和 Docker 镜像发布。
 - `.github/workflows/native-cli.yml`：Go Native Core 的测试、vet 和 Windows / Linux / macOS CLI 构建。
-- `.github/workflows/desktop.yml`：调用 Desktop Kit v0.6.0 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
+- `.github/workflows/desktop.yml`：调用 Desktop Kit v0.6.1 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
 - `.github/workflows/release.yml`：推送 `v*` Tag 时统一验证源码、构建 4 个 CLI、5 个 Desktop 资产、Docker 镜像，并汇总到同一个 GitHub Release。
 
 master 镜像：
