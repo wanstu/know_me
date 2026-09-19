@@ -14,8 +14,8 @@ func TestServerHealthAndKitAssets(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	s, err := New(runtimeconfig.Config{
-		Listen: "127.0.0.1:0",
-		DataDir: root + "/data",
+		Listen:     "127.0.0.1:0",
+		DataDir:    root + "/data",
 		UploadsDir: root + "/uploads",
 	}, BuildInfo{Version: "test", Commit: "abc"})
 	if err != nil {

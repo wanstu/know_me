@@ -55,11 +55,13 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.2 数据层
 
-- [ ] pure-Go SQLite。
-- [ ] migration。
-- [ ] settings。
-- [ ] users / sessions。
-- [ ] `admin init`。
+- [x] pure-Go SQLite：`modernc.org/sqlite`，CLI 四平台构建保持 `CGO_ENABLED=0`。
+- [x] migration：与现有 Node 版复用 `001_initial` / `002_fts_delete_support` ID 与表结构，可直接打开现有数据库。
+- [x] settings：保持现有 `site` JSON 结构、默认值、legacy socialLinks 兼容与字段归一化。
+- [x] users / sessions：兼容现有 `scrypt$...` 密码格式、30 天 session、SHA-256 token hash 与登录失败限流。
+- [x] `admin init`：支持创建 / 重置管理员并清除旧 session；未传密码时生成一次性随机密码。
+- [x] 原生 API：`/api/auth/login`、`/api/auth/logout`、`/api/auth/me`、`/api/settings`。
+- [x] `know-me db migrate`。
 
 ### 5.3 导航与 iTab
 
@@ -100,7 +102,7 @@ know-me backup export
 know-me backup restore
 ```
 
-当前 5.1 先交付 `serve` 和 `version`，其余命令随对应模块迁移后开放，避免存在“能执行但功能未实现”的占位命令。
+当前已经交付 `serve`、`version`、`db migrate` 和 `admin init`。`backup export / restore` 会在 5.4 迁移备份模块后开放，避免存在“能执行但功能未实现”的占位命令。
 
 ## 发布目标
 

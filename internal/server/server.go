@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wanstu/know_me/internal/auth"
+	"github.com/wanstu/know_me/internal/database"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
+	"github.com/wanstu/know_me/internal/settings"
 	"github.com/wanstu/know_me/internal/webassets"
 )
 
@@ -23,11 +26,15 @@ type BuildInfo struct {
 }
 
 type Server struct {
-	config    runtimeconfig.Config
-	build     BuildInfo
-	startedAt time.Time
-	http      *http.Server
-	listener  net.Listener
+	config       runtimeconfig.Config
+	build        BuildInfo
+	startedAt    time.Time
+	http         *http.Server
+	listener     net.Listener
+	database     *database.DB
+	auth         *auth.Store
+	settings     *settings.Store
+	loginLimiter *loginLimiter
 }
 
 func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
@@ -38,19 +45,29 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		return nil, err
 	}
 
+	dbPath := database.ResolvePath(config.DataDir, config.Database)
+	db, err := database.Open(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("database: %w", err)
+	}
+
 	assets, err := webassets.FS()
 	if err != nil {
+		db.Close()
 		return nil, fmt.Errorf("mount web assets: %w", err)
 	}
 
 	s := &Server{
-		config:    config,
-		build:     build,
-		startedAt: time.Now(),
+		config:       config,
+		build:        build,
+		startedAt:    time.Now(),
+		database:     db,
+		auth:         auth.NewStore(db.SQL),
+		settings:     settings.NewStore(db.SQL),
+		loginLimiter: newLoginLimiter(),
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("GET /api/version", s.handleVersion)
+	s.registerAPI(mux)
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{
@@ -76,6 +93,7 @@ func (s *Server) Listen() (string, error) {
 }
 
 func (s *Server) Serve(ctx context.Context) error {
+	defer s.Close()
 	if _, err := s.Listen(); err != nil {
 		return err
 	}
@@ -103,6 +121,15 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 }
 
+func (s *Server) Close() error {
+	if s.database == nil {
+		return nil
+	}
+	err := s.database.Close()
+	s.database = nil
+	return err
+}
+
 func (s *Server) Address() string {
 	if s.listener == nil {
 		return s.config.Listen
@@ -111,8 +138,15 @@ func (s *Server) Address() string {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	status := "ok"
+	databaseStatus := "ok"
+	if s.database == nil || s.database.Ping() != nil {
+		status = "degraded"
+		databaseStatus = "error"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":     "ok",
+		"status":     status,
+		"database":   databaseStatus,
 		"version":    s.build.Version,
 		"commit":     s.build.Commit,
 		"uptime_sec": int64(time.Since(s.startedAt).Seconds()),

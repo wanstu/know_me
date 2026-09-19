@@ -18,6 +18,7 @@ type Config struct {
 	Listen     string
 	DataDir    string
 	UploadsDir string
+	Database   string
 	SiteURL    string
 }
 
@@ -26,6 +27,7 @@ func Default() Config {
 		Listen:     envOr("KNOW_ME_LISTEN", DefaultListen),
 		DataDir:    envOr("KNOW_ME_DATA_DIR", DefaultDataDir),
 		UploadsDir: envOr("KNOW_ME_UPLOADS_DIR", DefaultUploadsDir),
+		Database:   firstNonEmpty(os.Getenv("KNOW_ME_DATABASE"), os.Getenv("DATABASE_URL")),
 		SiteURL:    strings.TrimSpace(os.Getenv("SITE_URL")),
 	}
 }
@@ -51,6 +53,15 @@ func (c Config) EnsureDirectories() error {
 		}
 	}
 	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func envOr(key, fallback string) string {

@@ -73,7 +73,16 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 使用 `wails-desktop-kit v0.3.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。当前 5.1 只完成 Runtime / 静态资源 / Health API 基线，博客、认证、导航、SQLite 等业务会继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 使用 `wails-desktop-kit v0.3.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2 数据层已经完成：使用 pure-Go SQLite，兼容现有 migration / settings / scrypt 密码 / session 数据，并提供原生认证与设置 API。导航、博客、媒体与备份继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+
+Native 数据初始化：
+
+~~~powershell
+go run ./cmd/know-me db migrate
+go run ./cmd/know-me admin init --username admin
+~~~
+
+`admin init` 未提供 `--password` 时会生成随机密码并只显示一次。已有管理员再次执行会更新密码并使该用户现有 session 失效。
 
 ## CI / CD
 
