@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
 export type ThemeMode = "auto" | "dark" | "light";
-export type ThemePreset = "aurora" | "ocean" | "forest" | "sunset";
+export type ThemePreset = string;
 export type StartDensity = "compact" | "comfortable" | "spacious";
 export type SocialLink = { id: string; label: string; url: string };
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
@@ -64,6 +64,10 @@ const defaults: SiteSettings = {
   ],
   projects: []
 };
+
+function validThemePreset(value: unknown): value is ThemePreset {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)));
@@ -142,7 +146,7 @@ export function getSiteSettings(): SiteSettings {
       ? stored.defaultSearchEngine
       : "Bing";
   const themeMode: ThemeMode = stored.themeMode === "dark" || stored.themeMode === "light" ? stored.themeMode : "auto";
-  const themePreset: ThemePreset = stored.themePreset === "ocean" || stored.themePreset === "forest" || stored.themePreset === "sunset" ? stored.themePreset : "aurora";
+  const themePreset: ThemePreset = validThemePreset(stored.themePreset) ? stored.themePreset : "aurora";
   const startDensity: StartDensity = stored.startDensity === "compact" || stored.startDensity === "spacious" ? stored.startDensity : "comfortable";
   const githubUrl = typeof stored.githubUrl === "string" ? stored.githubUrl : defaults.githubUrl;
   const emailUrl = typeof stored.emailUrl === "string" ? stored.emailUrl : defaults.emailUrl;
@@ -204,10 +208,7 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
       input.themeMode === "dark" || input.themeMode === "light" || input.themeMode === "auto"
         ? input.themeMode
         : current.themeMode,
-    themePreset:
-      input.themePreset === "aurora" || input.themePreset === "ocean" || input.themePreset === "forest" || input.themePreset === "sunset"
-        ? input.themePreset
-        : current.themePreset,
+    themePreset: validThemePreset(input.themePreset) ? input.themePreset : current.themePreset,
     startDensity:
       input.startDensity === "compact" || input.startDensity === "comfortable" || input.startDensity === "spacious"
         ? input.startDensity

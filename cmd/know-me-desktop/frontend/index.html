@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Know Me</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7fb; color: #172235; }
+    .card { width: min(420px, calc(100% - 48px)); padding: 28px; border-radius: 22px; background: rgba(255,255,255,.9); box-shadow: 0 18px 60px rgba(35,48,80,.12); text-align: center; }
+    .mark { width: 52px; height: 52px; margin: 0 auto 18px; border-radius: 16px; display: grid; place-items: center; color: white; background: #6d7cff; font-weight: 800; font-size: 22px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0; color: #69778d; line-height: 1.7; font-size: 13px; }
+    .error { margin-top: 14px; color: #b42318; font-size: 12px; white-space: pre-wrap; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b111a; color: #eef3fb; }
+      .card { background: rgba(18,27,40,.94); box-shadow: 0 18px 60px rgba(0,0,0,.28); }
+      p { color: #9eacbf; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="mark">K</div>
+    <h1>正在启动 Know Me</h1>
+    <p>本地 Go Core 正在准备页面，窗口会自动进入站点。</p>
+    <div id="error" class="error" hidden></div>
+  </main>
+  <script>
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    async function openCore() {
+      let lastError = "";
+      for (let i = 0; i < 240; i += 1) {
+        try {
+          const urlFn = window.go?.main?.DesktopBridge?.URL;
+          if (typeof urlFn === "function") {
+            const url = await urlFn();
+            if (url) {
+              location.replace(url);
+              return;
+            }
+          }
+        } catch (error) {
+          lastError = String(error);
+        }
+        await sleep(25);
+      }
+      const error = document.getElementById("error");
+      error.hidden = false;
+      error.textContent = "无法连接本地 Native Core。" + (lastError ? "\n" + lastError : "");
+    }
+    void openCore();
+  </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+name: Native Desktop
+
+on:
+  push:
+    branches:
+      - master
+      - "refactor/**"
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: native-desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.6.0
+    with:
+      app-name: know-me-desktop
+      desktop-dir: cmd/know-me-desktop
+      desktopkit-cli-version: v0.6.0
+      test-command: ""
+      vet-command: ""
+      build-command-windows: ./scripts/build-desktop.ps1
+      build-command-unix: bash ./scripts/build-desktop.sh
+      linux-package-formats: raw,deb,tar.gz
+      linux-package-name: know-me-desktop
+      linux-package-description: Know Me desktop application
+      linux-deb-depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+      linux-desktop-file: cmd/know-me-desktop/packaging/know-me-desktop.desktop
+      linux-icon-file: cmd/know-me-desktop/build/appicon.png
+      publish-release: false

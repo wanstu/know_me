@@ -14,7 +14,7 @@
 - [x] Phase 1：需求分析
 - [x] Phase 2：信息架构 / UI 设计 / HTML 静态原型
 - [x] Phase 3：正式实现（3.1～3.7 已完成）
-- [~] Phase 4：起始页、博客写作、个人主页与主题系统精修已完成；内置极光 / 海洋 / 森林 / 落日主题，CI / Docker / 备份恢复基线已完成，等待真实域名部署验证
+- [~] Phase 4：起始页、博客写作、个人主页与主题系统精修已完成；Phase 5 Native Runtime 已升级到 Kit Runtime Theme，保留 4 套离线 fallback 并可运行时同步完整主题集，CI / Docker / 备份恢复基线已完成
 
 ## 本地启动
 
@@ -38,12 +38,69 @@ docker compose up -d --build
 
 健康检查：`/api/health`。完整备份与恢复位于 `/admin/settings`。
 
+## Native Runtime（Phase 5）
+
+项目正在迁移到 **Go Core + 跨平台 CLI + 可选 Wails Desktop**。当前原生运行时基线已经可以单独启动 HTTP Server：
+
+~~~powershell
+go run ./cmd/know-me serve --listen 127.0.0.1:3000
+~~~
+
+也可以构建当前平台：
+
+~~~powershell
+./scripts/build-native.ps1 -Version dev
+~~~
+
+或一次生成四个平台 CLI：
+
+~~~powershell
+./scripts/build-native-all.ps1 -Version dev
+~~~
+
+当前产物目标：
+
+~~~text
+know-me-<version>-windows-amd64.exe
+know-me-<version>-linux-amd64
+know-me-<version>-darwin-amd64
+know-me-<version>-darwin-arm64
+~~~
+
+CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址：
+
+~~~bash
+./know-me-linux-amd64 serve --listen 0.0.0.0:3000
+~~~
+
+Native UI 已升级到 `wails-desktop-kit v0.6.0`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.6.0 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
+
+Native 配置与数据初始化：
+
+~~~powershell
+go run ./cmd/know-me config path
+go run ./cmd/know-me config init
+go run ./cmd/know-me config show
+
+go run ./cmd/know-me db migrate
+go run ./cmd/know-me admin init --username admin
+
+go run ./cmd/know-me backup export --output ./know_me-backup.zip
+go run ./cmd/know-me backup restore --file ./know_me-backup.zip
+~~~
+
+配置优先级为：CLI flags > 环境变量 > `~/.config/know-me/settings.json` > 内置默认值。普通配置文件不保存密码、Token 或 Session Secret；这类敏感配置后续统一使用 Kit `secureconfig`。站点数据库和媒体文件不会因为 Kit 配置目录升级而搬到 `~/.config`。
+
+`admin init` 未提供 `--password` 时会生成随机密码并只显示一次。已有管理员再次执行会更新密码并使该用户现有 session 失效。
+
 ## CI / CD
 
-GitHub Actions 已配置两条流水线：
+GitHub Actions 已配置四条主要流水线：
 
-- `.github/workflows/ci.yml`：master push / PR 自动执行迁移、TypeScript 检查、全部 smoke test、生产构建和真实生产服务验收；master 通过后构建 `linux/amd64` Docker 镜像并推送到 GHCR。
-- `.github/workflows/release.yml`：推送 `v*` Tag 时构建版本镜像，同时自动创建 GitHub Release。
+- `.github/workflows/ci.yml`：master push / PR 自动执行原 Next.js 兼容链路、全部 smoke test、生产构建和 Docker 镜像发布。
+- `.github/workflows/native-cli.yml`：Go Native Core 的测试、vet 和 Windows / Linux / macOS CLI 构建。
+- `.github/workflows/desktop.yml`：调用 Desktop Kit v0.6.0 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
+- `.github/workflows/release.yml`：推送 `v*` Tag 时统一验证源码、构建 4 个 CLI、5 个 Desktop 资产、Docker 镜像，并汇总到同一个 GitHub Release。
 
 master 镜像：
 
@@ -63,10 +120,29 @@ docker compose -f docker-compose.prod.yml up -d
 
 发布正式版本示例：
 
-```powershell
+~~~powershell
 git tag v0.1.0
 git push origin v0.1.0
-```
+~~~
+
+Tag Release 核心资产：
+
+~~~text
+CLI
+know-me-vX.Y.Z-windows-amd64.exe
+know-me-vX.Y.Z-linux-amd64
+know-me-vX.Y.Z-macos-amd64
+know-me-vX.Y.Z-macos-arm64
+
+Desktop
+know-me-desktop-vX.Y.Z-windows-amd64.exe
+know-me-desktop-vX.Y.Z-linux-amd64
+know-me-desktop-vX.Y.Z-linux-amd64.deb
+know-me-desktop-vX.Y.Z-linux-amd64.tar.gz
+know-me-desktop-vX.Y.Z-macos-universal.app.zip
+~~~
+
+每个资产都会同时发布对应的 `.sha256`。Linux `.deb` 会安装 `know-me-desktop` 可执行文件、桌面入口和应用图标。
 
 设计文档位于 docs，静态原型位于 prototype/index.html。
 

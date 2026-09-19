@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Know Me
+Comment=Personal home, blog and browser start page
+Exec=know-me-desktop
+Icon=know-me-desktop
+Terminal=false
+Categories=Utility;Network;
+StartupNotify=true

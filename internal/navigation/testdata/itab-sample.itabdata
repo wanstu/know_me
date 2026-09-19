@@ -1,0 +1,71 @@
+{
+  "navConfig": [
+    {
+      "id": "1",
+      "name": "主页",
+      "icon": "home",
+      "children": [
+        {
+          "id": "a1",
+          "url": "https://example.com/",
+          "type": "icon",
+          "name": "Example",
+          "src": "https://example.com/favicon.ico",
+          "iconText": "Ex",
+          "backgroundColor": "#3366ff",
+          "view": 12,
+          "size": "2x4"
+        },
+        {
+          "id": "a2",
+          "url": "about:preferences",
+          "type": "text",
+          "name": "浏览器设置",
+          "src": "",
+          "iconText": "设置",
+          "backgroundColor": "#444444"
+        },
+        {
+          "id": "f1",
+          "url": "https://folder.example/",
+          "type": "folder",
+          "name": "工作",
+          "src": "",
+          "iconText": "工",
+          "backgroundColor": "#555555",
+          "size": "2x2",
+          "children": [
+            {
+              "id": "c1",
+              "url": "https://docs.example.com/",
+              "type": "text",
+              "name": "文档",
+              "src": "",
+              "iconText": "文档",
+              "backgroundColor": "#1681ff",
+              "view": 3,
+              "size": "2x2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nav_tools",
+      "name": "工具",
+      "icon": "tool",
+      "children": [
+        {
+          "id": "t1",
+          "url": "https://tool.example.com/",
+          "type": "text",
+          "name": "工具站",
+          "src": "",
+          "iconText": "Tool",
+          "backgroundColor": "#13ae67",
+          "component": "custom_widget"
+        }
+      ]
+    }
+  ]
+}
