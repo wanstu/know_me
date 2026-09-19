@@ -65,9 +65,10 @@ CLI 是主运行时。Wails Desktop 是桌面入口，不让 Linux Server 依赖
 
 ### 5.3 导航与 iTab
 
-- [ ] navigation repository。
-- [ ] iTab import / preview / apply / export。
-- [ ] 浏览器起始页 API。
+- [x] navigation repository：分组 / 链接 / 文件夹 CRUD、排序、跨分组移动、批量移动 / 删除、访问计数与 URL 校验。
+- [x] iTab import / preview / apply / export：保持现有冲突规则、尺寸映射、browser-local 标记、未知字段和文件夹层级兼容。
+- [x] 浏览器起始页 API：`GET /api/navigation/public` 提供公开导航树；后台继续使用受保护的 `/api/navigation`。
+- [x] 原生管理 API：导航 CRUD、批量操作、iTab preview/apply/export 均已迁移并复用 Native session / same-origin 校验。
 
 ### 5.4 Blog / Media / Backup
 

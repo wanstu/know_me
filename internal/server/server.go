@@ -14,6 +14,7 @@ import (
 
 	"github.com/wanstu/know_me/internal/auth"
 	"github.com/wanstu/know_me/internal/database"
+	"github.com/wanstu/know_me/internal/navigation"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/settings"
 	"github.com/wanstu/know_me/internal/webassets"
@@ -34,6 +35,7 @@ type Server struct {
 	database     *database.DB
 	auth         *auth.Store
 	settings     *settings.Store
+	navigation   *navigation.Store
 	loginLimiter *loginLimiter
 }
 
@@ -64,10 +66,12 @@ func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
 		database:     db,
 		auth:         auth.NewStore(db.SQL),
 		settings:     settings.NewStore(db.SQL),
+		navigation:   navigation.NewStore(db.SQL),
 		loginLimiter: newLoginLimiter(),
 	}
 	mux := http.NewServeMux()
 	s.registerAPI(mux)
+	s.registerNavigationAPI(mux)
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{

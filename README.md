@@ -73,7 +73,7 @@ CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址�
 ./know-me-linux-amd64 serve --listen 0.0.0.0:3000
 ~~~
 
-Native UI 使用 `wails-desktop-kit v0.3.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2 数据层已经完成：使用 pure-Go SQLite，兼容现有 migration / settings / scrypt 密码 / session 数据，并提供原生认证与设置 API。导航、博客、媒体与备份继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 使用 `wails-desktop-kit v0.3.0` 与独立的 `wails-desktop-kit-theme v0.1.0`。Phase 5.2～5.3 已完成：使用 pure-Go SQLite，兼容现有 migration / settings / scrypt 密码 / session 数据，并已迁移导航 CRUD、公开起始页导航 API 与 iTab preview / import / export。博客、媒体与备份继续从 Next.js 逐模块迁移。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 数据初始化：
 
