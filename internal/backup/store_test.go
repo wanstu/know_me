@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"archive/zip"
 	"context"
 	"os"
 	"path/filepath"
@@ -62,12 +63,27 @@ func TestBackupRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := store.RecordExport(ctx); err != nil {
+		t.Fatal(err)
+	}
+	activityBeforeRestore, err := store.Activity(ctx)
+	if err != nil || activityBeforeRestore.LastExportAt == "" {
+		t.Fatalf("initial activity=%#v err=%v", activityBeforeRestore, err)
+	}
+
 	bytes, err := store.Create(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(bytes) == 0 {
 		t.Fatal("empty backup")
+	}
+	preview, err := store.Preview(bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.Compatible || preview.Posts < 1 || preview.NavigationItems < 1 || preview.UploadFiles != 1 || preview.Settings < 1 {
+		t.Fatalf("preview=%#v", preview)
 	}
 
 	if err := posts.Delete(ctx, post.ID); err != nil {
@@ -108,6 +124,68 @@ func TestBackupRoundTrip(t *testing.T) {
 	file, err := os.ReadFile(filepath.Join(uploads, "2026", "09", "test.txt"))
 	if err != nil || string(file) != "backup-file" {
 		t.Fatalf("upload restore failed: %v %q", err, file)
+	}
+
+	preservedActivity, err := store.Activity(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preservedActivity.LastExportAt != activityBeforeRestore.LastExportAt {
+		t.Fatalf("restore replaced local backup activity: before=%#v after=%#v", activityBeforeRestore, preservedActivity)
+	}
+	if err := store.RecordRestore(ctx, result); err != nil {
+		t.Fatal(err)
+	}
+	activity, err := store.Activity(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activity.LastExportAt == "" || activity.LastRestoreAt == "" || activity.LastRestoreSourceAt != result.ExportedAt || activity.LastRestoreVersion != result.Version {
+		t.Fatalf("backup activity=%#v", activity)
+	}
+	if activity.LastRestorePosts != result.Posts || activity.LastRestoreMedia != result.Media {
+		t.Fatalf("backup activity counts=%#v result=%#v", activity, result)
+	}
+}
+
+func uploadEntry(name string, size uint64) *zip.File {
+	return &zip.File{FileHeader: zip.FileHeader{Name: name, UncompressedSize64: size}}
+}
+
+func TestValidateUploadEntriesLimits(t *testing.T) {
+	t.Parallel()
+
+	count, err := validateUploadEntries([]*zip.File{
+		uploadEntry("uploads/2026/09/a.png", 1024),
+		uploadEntry("uploads/2026/09/b.png", 2048),
+		uploadEntry("README.txt", 999999),
+	})
+	if err != nil || count != 2 {
+		t.Fatalf("valid upload entries count=%d err=%v", count, err)
+	}
+
+	if _, err := validateUploadEntries([]*zip.File{
+		uploadEntry("uploads/a.png", 1),
+		uploadEntry("uploads/a.png", 1),
+	}); err == nil || err.Error() != "duplicate_backup_path" {
+		t.Fatalf("expected duplicate_backup_path, got %v", err)
+	}
+
+	if _, err := validateUploadEntries([]*zip.File{
+		uploadEntry("uploads/large.bin", MaxExtractedUploadFile+1),
+	}); err == nil || err.Error() != "backup_upload_file_too_large" {
+		t.Fatalf("expected backup_upload_file_too_large, got %v", err)
+	}
+
+	totalHeavy := make([]*zip.File, 0, 9)
+	for index := 0; index < 9; index++ {
+		totalHeavy = append(totalHeavy, uploadEntry(
+			filepath.ToSlash(filepath.Join("uploads", "heavy", string(rune('a'+index))+".bin")),
+			MaxExtractedUploadFile,
+		))
+	}
+	if _, err := validateUploadEntries(totalHeavy); err == nil || err.Error() != "backup_expanded_size_invalid" {
+		t.Fatalf("expected backup_expanded_size_invalid, got %v", err)
 	}
 }
 

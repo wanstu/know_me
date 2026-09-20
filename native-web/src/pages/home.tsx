@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import type { SiteSettings } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import { requestJSON } from "../api";
+import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { PageFrame, isExternal, safeHref } from "../ui";
 
 const fallbackQuotes = [
@@ -23,10 +24,21 @@ function backgroundStyle(url: string) {
   return { backgroundImage: `linear-gradient(var(--km-home-overlay), var(--km-home-overlay)), url("${href.replace(/"/g, "%22")}")` };
 }
 
-export function HomePage({ settings }: { settings: SiteSettings }) {
+export function HomePage({ settings, user }: { settings: SiteSettings; user: SessionUser | null }) {
+  const [recentPosts, setRecentPosts] = useState<PostRecord[]>([]);
+
+  useEffect(() => {
+    void requestJSON<{ posts: PostRecord[] }>("/api/blog/posts?limit=3&summary=1")
+      .then((payload) => setRecentPosts(payload.posts ?? []))
+      .catch(() => undefined);
+  }, []);
+
+  const avatarHref = safeHref(settings.avatarUrl);
+
   const quote = useMemo(() => {
-    const pool = settings.quote?.trim() ? [settings.quote.trim(), ...fallbackQuotes] : fallbackQuotes;
-    return pool[Math.floor(Math.random() * pool.length)] ?? fallbackQuotes[0];
+    const configured = settings.quote?.trim();
+    if (configured) return configured;
+    return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)] ?? fallbackQuotes[0];
   }, [settings.quote]);
 
   const entries = settings.homeEntries?.length ? settings.homeEntries : [
@@ -36,10 +48,10 @@ export function HomePage({ settings }: { settings: SiteSettings }) {
   ];
 
   return (
-    <PageFrame settings={settings} className="km-home-page">
+    <PageFrame settings={settings} user={user} className="km-home-page">
       <section className="km-home-hero" style={backgroundStyle(settings.homeBackgroundUrl)}>
         <div className="km-home-avatar">
-          {settings.avatarUrl ? <img src={safeHref(settings.avatarUrl)} alt="" /> : <span>K</span>}
+          {settings.avatarUrl && avatarHref !== "#" ? <img src={avatarHref} alt="" /> : <span>K</span>}
         </div>
         <div className="km-home-copy">
           <span className="km-eyebrow">PERSONAL HOME</span>
@@ -113,12 +125,41 @@ export function HomePage({ settings }: { settings: SiteSettings }) {
           </div>
         </section>
       ) : null}
+
+      {recentPosts.length ? (
+        <section className="km-section" id="recent-posts">
+          <header className="km-section-head">
+            <div><span className="km-eyebrow">RECENT</span><h2>最近文章</h2></div>
+            <a className="km-section-more" href="/blog">查看全部 ›</a>
+          </header>
+          <div className="km-home-post-grid">
+            {recentPosts.map((post) => (
+              <a className="km-panel km-home-post-card" href={"/blog/" + encodeURIComponent(post.slug)} key={post.id}>
+                <div>
+                  <span>{post.categories[0] || "Blog"}</span>
+                  <time>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("zh-CN") : ""}</time>
+                </div>
+                <strong>{post.title}</strong>
+                <p>{post.excerpt || "阅读全文"}</p>
+                <b>阅读全文 ›</b>
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
     </PageFrame>
   );
 }
 
 function Clock() {
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
   const date = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(now);
   return <div className="km-clock"><strong>{time}</strong><span>{date}</span></div>;

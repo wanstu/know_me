@@ -1,6 +1,16 @@
 import type { SessionUser, SiteSettings } from "./types";
 
-export async function requestJSON<T>(url: string, init?: RequestInit): Promise<T> {
+function loginRedirectURL() {
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  return "/login?next=" + next + "&error=session_expired";
+}
+
+function shouldRedirectUnauthorized(url: string) {
+  if (!window.location.pathname.startsWith("/admin")) return false;
+  return !url.startsWith("/api/auth/");
+}
+
+export async function requestAPI(url: string, init?: RequestInit) {
   const response = await fetch(url, {
     credentials: "same-origin",
     ...init,
@@ -9,6 +19,15 @@ export async function requestJSON<T>(url: string, init?: RequestInit): Promise<T
       ...(init?.headers ?? {})
     }
   });
+  if (response.status === 401 && shouldRedirectUnauthorized(url)) {
+    window.location.replace(loginRedirectURL());
+    throw new Error("session_expired");
+  }
+  return response;
+}
+
+export async function requestJSON<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await requestAPI(url, init);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(typeof payload?.error === "string" ? payload.error : `HTTP ${response.status}`);
@@ -24,7 +43,7 @@ export async function getSiteSettings() {
 export async function getSession(): Promise<SessionUser | null> {
   const response = await fetch("/api/auth/me", { credentials: "same-origin", headers: { accept: "application/json" } });
   if (response.status === 401) return null;
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload?.error || "auth_failed");
   return payload.user as SessionUser;
 }

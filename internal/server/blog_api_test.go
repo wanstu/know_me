@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wanstu/know_me/internal/blog"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 )
 
@@ -91,6 +92,25 @@ func TestNativeBlogAPI(t *testing.T) {
 		t.Fatal("missing post id")
 	}
 
+	resp, err = client.Get(base + "/api/posts?summary=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var adminSummary struct {
+		Posts []struct {
+			ID        int64  `json:"id"`
+			ContentMD string `json:"contentMd"`
+		} `json:"posts"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&adminSummary); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(adminSummary.Posts) != 1 || adminSummary.Posts[0].ID != created.Post.ID || adminSummary.Posts[0].ContentMD != "" {
+		t.Fatalf("admin summary=%#v", adminSummary.Posts)
+	}
+
 	resp, err = http.Get(base + "/api/blog/posts?query=native_api_unique_term")
 	if err != nil {
 		t.Fatal(err)
@@ -101,13 +121,97 @@ func TestNativeBlogAPI(t *testing.T) {
 	}
 	var public struct {
 		Posts []struct {
-			ID int64 `json:"id"`
+			ID        int64  `json:"id"`
+			ContentMD string `json:"contentMd"`
 		} `json:"posts"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&public); err != nil {
 		t.Fatal(err)
 	}
-	if len(public.Posts) != 1 || public.Posts[0].ID != created.Post.ID {
+	if len(public.Posts) != 1 || public.Posts[0].ID != created.Post.ID || public.Posts[0].ContentMD == "" {
 		t.Fatalf("public posts=%#v", public.Posts)
 	}
+	resp.Body.Close()
+
+	resp, err = http.Get(base + "/api/blog/posts?query=native_api_unique_term&summary=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	public.Posts = nil
+	if err := json.NewDecoder(resp.Body).Decode(&public); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(public.Posts) != 1 || public.Posts[0].ID != created.Post.ID || public.Posts[0].ContentMD != "" {
+		t.Fatalf("summary posts=%#v", public.Posts)
+	}
+
+	resp, err = http.Get(base + "/api/blog/posts?year=" + time.Now().Format("2006"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var byYear struct {
+		Posts []struct {
+			ID int64 `json:"id"`
+		} `json:"posts"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&byYear); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(byYear.Posts) != 1 || byYear.Posts[0].ID != created.Post.ID {
+		t.Fatalf("year posts=%#v", byYear.Posts)
+	}
+
+	resp, err = http.Get(base + "/api/blog/posts?year=1900")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byYear.Posts = nil
+	if err := json.NewDecoder(resp.Body).Decode(&byYear); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(byYear.Posts) != 0 {
+		t.Fatalf("unexpected 1900 posts=%#v", byYear.Posts)
+	}
+	olderAt := time.Now().Add(-3 * time.Hour).UnixMilli()
+	middleAt := time.Now().Add(-2 * time.Hour).UnixMilli()
+	newerAt := time.Now().Add(-1 * time.Hour).UnixMilli()
+	older, err := s.blog.Save(context.Background(), blog.SaveInput{Title: "Older", Slug: "older", ContentMD: "old", Status: blog.StatusPublished, PublishedAt: &olderAt}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	middle, err := s.blog.Save(context.Background(), blog.SaveInput{Title: "Middle", Slug: "middle", ContentMD: "middle", Status: blog.StatusPublished, PublishedAt: &middleAt}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := s.blog.Save(context.Background(), blog.SaveInput{Title: "Newer", Slug: "newer", ContentMD: "new", Status: blog.StatusPublished, PublishedAt: &newerAt}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err = http.Get(base + "/api/blog/posts/" + middle.Slug + "/neighbors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var neighbors struct {
+		Previous *struct {
+			ID int64 `json:"id"`
+		} `json:"previous"`
+		Next *struct {
+			ID int64 `json:"id"`
+		} `json:"next"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&neighbors); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if neighbors.Previous == nil || neighbors.Previous.ID != older.ID || neighbors.Next == nil || neighbors.Next.ID != newer.ID {
+		t.Fatalf("neighbors=%#v", neighbors)
+	}
+
 }

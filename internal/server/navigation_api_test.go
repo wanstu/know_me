@@ -97,9 +97,56 @@ func TestNativeNavigationAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("create item = %d", resp.StatusCode)
+	}
+	var itemResponse struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&itemResponse); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if itemResponse.ID <= 0 {
+		t.Fatalf("item id = %d", itemResponse.ID)
+	}
+
+	updatePayload := bytes.NewBufferString(
+		`{"action":"update_item","data":{"id":` + jsonInt(itemResponse.ID) + `,"openMode":"same_tab"}}`,
+	)
+	req, _ = http.NewRequest(http.MethodPost, base+"/api/navigation", updatePayload)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", base)
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("create item = %d", resp.StatusCode)
+		t.Fatalf("update open mode = %d", resp.StatusCode)
+	}
+
+	resp, err = client.Get(base + "/api/navigation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var privateTree struct {
+		Groups []struct {
+			Items []struct {
+				ID    int64          `json:"id"`
+				Extra map[string]any `json:"extra"`
+			} `json:"items"`
+		} `json:"groups"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&privateTree); err != nil {
+		resp.Body.Close()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(privateTree.Groups) != 1 || len(privateTree.Groups[0].Items) != 1 || privateTree.Groups[0].Items[0].Extra["openMode"] != "same_tab" {
+		t.Fatalf("open mode tree = %#v", privateTree)
 	}
 
 	resp, err = http.Get(base + "/api/navigation/public")

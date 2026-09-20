@@ -41,6 +41,7 @@ func (p postPayload) input() blog.SaveInput {
 func (s *Server) registerBlogAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/blog/posts", s.handlePublicPosts)
 	mux.HandleFunc("GET /api/blog/posts/{slug}", s.handlePublicPost)
+	mux.HandleFunc("GET /api/blog/posts/{slug}/neighbors", s.handlePublicPostNeighbors)
 	mux.HandleFunc("GET /api/blog/taxonomy", s.handlePublicTaxonomy)
 
 	mux.HandleFunc("GET /api/posts", s.handleAdminPosts)
@@ -56,20 +57,34 @@ func (s *Server) registerBlogAPI(mux *http.ServeMux) {
 }
 
 func (s *Server) handlePublicPosts(w http.ResponseWriter, r *http.Request) {
-	limit := parseLimit(r.URL.Query().Get("limit"), 30, 200)
-	posts, err := s.blog.FilterPublished(
+	limit := parseLimit(r.URL.Query().Get("limit"), 20, 100)
+	page := parseLimit(r.URL.Query().Get("page"), 1, 100000)
+	posts, total, actualPage, err := s.blog.FilterPublishedPage(
 		r.Context(),
 		r.URL.Query().Get("query"),
 		r.URL.Query().Get("tag"),
 		r.URL.Query().Get("category"),
+		r.URL.Query().Get("year"),
+		page,
 		limit,
 	)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "blog_failed"})
 		return
 	}
+	if r.URL.Query().Get("summary") == "1" {
+		for index := range posts {
+			posts[index].ContentMD = ""
+		}
+	}
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + limit - 1) / limit
+	}
 	archives, _ := s.blog.ArchiveCounts(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"posts": posts, "archives": archives})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"posts": posts, "archives": archives, "page": actualPage, "pageSize": limit, "total": total, "totalPages": totalPages,
+	})
 }
 
 func (s *Server) handlePublicPost(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +98,25 @@ func (s *Server) handlePublicPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"post": post})
+}
+
+func (s *Server) handlePublicPostNeighbors(w http.ResponseWriter, r *http.Request) {
+	previous, next, err := s.blog.PublishedNeighbors(r.Context(), r.PathValue("slug"))
+	if err != nil {
+		if err.Error() == "post_not_found" {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "blog_failed"})
+		return
+	}
+	if previous != nil {
+		previous.ContentMD = ""
+	}
+	if next != nil {
+		next.ContentMD = ""
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"previous": previous, "next": next})
 }
 
 func (s *Server) handlePublicTaxonomy(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +136,11 @@ func (s *Server) handleAdminPosts(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "blog_failed"})
 		return
+	}
+	if r.URL.Query().Get("summary") == "1" {
+		for index := range posts {
+			posts[index].ContentMD = ""
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"posts": posts})
 }
@@ -239,10 +278,11 @@ func (s *Server) handleTaxonomyAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Action string `json:"action"`
-		Kind   string `json:"kind"`
-		ID     int64  `json:"id"`
-		Name   string `json:"name"`
+		Action   string `json:"action"`
+		Kind     string `json:"kind"`
+		ID       int64  `json:"id"`
+		TargetID int64  `json:"targetId"`
+		Name     string `json:"name"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "taxonomy_failed"})
@@ -271,6 +311,12 @@ func (s *Server) handleTaxonomyAction(w http.ResponseWriter, r *http.Request) {
 			err = errors.New("invalid_id")
 		} else {
 			_, err = s.blog.DeleteTaxonomy(r.Context(), kind, body.ID)
+		}
+	case "merge":
+		if body.ID <= 0 || body.TargetID <= 0 {
+			err = errors.New("invalid_id")
+		} else {
+			err = s.blog.MergeTaxonomy(r.Context(), kind, body.ID, body.TargetID)
 		}
 	default:
 		err = errors.New("unknown_action")

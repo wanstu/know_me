@@ -44,6 +44,7 @@ export type NavItem = {
   visitCount: number;
   visibility: "public" | "private";
   browserLocal: boolean;
+  extra: Record<string, unknown>;
   children: NavItem[];
 };
 
@@ -86,6 +87,8 @@ export type MediaRecord = {
   originalName: string;
   mime: string;
   size: number;
+  width: number;
+  height: number;
   alt: string;
   createdAt: number;
   url: string;

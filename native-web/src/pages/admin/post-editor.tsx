@@ -1,11 +1,13 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeHighlight from "rehype-highlight";
-import { requestJSON } from "../../api";
+import { requestAPI, requestJSON } from "../../api";
+import { contentStats } from "../../content";
+import { validateMediaFile } from "../../media";
 import type { PostRecord, PostRevision } from "../../types";
-import { AdminTitle, ErrorCard, LoadingCard } from "../../ui";
+import { AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, errorText } from "../../ui";
 
 type EditorState = {
   title: string;
@@ -20,6 +22,33 @@ type EditorState = {
   tags: string;
   categories: string;
 };
+
+type LocalDraftSnapshot = {
+  draft: EditorState;
+  savedAt: number;
+  baseUpdatedAt: number;
+};
+
+function localDateTimeInput(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function localDraftKey(id?: number) {
+  return "know-me:post-local-draft:" + (id ?? "new");
+}
+
+function readLocalDraft(id?: number): LocalDraftSnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(localDraftKey(id));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as LocalDraftSnapshot;
+    if (!value?.draft || typeof value.savedAt !== "number") return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
 
 function fromPost(post?: PostRecord | null): EditorState {
   return {
@@ -41,6 +70,42 @@ function splitNames(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
+type DiffLine = { type: "same" | "add" | "remove"; text: string };
+
+function diffLines(current: string, historical: string): DiffLine[] {
+  const a = historical.split("\n");
+  const b = current.split("\n");
+  if (a.length > 250 || b.length > 250) {
+    return [
+      { type: "remove", text: `历史版本：${a.length} 行` },
+      { type: "add", text: `当前版本：${b.length} 行` }
+    ];
+  }
+  const dp = Array.from({ length: a.length + 1 }, () => new Uint16Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const result: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      result.push({ type: "same", text: a[i] });
+      i++;
+      j++;
+    } else if (j < b.length && (i >= a.length || dp[i][j + 1] >= dp[i + 1][j])) {
+      result.push({ type: "add", text: b[j] });
+      j++;
+    } else if (i < a.length) {
+      result.push({ type: "remove", text: a[i] });
+      i++;
+    }
+  }
+  return result.slice(0, 800);
+}
+
 function insertAround(
   textarea: HTMLTextAreaElement,
   before: string,
@@ -55,6 +120,52 @@ function insertAround(
   return { next, start: cursorStart, end: cursorStart + selected.length };
 }
 
+function NameChips({ label, value, suggestions, onChange }: { label: string; value: string; suggestions: string[]; onChange: (value: string) => void }) {
+  const [input, setInput] = useState("");
+  const values = splitNames(value);
+  const listID = "km-" + label + "-suggestions";
+
+  function add(raw = input) {
+    const next = raw.trim().replace(/,+$/, "").trim();
+    if (!next) return;
+    if (!values.some((item) => item.toLocaleLowerCase() === next.toLocaleLowerCase())) {
+      onChange([...values, next].join(", "));
+    }
+    setInput("");
+  }
+
+  function remove(name: string) {
+    onChange(values.filter((item) => item !== name).join(", "));
+  }
+
+  return (
+    <div className="dk-field km-name-chips">
+      <span>{label}</span>
+      <div className="km-name-chip-list">
+        {values.map((item) => <button type="button" key={item} onClick={() => remove(item)} title={"移除 " + item}>{item}<b>×</b></button>)}
+        <input
+          list={listID}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onBlur={() => add()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              add();
+            } else if (event.key === "Backspace" && !input && values.length) {
+              remove(values[values.length - 1]);
+            }
+          }}
+          placeholder={values.length ? "继续添加…" : "输入或选择已有" + label}
+        />
+        <datalist id={listID}>
+          {suggestions.filter((item) => !values.includes(item)).map((item) => <option value={item} key={item} />)}
+        </datalist>
+      </div>
+    </div>
+  );
+}
+
 export function PostEditor({ id }: { id?: number }) {
   const [draft, setDraft] = useState<EditorState>(() => fromPost());
   const [loaded, setLoaded] = useState(!id);
@@ -63,8 +174,35 @@ export function PostEditor({ id }: { id?: number }) {
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [revisions, setRevisions] = useState<PostRevision[]>([]);
+  const [taxonomy, setTaxonomy] = useState<{ tags: string[]; categories: string[] }>({ tags: [], categories: [] });
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: "delete" }
+    | { kind: "restore"; revisionId: number }
+    | { kind: "publish" }
+    | null
+  >(null);
+  const [previewRevision, setPreviewRevision] = useState<PostRevision | null>(null);
+  const [localDraft, setLocalDraft] = useState<LocalDraftSnapshot | null>(null);
+  const [serverUpdatedAt, setServerUpdatedAt] = useState(0);
+  const [localDraftPreviewOpen, setLocalDraftPreviewOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (id) return;
+    const snapshot = readLocalDraft();
+    if (snapshot) setLocalDraft(snapshot);
+  }, [id]);
+
+  useEffect(() => {
+    void requestJSON<{ tags: Array<{ name: string }>; categories: Array<{ name: string }> }>("/api/taxonomy")
+      .then((payload) => setTaxonomy({
+        tags: (payload.tags ?? []).map((item) => item.name),
+        categories: (payload.categories ?? []).map((item) => item.name)
+      }))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -73,8 +211,16 @@ export function PostEditor({ id }: { id?: number }) {
       requestJSON<{ revisions: PostRevision[] }>("/api/posts/" + id + "/revisions")
     ])
       .then(([postPayload, revisionPayload]) => {
-        setDraft(fromPost(postPayload.post));
+        const serverDraft = fromPost(postPayload.post);
+        setDraft(serverDraft);
+        setServerUpdatedAt(postPayload.post.updatedAt);
         setRevisions(revisionPayload.revisions ?? []);
+        const snapshot = readLocalDraft(id);
+        if (snapshot && JSON.stringify(snapshot.draft) !== JSON.stringify(serverDraft)) {
+          setLocalDraft(snapshot);
+        } else {
+          setLocalDraft(null);
+        }
         setLoaded(true);
       })
       .catch((reason) => {
@@ -82,6 +228,19 @@ export function PostEditor({ id }: { id?: number }) {
         setLoaded(true);
       });
   }, [id]);
+
+  useEffect(() => {
+    if (!loaded || !dirty) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const snapshot: LocalDraftSnapshot = { draft, savedAt: Date.now(), baseUpdatedAt: serverUpdatedAt };
+        window.localStorage.setItem(localDraftKey(id), JSON.stringify(snapshot));
+      } catch {
+        // Local draft protection is best-effort.
+      }
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [draft, dirty, id, loaded, serverUpdatedAt]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -92,6 +251,42 @@ export function PostEditor({ id }: { id?: number }) {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "s") {
+        event.preventDefault();
+        if (!busy && draft.title.trim()) void save();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        if (!busy && draft.title.trim()) setPendingAction({ kind: "publish" });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [busy, draft]);
+
+  function changeStatus(status: EditorState["status"]) {
+    setDraft((current) => {
+      let publishedAt = current.publishedAt;
+      if (status === "draft") {
+        publishedAt = "";
+      } else if (status === "published" && current.status === "scheduled") {
+        publishedAt = "";
+      } else if (status === "scheduled") {
+        const currentTime = publishedAt ? new Date(publishedAt).getTime() : 0;
+        if (!currentTime || currentTime <= Date.now()) {
+          publishedAt = localDateTimeInput(new Date(Date.now() + 60 * 60 * 1000));
+        }
+      }
+      return { ...current, status, publishedAt };
+    });
+    setDirty(true);
+    setMessage("");
+    setError("");
+  }
 
   function update<K extends keyof EditorState>(key: K, value: EditorState[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -126,14 +321,53 @@ export function PostEditor({ id }: { id?: number }) {
     });
   }
 
+  function handleEditorKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Tab") return;
+    event.preventDefault();
+    const textarea = event.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const selectedEnd = end > start ? end : value.indexOf("\n", end);
+    const lineEnd = selectedEnd === -1 ? value.length : selectedEnd;
+    const block = value.slice(lineStart, lineEnd);
+    const lines = block.split("\n");
+    const transformed = event.shiftKey
+      ? lines.map((line) => line.startsWith("  ") ? line.slice(2) : line.startsWith("\t") ? line.slice(1) : line).join("\n")
+      : lines.map((line) => "  " + line).join("\n");
+    const next = value.slice(0, lineStart) + transformed + value.slice(lineEnd);
+    const hasSelection = end > start;
+    let cursor = start;
+    if (!hasSelection) {
+      if (event.shiftKey) {
+        if (block.startsWith("  ")) cursor = Math.max(lineStart, start - 2);
+        else if (block.startsWith("\t")) cursor = Math.max(lineStart, start - 1);
+      } else {
+        cursor = start + 2;
+      }
+    }
+    update("contentMd", next);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      if (hasSelection) textarea.setSelectionRange(lineStart, lineStart + transformed.length);
+      else textarea.setSelectionRange(cursor, cursor);
+    });
+  }
+
   async function uploadImage(file: File) {
+    const validationError = validateMediaFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const form = new FormData();
       form.set("file", file);
       form.set("alt", file.name.replace(/\.[^.]+$/, ""));
-      const response = await fetch("/api/media", { method: "POST", body: form, credentials: "same-origin" });
+      const response = await requestAPI("/api/media", { method: "POST", body: form });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "upload_failed");
       const alt = payload.media?.alt || file.name;
@@ -165,12 +399,17 @@ export function PostEditor({ id }: { id?: number }) {
 
   async function save(event?: FormEvent, overrideStatus?: EditorState["status"]) {
     event?.preventDefault();
+    const status = overrideStatus ?? draft.status;
+    if (status === "scheduled" && !draft.publishedAt) {
+      setError("scheduled_time_required");
+      return;
+    }
     setBusy(true);
     setMessage("");
     setError("");
     try {
-      const status = overrideStatus ?? draft.status;
-      const publishedAt = draft.publishedAt ? new Date(draft.publishedAt).getTime() : null;
+      const publishNow = overrideStatus === "published" && draft.status !== "published";
+      const publishedAt = publishNow ? null : draft.publishedAt ? new Date(draft.publishedAt).getTime() : null;
       const payload = await requestJSON<{ post: PostRecord }>(id ? "/api/posts/" + id : "/api/posts", {
         method: id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
@@ -189,7 +428,10 @@ export function PostEditor({ id }: { id?: number }) {
         })
       });
       setDraft(fromPost(payload.post));
+      setServerUpdatedAt(payload.post.updatedAt);
       setDirty(false);
+      setLocalDraft(null);
+      try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
       setMessage(status === "published" ? "已发布" : "已保存");
       if (!id) {
         window.history.replaceState({}, "", "/admin/posts/" + payload.post.id);
@@ -206,7 +448,7 @@ export function PostEditor({ id }: { id?: number }) {
   }
 
   async function restore(revisionId: number) {
-    if (!id || !window.confirm("恢复这个历史版本？当前内容会先自动形成新的历史版本。")) return;
+    if (!id) return;
     setBusy(true);
     try {
       const payload = await requestJSON<{ post: PostRecord; revisions: PostRevision[] }>("/api/posts/" + id + "/revisions", {
@@ -215,8 +457,12 @@ export function PostEditor({ id }: { id?: number }) {
         body: JSON.stringify({ revisionId })
       });
       setDraft(fromPost(payload.post));
+      setServerUpdatedAt(payload.post.updatedAt);
       setRevisions(payload.revisions ?? []);
       setDirty(false);
+      setLocalDraft(null);
+      try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
+      setPendingAction(null);
       setMessage("历史版本已恢复");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "restore_failed");
@@ -226,10 +472,11 @@ export function PostEditor({ id }: { id?: number }) {
   }
 
   async function remove() {
-    if (!id || !window.confirm("确认删除这篇文章？这个操作不可撤销。")) return;
+    if (!id) return;
     setBusy(true);
     try {
       await requestJSON("/api/posts/" + id, { method: "DELETE" });
+      try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
       window.location.href = "/admin/posts";
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "delete_failed");
@@ -237,7 +484,10 @@ export function PostEditor({ id }: { id?: number }) {
     }
   }
 
-  const wordCount = useMemo(() => draft.contentMd.trim().split(/\s+/).filter(Boolean).length, [draft.contentMd]);
+  const stats = useMemo(() => contentStats(draft.contentMd), [draft.contentMd]);
+  const revisionDiff = useMemo(() => previewRevision ? diffLines(draft.contentMd, previewRevision.contentMd) : [], [draft.contentMd, previewRevision]);
+  const localDraftConflict = Boolean(localDraft && id && localDraft.baseUpdatedAt > 0 && serverUpdatedAt > localDraft.baseUpdatedAt);
+  const localDraftDiff = useMemo(() => localDraft ? diffLines(draft.contentMd, localDraft.draft.contentMd) : [], [draft.contentMd, localDraft]);
 
   if (!loaded) return <LoadingCard text="正在加载文章…" />;
   if (error && !draft.title && id) return <ErrorCard message={error} />;
@@ -249,6 +499,32 @@ export function PostEditor({ id }: { id?: number }) {
         title={id ? "编辑文章" : "新建文章"}
         description="Markdown 为主，支持实时预览、自动历史版本和发布状态。"
       />
+      {localDraft ? (
+        <section className={"km-panel km-local-draft-banner" + (localDraftConflict ? " is-conflict" : "")}>
+          <div>
+            <strong>{localDraftConflict ? "本地草稿基于较旧的服务器版本" : "发现未保存的本地草稿"}</strong>
+            <span>
+              {new Date(localDraft.savedAt).toLocaleString("zh-CN")} · 浏览器本地自动保护
+              {localDraftConflict ? " · 服务器内容后来又被更新过，建议先对比再恢复" : ""}
+            </span>
+          </div>
+          <div>
+            {localDraftConflict ? <button type="button" className="dk-button" onClick={() => setLocalDraftPreviewOpen(true)}>对比差异</button> : null}
+            <button type="button" className="dk-button" onClick={() => {
+              try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
+              setLocalDraft(null);
+              setLocalDraftPreviewOpen(false);
+            }}>{localDraftConflict ? "保留服务器版本" : "丢弃本地草稿"}</button>
+            <button type="button" className="dk-button dk-button-primary" onClick={() => {
+              setDraft(localDraft.draft);
+              setDirty(true);
+              setLocalDraft(null);
+              setLocalDraftPreviewOpen(false);
+              setMessage("已恢复本地草稿，保存后才会写入服务器");
+            }}>恢复本地草稿</button>
+          </div>
+        </section>
+      ) : null}
       <form className="km-editor-layout" onSubmit={(event) => void save(event)}>
         <section className="km-panel km-editor-main">
           <div className="km-editor-heading">
@@ -269,16 +545,18 @@ export function PostEditor({ id }: { id?: number }) {
             <button type="button" onClick={() => mediaInputRef.current?.click()}>图片</button>
             <label className="km-editor-file-button">导入 MD<input hidden type="file" accept=".md,text/markdown,text/plain" onChange={(e) => { const file = e.target.files?.[0]; if (file) void importMarkdown(file); e.currentTarget.value = ""; }} /></label>
             <button type="button" onClick={exportMarkdown}>导出 MD</button>
+            <button type="button" onClick={() => setPreviewOpen(true)}>整页预览</button>
             <input ref={mediaInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadImage(file); e.currentTarget.value = ""; }} />
           </div>
 
           <div className="km-editor-split">
             <label className="km-editor-source">
-              <span>Markdown · {wordCount} 词</span>
+              <span title={`中文 ${stats.cjkCharacters} 字 · 英文 ${stats.latinWords} 词`}>Markdown · {stats.totalCharacters} 字符 · 约 {stats.readingMinutes} 分钟</span>
               <textarea
                 ref={textareaRef}
                 value={draft.contentMd}
                 onChange={(e) => update("contentMd", e.target.value)}
+                onKeyDown={handleEditorKeyDown}
                 onPaste={(event) => {
                   const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/"));
                   if (file) {
@@ -307,28 +585,33 @@ export function PostEditor({ id }: { id?: number }) {
           <section className="km-panel km-editor-settings">
             <h3>发布</h3>
             <label className="dk-field">状态
-              <select value={draft.status} onChange={(e) => update("status", e.target.value as EditorState["status"])}>
+              <select value={draft.status} onChange={(e) => changeStatus(e.target.value as EditorState["status"])}>
                 <option value="draft">草稿</option>
                 <option value="published">已发布</option>
                 <option value="scheduled">定时发布</option>
               </select>
             </label>
             {draft.status === "scheduled" ? (
-              <label className="dk-field">发布时间<input type="datetime-local" value={draft.publishedAt} onChange={(e) => update("publishedAt", e.target.value)} /></label>
+              <label className="dk-field">发布时间
+                <input required type="datetime-local" value={draft.publishedAt} onChange={(e) => update("publishedAt", e.target.value)} />
+                {draft.publishedAt && new Date(draft.publishedAt).getTime() <= Date.now() ? <small className="km-field-warning">这个时间已过去，保存后文章会立即公开。</small> : <small className="km-field-hint">按当前设备时区设置。</small>}
+              </label>
             ) : null}
             <label className="km-check"><input type="checkbox" checked={draft.pinned} onChange={(e) => update("pinned", e.target.checked)} /><span><strong>置顶文章</strong></span></label>
             <div className="km-editor-actions">
               <button className="dk-button dk-button-primary" disabled={busy || !draft.title.trim()}>{busy ? "保存中…" : "保存"}</button>
-              <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => void save(undefined, "published")}>保存并发布</button>
+              <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => setPendingAction({ kind: "publish" })}>保存并发布</button>
+              {id && draft.status === "published" && draft.slug ? <a className="dk-button" href={"/blog/" + encodeURIComponent(draft.slug)} target="_blank" rel="noreferrer">查看文章</a> : null}
             </div>
+            <small className="km-editor-autosave">{dirty ? "未保存修改会自动保护到本浏览器" : "服务器内容已同步"} · Ctrl/Cmd+S 保存 · Ctrl/Cmd+Enter 发布</small>
             {message ? <div className="dk-message">{message}</div> : null}
-            {error ? <div className="dk-message is-danger">{error}</div> : null}
+            {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
           </section>
 
           <section className="km-panel km-editor-settings">
-            <h3>分类</h3>
-            <label className="dk-field">分类<input value={draft.categories} onChange={(e) => update("categories", e.target.value)} placeholder="开发, 随笔" /></label>
-            <label className="dk-field">标签<input value={draft.tags} onChange={(e) => update("tags", e.target.value)} placeholder="Go, Wails, Note" /></label>
+            <h3>分类与标签</h3>
+            <NameChips label="分类" value={draft.categories} suggestions={taxonomy.categories} onChange={(value) => update("categories", value)} />
+            <NameChips label="标签" value={draft.tags} suggestions={taxonomy.tags} onChange={(value) => update("tags", value)} />
           </section>
 
           <section className="km-panel km-editor-settings">
@@ -343,7 +626,7 @@ export function PostEditor({ id }: { id?: number }) {
               <h3>历史版本</h3>
               <div className="km-revision-list">
                 {revisions.slice(0, 12).map((revision) => (
-                  <button type="button" key={revision.id} onClick={() => void restore(revision.id)}>
+                  <button type="button" key={revision.id} onClick={() => setPreviewRevision(revision)}>
                     <span>{new Date(revision.createdAt).toLocaleString("zh-CN")}</span>
                     <small>{String(revision.metadata?.title ?? "历史版本")}</small>
                   </button>
@@ -355,10 +638,138 @@ export function PostEditor({ id }: { id?: number }) {
 
           <div className="km-editor-bottom-links">
             <a className="dk-button" href="/admin/posts">返回文章列表</a>
-            {id ? <button type="button" className="dk-button km-danger-button" onClick={() => void remove()} disabled={busy}>删除文章</button> : null}
+            {id ? <button type="button" className="dk-button km-danger-button" onClick={() => setPendingAction({ kind: "delete" })} disabled={busy}>删除文章</button> : null}
           </div>
         </aside>
       </form>
+      {localDraft && localDraftPreviewOpen ? (
+        <div className="km-modal-backdrop" onMouseDown={() => setLocalDraftPreviewOpen(false)}>
+          <section className="km-panel km-revision-preview" role="dialog" aria-modal="true" aria-labelledby="km-local-draft-preview-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span className="km-eyebrow">LOCAL DRAFT</span>
+                <h2 id="km-local-draft-preview-title">本地草稿与服务器内容差异</h2>
+                <p>本地草稿保存于 {new Date(localDraft.savedAt).toLocaleString("zh-CN")}</p>
+              </div>
+              <button type="button" aria-label="关闭" onClick={() => setLocalDraftPreviewOpen(false)}>×</button>
+            </header>
+            <div className="km-revision-meta">
+              <div><span>本地标题</span><strong>{localDraft.draft.title || "未命名"}</strong></div>
+              <div><span>服务器标题</span><strong>{draft.title || "未命名"}</strong></div>
+            </div>
+            <div className="km-revision-diff">
+              {localDraftDiff.map((line, index) => (
+                <div className={"is-" + line.type} key={index}>
+                  <b>{line.type === "add" ? "+" : line.type === "remove" ? "−" : " "}</b>
+                  <code>{line.text || " "}</code>
+                </div>
+              ))}
+              {!localDraftDiff.length ? <p className="km-muted">正文没有差异。</p> : null}
+            </div>
+            <footer>
+              <button type="button" className="dk-button" onClick={() => {
+                try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
+                setLocalDraft(null);
+                setLocalDraftPreviewOpen(false);
+              }}>保留服务器版本</button>
+              <button type="button" className="dk-button dk-button-primary" onClick={() => {
+                setDraft(localDraft.draft);
+                setDirty(true);
+                setLocalDraft(null);
+                setLocalDraftPreviewOpen(false);
+                setMessage("已恢复本地草稿，保存后才会写入服务器");
+              }}>恢复本地草稿</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+      {previewOpen ? (
+        <div className="km-modal-backdrop" onMouseDown={() => setPreviewOpen(false)}>
+          <section className="km-panel km-post-page-preview" role="dialog" aria-modal="true" aria-labelledby="km-post-preview-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><span className="km-eyebrow">PREVIEW</span><h2>公开页面预览</h2></div>
+              <button type="button" aria-label="关闭" onClick={() => setPreviewOpen(false)}>×</button>
+            </header>
+            <article>
+              <div className="km-article-head">
+                <span className="km-eyebrow">{splitNames(draft.categories)[0] || "ARTICLE"}</span>
+                <h1 id="km-post-preview-title">{draft.title || "未命名文章"}</h1>
+                {draft.excerpt ? <p>{draft.excerpt}</p> : null}
+                <div className="km-post-meta"><span>{stats.readingMinutes} 分钟阅读</span><span>{stats.totalCharacters} 字符</span><span>{draft.status === "published" ? "已发布" : draft.status === "scheduled" ? "定时" : "草稿"}</span></div>
+              </div>
+              <div className="km-markdown">
+                {draft.contentMd ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug, rehypeHighlight]}>{draft.contentMd}</ReactMarkdown> : <p className="km-muted">暂无正文。</p>}
+              </div>
+              <div className="km-chip-row">{splitNames(draft.tags).map((tag) => <span key={tag}>{tag}</span>)}</div>
+            </article>
+          </section>
+        </div>
+      ) : null}
+      {previewRevision ? (
+        <div className="km-modal-backdrop" onMouseDown={() => { if (!busy) setPreviewRevision(null); }}>
+          <section className="km-panel km-revision-preview" role="dialog" aria-modal="true" aria-labelledby="km-revision-preview-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span className="km-eyebrow">REVISION</span>
+                <h2 id="km-revision-preview-title">历史版本预览</h2>
+                <p>{new Date(previewRevision.createdAt).toLocaleString("zh-CN")}</p>
+              </div>
+              <button type="button" aria-label="关闭" disabled={busy} onClick={() => setPreviewRevision(null)}>×</button>
+            </header>
+            <div className="km-revision-meta">
+              <div><span>历史标题</span><strong>{String(previewRevision.metadata?.title ?? "未记录")}</strong></div>
+              <div><span>当前标题</span><strong>{draft.title || "未命名"}</strong></div>
+              <div><span>历史状态</span><strong>{String(previewRevision.metadata?.status ?? "draft")}</strong></div>
+              <div><span>当前状态</span><strong>{draft.status}</strong></div>
+            </div>
+            <div className="km-revision-diff" aria-label="历史版本与当前内容差异">
+              {revisionDiff.map((line, index) => (
+                <div className={"is-" + line.type} key={index}>
+                  <b>{line.type === "add" ? "+" : line.type === "remove" ? "−" : " "}</b>
+                  <code>{line.text || " "}</code>
+                </div>
+              ))}
+              {!revisionDiff.length ? <p className="km-muted">内容没有差异。</p> : null}
+            </div>
+            <footer>
+              <button type="button" className="dk-button" disabled={busy} onClick={() => setPreviewRevision(null)}>关闭</button>
+              <button type="button" className="dk-button dk-button-primary" disabled={busy} onClick={() => {
+                setPendingAction({ kind: "restore", revisionId: previewRevision.id });
+                setPreviewRevision(null);
+              }}>恢复此版本</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={
+          pendingAction?.kind === "delete" ? "删除这篇文章？" :
+          pendingAction?.kind === "publish" ? "发布这篇文章？" :
+          "恢复这个历史版本？"
+        }
+        description={
+          pendingAction?.kind === "delete" ? "文章删除后不可撤销。" :
+          pendingAction?.kind === "publish" ? "保存后文章会立即对公开 Blog 可见。未保存修改会一起发布。" :
+          "当前内容会先自动形成新的历史版本，然后恢复所选版本。"
+        }
+        confirmLabel={
+          pendingAction?.kind === "delete" ? "删除文章" :
+          pendingAction?.kind === "publish" ? "确认发布" :
+          "恢复版本"
+        }
+        danger={pendingAction?.kind === "delete"}
+        busy={busy}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => {
+          if (pendingAction?.kind === "delete") void remove();
+          else if (pendingAction?.kind === "restore") void restore(pendingAction.revisionId);
+          else if (pendingAction?.kind === "publish") {
+            setPendingAction(null);
+            void save(undefined, "published");
+          }
+        }}
+      />
     </>
   );
 }

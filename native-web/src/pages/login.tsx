@@ -1,32 +1,49 @@
 import { FormEvent, useEffect, useState } from "react";
 import { getAuthSetup, login, registerAdmin } from "../api";
-import type { SiteSettings } from "../types";
+import type { SessionUser, SiteSettings } from "../types";
 import { PageFrame } from "../ui";
 
 function safeNext(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/admin";
-  return value;
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/admin";
+  try {
+    const target = new URL(value, window.location.origin);
+    if (target.origin !== window.location.origin) return "/admin";
+    return target.pathname + target.search + target.hash;
+  } catch {
+    return "/admin";
+  }
 }
 
-export function LoginPage({ settings }: { settings: SiteSettings }) {
+export function LoginPage({ settings, user }: { settings: SiteSettings; user: SessionUser | null }) {
   const params = new URLSearchParams(window.location.search);
   const next = safeNext(params.get("next"));
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState(params.get("error") ? "登录信息无效，请重试。" : "");
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState(params.get("error") === "session_expired" ? "登录已过期，请重新登录。" : params.get("error") ? "登录信息无效，请重试。" : "");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (user) {
+      window.location.replace(next);
+      return;
+    }
     void getAuthSetup()
       .then(({ needsSetup: value }) => setNeedsSetup(value))
       .catch(() => setMessage("无法检查管理员账号状态，请刷新后重试。"));
-  }, []);
+  }, [next, user]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (needsSetup === null) return;
+
+    const normalizedUsername = username.trim();
+    if (!normalizedUsername) {
+      setMessage("请输入管理员用户名。");
+      return;
+    }
 
     setBusy(true);
     setMessage("");
@@ -40,9 +57,9 @@ export function LoginPage({ settings }: { settings: SiteSettings }) {
           setMessage("两次输入的密码不一致。");
           return;
         }
-        await registerAdmin(username, password, username);
+        await registerAdmin(normalizedUsername, password, normalizedUsername);
       } else {
-        await login(username, password);
+        await login(normalizedUsername, password);
       }
       window.location.href = next;
     } catch (error) {
@@ -68,7 +85,7 @@ export function LoginPage({ settings }: { settings: SiteSettings }) {
   const setupMode = needsSetup === true;
 
   return (
-    <PageFrame settings={settings} className="km-login-page">
+    <PageFrame settings={settings} user={user} className="km-login-page">
       <div className="km-login-wrap">
         <section className="km-panel km-login-card">
           <span className="km-eyebrow">ADMIN</span>
@@ -85,14 +102,19 @@ export function LoginPage({ settings }: { settings: SiteSettings }) {
             </label>
             <label className="dk-field">
               密码
-              <input
-                autoComplete={setupMode ? "new-password" : "current-password"}
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={setupMode ? 10 : undefined}
-                autoFocus
-              />
+              <div className="km-password-input">
+                <input
+                  autoComplete={setupMode ? "new-password" : "current-password"}
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={setupMode ? 10 : undefined}
+                  autoFocus
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "隐藏密码" : "显示密码"}>
+                  {showPassword ? "隐藏" : "显示"}
+                </button>
+              </div>
             </label>
             {setupMode ? (
               <>
@@ -100,19 +122,23 @@ export function LoginPage({ settings }: { settings: SiteSettings }) {
                   确认密码
                   <input
                     autoComplete="new-password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     minLength={10}
                   />
                 </label>
-                <div className="dk-message">密码至少需要 10 个字符。注册完成后将直接进入管理后台。</div>
+                <div className="km-password-rules" aria-live="polite">
+                  <span className={password.length >= 10 ? "is-ok" : ""}>至少 10 个字符</span>
+                  <span className={Boolean(confirmPassword) && password === confirmPassword ? "is-ok" : ""}>两次密码一致</span>
+                  <small>注册完成后将直接进入管理后台。</small>
+                </div>
               </>
             ) : null}
             {message ? <div className="dk-message is-danger">{message}</div> : null}
             <button
               className="dk-button dk-button-primary km-full-button"
-              disabled={busy || needsSetup === null || !username || !password || (setupMode && !confirmPassword)}
+              disabled={busy || needsSetup === null || !username.trim() || !password || (setupMode && !confirmPassword)}
             >
               {busy ? (setupMode ? "注册中…" : "登录中…") : (setupMode ? "注册管理员" : "登录")}
             </button>

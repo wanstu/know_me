@@ -67,7 +67,7 @@ ORDER BY sort_order ASC, id ASC`, private)
 SELECT id, external_id, group_id, parent_id, type, name, url, icon_url, icon_text,
        background_color, size, visit_count, sort_order, visibility, browser_local, extra_json
 FROM nav_items
-WHERE (? = 1 OR visibility = 'public')
+WHERE (? = 1 OR (visibility = 'public' AND browser_local = 0))
 ORDER BY group_id ASC, parent_id ASC, sort_order ASC, id ASC`, private)
 	if err != nil {
 		return Tree{}, err
@@ -93,6 +93,12 @@ ORDER BY group_id ASC, parent_id ASC, sort_order ASC, id ASC`, private)
 		if item.ParentID != nil {
 			if parent, ok := byID[*item.ParentID]; ok {
 				parent.Children = append(parent.Children, item)
+				continue
+			}
+			if !includePrivate {
+				// A public child must not be promoted to the root when its
+				// parent folder is private and therefore absent from the
+				// public tree.
 				continue
 			}
 		}
@@ -400,9 +406,11 @@ FROM nav_items WHERE id = ?`, id)
 	if patch.Visibility != nil {
 		visibility = normalizeVisibility(*patch.Visibility)
 	}
-	extra := current.Extra
+	extra := defaultExtra(current.Extra)
 	if patch.Extra != nil {
-		extra = defaultExtra(*patch.Extra)
+		for key, value := range defaultExtra(*patch.Extra) {
+			extra[key] = value
+		}
 	}
 	extraJSON, _ := json.Marshal(extra)
 
@@ -501,6 +509,66 @@ func (s *Store) BulkMove(ctx context.Context, ids []int64, groupID int64, parent
 		return 0, err
 	}
 	return moved, nil
+}
+
+func (s *Store) MoveItem(ctx context.Context, id, groupID int64, parentID *int64, index int) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := validatePlacement(ctx, tx, id, groupID, parentID); err != nil {
+		return err
+	}
+	g := groupID
+	p := parentID
+	updated, err := updateItem(ctx, tx, id, ItemPatch{GroupID: &g, ParentID: &p})
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return errors.New("item_not_found")
+	}
+	rows, err := tx.QueryContext(ctx,
+		"SELECT id FROM nav_items WHERE group_id = ? AND ((parent_id IS NULL AND ? IS NULL) OR parent_id = ?) ORDER BY sort_order ASC, id ASC",
+		groupID, nullableInt64(parentID), nullableInt64(parentID),
+	)
+	if err != nil {
+		return err
+	}
+	ids := []int64{}
+	for rows.Next() {
+		var siblingID int64
+		if err := rows.Scan(&siblingID); err != nil {
+			rows.Close()
+			return err
+		}
+		if siblingID != id {
+			ids = append(ids, siblingID)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index > len(ids) {
+		index = len(ids)
+	}
+	ids = append(ids, 0)
+	copy(ids[index+1:], ids[index:])
+	ids[index] = id
+	now := time.Now().UnixMilli()
+	for order, siblingID := range ids {
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE nav_items SET group_id = ?, parent_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+			groupID, nullableInt64(parentID), order, now, siblingID,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) ReorderGroups(ctx context.Context, ids []int64) error {

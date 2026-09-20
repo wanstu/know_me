@@ -23,11 +23,18 @@ func (s *Store) ListTaxonomyDetails(ctx context.Context) (TaxonomyDetails, error
 
 func (s *Store) ListTaxonomy(ctx context.Context) (map[string][]string, error) {
 	result := map[string][]string{"tags": {}, "categories": {}}
+	now := time.Now().UnixMilli()
 	for _, pair := range []struct {
-		key   string
-		table string
-	}{{"tags", "tags"}, {"categories", "categories"}} {
-		rows, err := s.db.QueryContext(ctx, "SELECT name FROM "+pair.table+" ORDER BY name")
+		key, table, join, foreign string
+	}{
+		{"tags", "tags", "post_tags", "tag_id"},
+		{"categories", "categories", "post_categories", "category_id"},
+	} {
+		query := fmt.Sprintf(
+			"SELECT DISTINCT x.name FROM %s x JOIN %s rel ON rel.%s = x.id JOIN posts p ON p.id = rel.post_id WHERE (p.status = 'published' OR (p.status = 'scheduled' AND p.published_at <= ?)) ORDER BY x.name",
+			pair.table, pair.join, pair.foreign,
+		)
+		rows, err := s.db.QueryContext(ctx, query, now)
 		if err != nil {
 			return nil, err
 		}
@@ -96,6 +103,44 @@ func (s *Store) RenameTaxonomy(ctx context.Context, kind TaxonomyKind, id int64,
 	return err
 }
 
+func (s *Store) MergeTaxonomy(ctx context.Context, kind TaxonomyKind, sourceID, targetID int64) error {
+	if sourceID <= 0 || targetID <= 0 || sourceID == targetID {
+		return errors.New("invalid_taxonomy_merge")
+	}
+	table, join, foreign := taxonomyMeta(kind)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, id := range []int64{sourceID, targetID} {
+		var exists int
+		err := tx.QueryRowContext(ctx, "SELECT 1 FROM "+table+" WHERE id = ? LIMIT 1", id).Scan(&exists)
+		if err == sql.ErrNoRows {
+			return errors.New("taxonomy_not_found")
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	query := fmt.Sprintf(
+		"INSERT OR IGNORE INTO %s (post_id, %s) SELECT post_id, ? FROM %s WHERE %s = ?",
+		join, foreign, join, foreign,
+	)
+	if _, err := tx.ExecContext(ctx, query, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM "+join+" WHERE "+foreign+" = ?", sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE id = ?", sourceID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) DeleteTaxonomy(ctx context.Context, kind TaxonomyKind, id int64) (bool, error) {
 	table, _, _ := taxonomyMeta(kind)
 	result, err := s.db.ExecContext(ctx, "DELETE FROM "+table+" WHERE id = ?", id)
@@ -107,7 +152,8 @@ func (s *Store) DeleteTaxonomy(ctx context.Context, kind TaxonomyKind, id int64)
 }
 
 func (s *Store) ArchiveCounts(ctx context.Context) ([]ArchiveCount, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT strftime('%Y', published_at / 1000, 'unixepoch', 'localtime') AS year, COUNT(*) FROM posts WHERE status = 'published' AND published_at IS NOT NULL GROUP BY year ORDER BY year DESC")
+	now := time.Now().UnixMilli()
+	rows, err := s.db.QueryContext(ctx, "SELECT strftime('%Y', published_at / 1000, 'unixepoch', 'localtime') AS year, COUNT(*) FROM posts WHERE published_at IS NOT NULL AND (status = 'published' OR (status = 'scheduled' AND published_at <= ?)) GROUP BY year ORDER BY year DESC", now)
 	if err != nil {
 		return nil, err
 	}

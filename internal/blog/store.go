@@ -133,13 +133,16 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 	}
 
 	publishedAt := input.PublishedAt
-	if publishedAt == nil && existing != nil && existing.PublishedAt.Valid {
+	if publishedAt == nil && existing != nil && existing.PublishedAt.Valid && input.Status == existing.Status {
 		value := existing.PublishedAt.Int64
 		publishedAt = &value
 	}
 	if input.Status == StatusPublished && publishedAt == nil {
 		value := now
 		publishedAt = &value
+	}
+	if input.Status == StatusScheduled && publishedAt == nil {
+		return Post{}, errors.New("scheduled_time_required")
 	}
 	if input.Status == StatusDraft {
 		publishedAt = nil
@@ -221,6 +224,43 @@ func (s *Store) GetByID(ctx context.Context, id int64) (Post, error) {
 	return s.mapPost(ctx, s.db, row)
 }
 
+func (s *Store) PublishedNeighbors(ctx context.Context, slug string) (*Post, *Post, error) {
+	current, err := s.GetPublishedBySlug(ctx, slug)
+	if err != nil {
+		return nil, nil, err
+	}
+	if current.PublishedAt == nil {
+		return nil, nil, nil
+	}
+	now := time.Now().UnixMilli()
+	publishedAt := *current.PublishedAt
+	lookup := func(operator, order string) (*Post, error) {
+		query := selectPost + " WHERE (status = 'published' OR (status = 'scheduled' AND published_at <= ?)) AND " +
+			"((published_at " + operator + " ?) OR (published_at = ? AND id " + operator + " ?)) ORDER BY published_at " + order + ", id " + order + " LIMIT 1"
+		row, err := scanPostRow(s.db.QueryRowContext(ctx, query, now, publishedAt, publishedAt, current.ID))
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		post, err := s.mapPost(ctx, s.db, row)
+		if err != nil {
+			return nil, err
+		}
+		return &post, nil
+	}
+	previous, err := lookup("<", "DESC")
+	if err != nil {
+		return nil, nil, err
+	}
+	next, err := lookup(">", "ASC")
+	if err != nil {
+		return nil, nil, err
+	}
+	return previous, next, nil
+}
+
 func (s *Store) GetPublishedBySlug(ctx context.Context, slug string) (Post, error) {
 	now := time.Now().UnixMilli()
 	row, err := scanPostRow(s.db.QueryRowContext(ctx,
@@ -267,12 +307,71 @@ func (s *Store) ListPublished(ctx context.Context, query string, limit int) ([]P
 	)
 }
 
-func (s *Store) FilterPublished(ctx context.Context, query, tag, category string, limit int) ([]Post, error) {
+func (s *Store) FilterPublishedPage(ctx context.Context, query, tag, category, year string, page, limit int) ([]Post, int, int, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	now := time.Now().UnixMilli()
+	clauses := []string{"(status = 'published' OR (status = 'scheduled' AND published_at <= ?))"}
+	args := []any{now}
+	query = strings.TrimSpace(query)
+	if query != "" {
+		like := "%" + query + "%"
+		clauses = append(clauses, "(title LIKE ? OR excerpt LIKE ? OR content_md LIKE ?)")
+		args = append(args, like, like, like)
+	}
+	tag = strings.TrimSpace(tag)
+	if tag != "" {
+		clauses = append(clauses, "EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = posts.id AND lower(t.name) = lower(?))")
+		args = append(args, tag)
+	}
+	category = strings.TrimSpace(category)
+	if category != "" {
+		clauses = append(clauses, "EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc.category_id WHERE pc.post_id = posts.id AND lower(c.name) = lower(?))")
+		args = append(args, category)
+	}
+	year = strings.TrimSpace(year)
+	if year != "" {
+		clauses = append(clauses, "strftime('%Y', published_at / 1000, 'unixepoch', 'localtime') = ?")
+		args = append(args, year)
+	}
+	where := strings.Join(clauses, " AND ")
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM posts WHERE "+where, args...).Scan(&total); err != nil {
+		return nil, 0, page, err
+	}
+	if total == 0 {
+		page = 1
+	} else {
+		totalPages := (total + limit - 1) / limit
+		if page > totalPages {
+			page = totalPages
+		}
+	}
+	offset := (page - 1) * limit
+	selectArgs := append(append([]any{}, args...), limit, offset)
+	posts, err := s.listRows(ctx, s.db,
+		selectPost+" WHERE "+where+" ORDER BY pinned DESC, published_at DESC, id DESC LIMIT ? OFFSET ?",
+		selectArgs...,
+	)
+	if err != nil {
+		return nil, 0, page, err
+	}
+	return posts, total, page, nil
+}
+
+func (s *Store) FilterPublished(ctx context.Context, query, tag, category, year string, limit int) ([]Post, error) {
 	if limit <= 0 {
 		limit = 30
 	}
 	fetch := limit
-	if strings.TrimSpace(tag) != "" || strings.TrimSpace(category) != "" {
+	if strings.TrimSpace(tag) != "" || strings.TrimSpace(category) != "" || strings.TrimSpace(year) != "" {
 		fetch = 200
 	}
 	posts, err := s.ListPublished(ctx, query, fetch)
@@ -281,6 +380,7 @@ func (s *Store) FilterPublished(ctx context.Context, query, tag, category string
 	}
 	tag = strings.ToLower(strings.TrimSpace(tag))
 	category = strings.ToLower(strings.TrimSpace(category))
+	year = strings.TrimSpace(year)
 	filtered := make([]Post, 0, len(posts))
 	for _, post := range posts {
 		if tag != "" && !containsFold(post.Tags, tag) {
@@ -288,6 +388,11 @@ func (s *Store) FilterPublished(ctx context.Context, query, tag, category string
 		}
 		if category != "" && !containsFold(post.Categories, category) {
 			continue
+		}
+		if year != "" {
+			if post.PublishedAt == nil || time.UnixMilli(*post.PublishedAt).Format("2006") != year {
+				continue
+			}
 		}
 		filtered = append(filtered, post)
 		if len(filtered) >= limit {

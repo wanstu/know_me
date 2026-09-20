@@ -34,11 +34,12 @@ type importedGroup struct {
 }
 
 type ItabImportPreview struct {
-	Groups       int `json:"groups"`
-	Items        int `json:"items"`
-	Folders      int `json:"folders"`
-	BrowserLocal int `json:"browserLocal"`
-	Conflicts    int `json:"conflicts"`
+	Groups           int      `json:"groups"`
+	Items            int      `json:"items"`
+	Folders          int      `json:"folders"`
+	BrowserLocal     int      `json:"browserLocal"`
+	Conflicts        int      `json:"conflicts"`
+	ConflictExamples []string `json:"conflictExamples"`
 }
 
 type ItabImportResult struct {
@@ -161,7 +162,11 @@ func (s *Store) PreviewItabImport(ctx context.Context, raw string) (ItabImportPr
 		}
 		if match != nil {
 			preview.Conflicts++
+			if len(preview.ConflictExamples) < 6 {
+				preview.ConflictExamples = append(preview.ConflictExamples, "分组："+group.Name)
+			}
 			preview.Conflicts += countItemConflicts(group.Items, match.Items)
+			collectItemConflictExamples(group.Items, match.Items, group.Name, &preview.ConflictExamples)
 		}
 	}
 	return preview, nil
@@ -217,6 +222,31 @@ func countItemConflicts(imported []importedItem, existing []*Item) int {
 	return conflicts
 }
 
+func collectItemConflictExamples(imported []importedItem, existing []*Item, path string, examples *[]string) {
+	if len(*examples) >= 6 {
+		return
+	}
+	for _, item := range imported {
+		var match *Item
+		for _, candidate := range existing {
+			if itemMatches(item, candidate) {
+				match = candidate
+				break
+			}
+		}
+		if match == nil {
+			continue
+		}
+		if len(*examples) < 6 {
+			*examples = append(*examples, path+" / "+item.Name)
+		}
+		collectItemConflictExamples(item.Children, match.Children, path+" / "+item.Name, examples)
+		if len(*examples) >= 6 {
+			return
+		}
+	}
+}
+
 type importCounts struct {
 	AddedGroups   int
 	AddedItems    int
@@ -251,6 +281,13 @@ func (s *Store) ApplyItabImport(ctx context.Context, raw, strategy string, overw
 			return ItabImportResult{}, err
 		}
 	}
+	nextGroupSort := 0
+	if strategy == "merge" && !overwrite {
+		nextGroupSort, err = nextImportedGroupSortOrder(ctx, tx)
+		if err != nil {
+			return ItabImportResult{}, err
+		}
+	}
 	for groupIndex, group := range groups {
 		var existingID *int64
 		if strategy != "replace" {
@@ -271,7 +308,12 @@ func (s *Store) ApplyItabImport(ctx context.Context, raw, strategy string, overw
 				counts.SkippedGroups++
 			}
 		} else {
-			groupID, err = insertGroupFromImport(ctx, tx, group, groupIndex)
+			sortOrder := groupIndex
+			if strategy == "merge" && !overwrite {
+				sortOrder = nextGroupSort
+				nextGroupSort++
+			}
+			groupID, err = insertGroupFromImport(ctx, tx, group, sortOrder)
 			if err != nil {
 				return ItabImportResult{}, err
 			}
@@ -414,6 +456,14 @@ WHERE id = ?`,
 }
 
 func mergeImportedItems(ctx context.Context, q queryer, groupID int64, parentID *int64, items []importedItem, overwrite bool, counts *importCounts) error {
+	nextSort := 0
+	if !overwrite {
+		var err error
+		nextSort, err = nextImportedItemSortOrder(ctx, q, groupID, parentID)
+		if err != nil {
+			return err
+		}
+	}
 	for index, item := range items {
 		existingID, err := findImportedItem(ctx, q, groupID, parentID, item)
 		if err != nil {
@@ -431,7 +481,12 @@ func mergeImportedItems(ctx context.Context, q queryer, groupID int64, parentID 
 				counts.SkippedItems++
 			}
 		} else {
-			itemID, err = insertItemFromImport(ctx, q, groupID, parentID, item, index)
+			sortOrder := index
+			if !overwrite {
+				sortOrder = nextSort
+				nextSort++
+			}
+			itemID, err = insertItemFromImport(ctx, q, groupID, parentID, item, sortOrder)
 			if err != nil {
 				return err
 			}
@@ -445,6 +500,21 @@ func mergeImportedItems(ctx context.Context, q queryer, groupID int64, parentID 
 		}
 	}
 	return nil
+}
+
+func nextImportedGroupSortOrder(ctx context.Context, q queryer) (int, error) {
+	var next int
+	err := q.QueryRowContext(ctx, "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nav_groups").Scan(&next)
+	return next, err
+}
+
+func nextImportedItemSortOrder(ctx context.Context, q queryer, groupID int64, parentID *int64) (int, error) {
+	var next int
+	err := q.QueryRowContext(ctx,
+		"SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nav_items WHERE group_id = ? AND ((parent_id IS NULL AND ? IS NULL) OR parent_id = ?)",
+		groupID, nullableInt64(parentID), nullableInt64(parentID),
+	).Scan(&next)
+	return next, err
 }
 
 func (s *Store) ExportItab(ctx context.Context) ([]byte, error) {

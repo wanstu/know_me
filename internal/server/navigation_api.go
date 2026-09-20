@@ -149,6 +149,7 @@ func (s *Server) handleNavigationAction(w http.ResponseWriter, r *http.Request) 
 			BackgroundColor: stringValue(body.Data["backgroundColor"]),
 			Size:            itemSizeValue(body.Data["size"]),
 			Visibility:      visibilityValue(body.Data["visibility"]),
+			Extra:           map[string]any{"openMode": openModeValue(body.Data["openMode"])},
 		})
 		err = createErr
 		response = map[string]any{"ok": true, "id": id}
@@ -207,6 +208,9 @@ func (s *Server) handleNavigationAction(w http.ResponseWriter, r *http.Request) 
 			v := visibilityValue(value)
 			patch.Visibility = &v
 		}
+		if value, ok := body.Data["openMode"]; ok {
+			patch.Extra = &map[string]any{"openMode": openModeValue(value)}
+		}
 		_, err = s.navigation.UpdateItem(r.Context(), id, patch)
 		response = map[string]any{"ok": true}
 	case "delete_item":
@@ -225,6 +229,28 @@ func (s *Server) handleNavigationAction(w http.ResponseWriter, r *http.Request) 
 		var deleted int
 		deleted, err = s.navigation.BulkDelete(r.Context(), ids)
 		response = map[string]any{"ok": true, "deleted": deleted}
+	case "move_item":
+		var id int64
+		id, err = positiveID(body.Data["id"])
+		if err != nil {
+			break
+		}
+		var groupID int64
+		groupID, err = positiveID(body.Data["groupId"])
+		if err != nil {
+			break
+		}
+		parentID, parseErr := optionalPositiveID(body.Data["parentId"])
+		if parseErr != nil {
+			err = parseErr
+			break
+		}
+		var index int
+		index, err = nonNegativeInt(body.Data["index"])
+		if err == nil {
+			err = s.navigation.MoveItem(r.Context(), id, groupID, parentID, index)
+		}
+		response = map[string]any{"ok": true}
 	case "bulk_move":
 		var ids []int64
 		ids, err = idList(body.Data["ids"])
@@ -399,6 +425,35 @@ func readItabRequest(w http.ResponseWriter, r *http.Request) (raw, strategy stri
 	return body.Raw, strategy, body.Overwrite, true
 }
 
+func nonNegativeInt(value any) (int, error) {
+	switch v := value.(type) {
+	case json.Number:
+		n, err := v.Int64()
+		if err == nil && n >= 0 {
+			return int(n), nil
+		}
+	case float64:
+		n := int(v)
+		if float64(n) == v && n >= 0 {
+			return n, nil
+		}
+	case int:
+		if v >= 0 {
+			return v, nil
+		}
+	case int64:
+		if v >= 0 {
+			return int(v), nil
+		}
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err == nil && n >= 0 {
+			return n, nil
+		}
+	}
+	return 0, errors.New("invalid_index")
+}
+
 func positiveID(value any) (int64, error) {
 	switch v := value.(type) {
 	case json.Number:
@@ -481,6 +536,13 @@ func stringValue(value any) string {
 		return text
 	}
 	return fmt.Sprint(value)
+}
+
+func openModeValue(value any) string {
+	if stringValue(value) == "same_tab" {
+		return "same_tab"
+	}
+	return "new_tab"
 }
 
 func visibilityValue(value any) navigation.Visibility {
