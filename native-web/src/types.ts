@@ -1,6 +1,7 @@
 export type SocialLink = { id: string; label: string; url: string };
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
+export type FriendLink = { id: string; name: string; url: string; visible: boolean };
 
 export type SiteSettings = {
   profileName: string;
@@ -9,6 +10,8 @@ export type SiteSettings = {
   avatarUrl: string;
   quote: string;
   quoteAuthor: string;
+  quoteEnabled: boolean;
+  quoteAuthorEnabled: boolean;
   githubUrl: string;
   emailUrl: string;
   aboutUrl: string;
@@ -25,6 +28,15 @@ export type SiteSettings = {
   socialLinks: SocialLink[];
   homeEntries: HomeEntry[];
   projects: ProjectEntry[];
+  showIcp: boolean;
+  icpNumber: string;
+  icpUrl: string;
+  showPolice: boolean;
+  policeNumber: string;
+  policeUrl: string;
+  footerText: string;
+  showFriendLinks: boolean;
+  friendLinks: FriendLink[];
 };
 
 export type SessionUser = { id: number; username: string; displayName: string; avatar: string };
@@ -67,6 +79,7 @@ export type PostRecord = {
   seoTitle: string;
   seoDescription: string;
   publishedAt: number | null;
+  firstPublishedAt: number | null;
   createdAt: number;
   updatedAt: number;
   tags: string[];

@@ -173,7 +173,7 @@ function AdminNotFound() {
   );
 }
 
-type SettingsSection = "profile" | "start" | "theme" | "content";
+type SettingsSection = "profile" | "start" | "theme" | "content" | "footer";
 
 function reorderValues<T>(values: T[], from: number, to: number) {
   if (from === to || from < 0 || to < 0 || from >= values.length || to >= values.length) return values;
@@ -446,7 +446,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
           ["profile", "主页"],
           ["start", "Start"],
           ["theme", "主题"],
-          ["content", "链接与项目"]
+          ["content", "链接与项目"],
+          ["footer", "页脚"]
         ] as const).map(([value, label]) => (
           <button type="button" key={value} className={section === value ? "is-active" : ""} onClick={() => setSection(value)}>
             {label}
@@ -467,6 +468,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <MediaField label="主页背景" value={draft.homeBackgroundUrl} onChange={(value) => update("homeBackgroundUrl", value)} />
               <label className="dk-field">今日短句<input value={draft.quote} onChange={(event) => update("quote", event.target.value)} /></label>
               <label className="dk-field">短句署名<input value={draft.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
+              <label className="km-check"><input type="checkbox" checked={draft.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} /><span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span></label>
+              <label className="km-check"><input type="checkbox" checked={draft.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} /><span><strong>显示短句署名</strong><small>仅控制署名，不影响短句正文。</small></span></label>
             </div>
           </section>
         ) : null}
@@ -594,6 +597,47 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
           </section>
         ) : null}
 
+        {section === "footer" ? (
+          <section className="km-settings-pane">
+            <header><span className="km-eyebrow">FOOTER</span><h2>页脚与站点信息</h2><p>配置备案、公安备案、附加说明和友情链接；每一项都可以独立隐藏。</p></header>
+            <div className="km-form-grid">
+              <label className="km-check km-span-2"><input type="checkbox" checked={draft.showIcp} onChange={(event) => update("showIcp", event.target.checked)} /><span><strong>显示 ICP 备案</strong><small>仅在填写备案号后显示。</small></span></label>
+              <label className="dk-field">ICP 备案号<input value={draft.icpNumber} onChange={(event) => update("icpNumber", event.target.value)} placeholder="京ICP备XXXXXXXX号" /></label>
+              <label className="dk-field">ICP 链接<input value={draft.icpUrl} onChange={(event) => update("icpUrl", event.target.value)} placeholder="https://beian.miit.gov.cn/" /></label>
+
+              <label className="km-check km-span-2"><input type="checkbox" checked={draft.showPolice} onChange={(event) => update("showPolice", event.target.checked)} /><span><strong>显示公安备案</strong><small>仅在填写公安备案号后显示。</small></span></label>
+              <label className="dk-field">公安备案号<input value={draft.policeNumber} onChange={(event) => update("policeNumber", event.target.value)} placeholder="京公网安备 XXXXXXXXXXXXXX号" /></label>
+              <label className="dk-field">公安备案链接<input value={draft.policeUrl} onChange={(event) => update("policeUrl", event.target.value)} placeholder="https://www.beian.gov.cn/..." /></label>
+
+              <label className="dk-field km-span-2">页脚附加文字<textarea rows={3} value={draft.footerText} onChange={(event) => update("footerText", event.target.value)} placeholder="例如：Built with Know Me · 内容持续更新中" /></label>
+              <label className="km-check km-span-2"><input type="checkbox" checked={draft.showFriendLinks} onChange={(event) => update("showFriendLinks", event.target.checked)} /><span><strong>显示友情链接</strong><small>仅公开显示启用且名称、地址完整的链接。</small></span></label>
+            </div>
+
+            <section className="km-settings-collection">
+              <header>
+                <div><span className="km-eyebrow">FRIENDS</span><h3>友情链接</h3></div>
+                <button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, friendLinks: [...current.friendLinks, { id: "friend-" + Date.now(), name: "", url: "", visible: true }] }))}>新增</button>
+              </header>
+              <div className="km-settings-rows is-friend">
+                {draft.friendLinks.map((item, index) => (
+                  <div key={item.id}>
+                    <span className="km-settings-drag" aria-hidden="true">↗</span>
+                    <input value={item.name} onChange={(event) => setDraft((current) => ({ ...current, friendLinks: current.friendLinks.map((link, i) => i === index ? { ...link, name: event.target.value } : link) }))} placeholder="站点名称" />
+                    <input value={item.url} onChange={(event) => setDraft((current) => ({ ...current, friendLinks: current.friendLinks.map((link, i) => i === index ? { ...link, url: event.target.value } : link) }))} placeholder="https://..." />
+                    <label className="km-settings-checkbox"><input type="checkbox" checked={item.visible} onChange={(event) => setDraft((current) => ({ ...current, friendLinks: current.friendLinks.map((link, i) => i === index ? { ...link, visible: event.target.checked } : link) }))} />显示</label>
+                    <div className="km-settings-row-actions">
+                      <button type="button" title="上移" disabled={index === 0} onClick={() => setDraft((current) => ({ ...current, friendLinks: reorderValues(current.friendLinks, index, index - 1) }))}>↑</button>
+                      <button type="button" title="下移" disabled={index === draft.friendLinks.length - 1} onClick={() => setDraft((current) => ({ ...current, friendLinks: reorderValues(current.friendLinks, index, index + 1) }))}>↓</button>
+                      <button type="button" className="is-danger" onClick={() => setDraft((current) => ({ ...current, friendLinks: current.friendLinks.filter((_, i) => i !== index) }))}>删除</button>
+                    </div>
+                  </div>
+                ))}
+                {!draft.friendLinks.length ? <p className="km-muted">还没有友情链接。</p> : null}
+              </div>
+            </section>
+          </section>
+        ) : null}
+
         <div className="km-form-actions">
           <span className={"km-settings-dirty" + (dirty ? " is-dirty" : "")}>{dirty ? "有未保存修改" : "已与已保存配置同步"}</span>
           <div>
@@ -634,7 +678,7 @@ function PostsAdmin() {
     <>
       <div className="km-admin-title-with-action">
         <AdminTitle eyebrow="BLOG" title="文章" description="管理 Markdown 文章、草稿、定时发布与历史版本。" />
-        <a className="dk-button dk-button-primary" href="/admin/posts/new">新建文章</a>
+        <div className="km-admin-title-actions"><a className="dk-button" href="/admin/posts/new?import=1">导入 Markdown</a><a className="dk-button dk-button-primary" href="/admin/posts/new">新建文章</a></div>
       </div>
       {error ? <ErrorCard message={error} /> : !posts ? <LoadingCard /> : (
         <>
@@ -658,7 +702,13 @@ function PostsAdmin() {
                 <i>›</i>
               </a>
             ))}
-            {!filtered.length ? <p className="km-muted">没有匹配的文章。</p> : null}
+            {!filtered.length ? (
+              <div className="km-post-empty-state">
+                <strong>{posts.length ? "没有匹配的文章" : "还没有文章"}</strong>
+                <p>{posts.length ? "调整搜索词或状态筛选后再试。" : "可以从空白文章开始，也可以直接导入现有 Markdown。"}</p>
+                {!posts.length ? <div><a className="dk-button dk-button-primary" href="/admin/posts/new">新建文章</a><a className="dk-button" href="/admin/posts/new?import=1">导入 Markdown</a></div> : null}
+              </div>
+            ) : null}
           </section>
         </>
       )}

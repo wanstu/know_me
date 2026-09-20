@@ -45,6 +45,7 @@ export async function PATCH(request: NextRequest, { params }: RouteProps) {
       seoTitle: String(body.seoTitle ?? ""),
       seoDescription: String(body.seoDescription ?? ""),
       publishedAt: typeof body.publishedAt === "number" ? body.publishedAt : null,
+      firstPublishedAt: typeof body.firstPublishedAt === "number" ? body.firstPublishedAt : null,
       tags: strings(body.tags),
       categories: strings(body.categories)
     }, id);

@@ -14,7 +14,7 @@ export default async function PostPreviewPage({ params }: { params: Promise<{ id
   const post = getPostById(id);
   if (!post) notFound();
 
-  const toc = extractToc(post.contentMd);
+  const toc = extractToc(post.contentMd, post.title);
   const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
   const settings = getSiteSettings();
 
@@ -39,7 +39,7 @@ export default async function PostPreviewPage({ params }: { params: Promise<{ id
           </div>
           <h1>{post.title}</h1>
           <div className="article-meta">阅读约 {minutes} 分钟 · /{post.slug}</div>
-          <MarkdownRenderer content={post.contentMd} />
+          <MarkdownRenderer content={post.contentMd} documentTitle={post.title} />
         </article>
 
         <aside className="article-toc">

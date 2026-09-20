@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownRenderer } from "@/components/blog/markdown-renderer";
+import { parseMarkdownImport, type MarkdownImportMode } from "@/lib/blog/markdown";
 import type { PostRecord, PostRevisionRecord, PostStatus } from "@/lib/blog/repository";
 
 type DraftState = {
@@ -17,6 +18,7 @@ type DraftState = {
   tags: string;
   categories: string;
   publishAtLocal: string;
+  firstPublishAtLocal: string;
 };
 
 function localDateTime(value: number | null) {
@@ -38,12 +40,73 @@ function initialDraft(post: PostRecord | null): DraftState {
     seoDescription: post?.seoDescription ?? "",
     tags: post?.tags.join(", ") ?? "",
     categories: post?.categories.join(", ") ?? "",
-    publishAtLocal: localDateTime(post?.publishedAt ?? null)
+    publishAtLocal: localDateTime(post?.publishedAt ?? null),
+    firstPublishAtLocal: localDateTime(post?.firstPublishedAt ?? null)
   };
 }
 
 function splitNames(value: string) {
   return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function NameChips({
+  label,
+  value,
+  suggestions,
+  onChange
+}: {
+  label: string;
+  value: string;
+  suggestions: string[];
+  onChange: (value: string) => void;
+}) {
+  const [input, setInput] = useState("");
+  const values = splitNames(value);
+  const listId = "editor-" + label + "-suggestions";
+
+  function add(raw = input) {
+    const next = raw.trim().replace(/,+$/, "").trim();
+    if (!next) return;
+    if (!values.some((item) => item.toLocaleLowerCase() === next.toLocaleLowerCase())) {
+      onChange([...values, next].join(", "));
+    }
+    setInput("");
+  }
+
+  function remove(name: string) {
+    onChange(values.filter((item) => item !== name).join(", "));
+  }
+
+  return (
+    <div className="editor-name-chips">
+      <span>{label}</span>
+      <div className="editor-name-chip-list">
+        {values.map((item) => (
+          <button type="button" key={item} onClick={() => remove(item)} title={"移除 " + item}>
+            {item}<b>×</b>
+          </button>
+        ))}
+        <input
+          list={listId}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onBlur={() => add()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              add();
+            } else if (event.key === "Backspace" && !input && values.length) {
+              remove(values[values.length - 1]);
+            }
+          }}
+          placeholder={values.length ? "继续添加…" : "输入或选择已有" + label}
+        />
+        <datalist id={listId}>
+          {suggestions.filter((item) => !values.includes(item)).map((item) => <option value={item} key={item} />)}
+        </datalist>
+      </div>
+    </div>
+  );
 }
 
 export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) {
@@ -53,12 +116,39 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState(initialPost ? "已载入" : "新草稿");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importMode, setImportMode] = useState<MarkdownImportMode>("plain");
   const [revisions, setRevisions] = useState<PostRevisionRecord[]>([]);
+  const [taxonomy, setTaxonomy] = useState<{ tags: string[]; categories: string[] }>({ tags: [], categories: [] });
   const savingRef = useRef(false);
+  const bypassBeforeUnloadRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("import") === "1") {
+      setImportDialogOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/taxonomy")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = await response.json() as {
+          tags?: Array<{ name?: string }>;
+          categories?: Array<{ name?: string }>;
+        };
+        setTaxonomy({
+          tags: (payload.tags ?? []).map((item) => item.name ?? "").filter(Boolean),
+          categories: (payload.categories ?? []).map((item) => item.name ?? "").filter(Boolean)
+        });
+      })
+      .catch(() => undefined);
+  }, []);
 
   function update<K extends keyof DraftState>(key: K, value: DraftState[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -137,17 +227,39 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
     }
   }
 
-  async function importMarkdown(file: File) {
+  function beginMarkdownImport(mode: MarkdownImportMode) {
+    setImportMode(mode);
+    setImportDialogOpen(false);
+    window.setTimeout(() => markdownInputRef.current?.click(), 0);
+  }
+
+  async function importMarkdown(file: File, mode: MarkdownImportMode) {
     if (dirty && !window.confirm("当前有未保存修改，导入 Markdown 会替换正文，确定继续？")) return;
-    const content = await file.text();
-    const filename = file.name.replace(/\.md(?:own)?$/i, "");
-    setDraft((current) => ({
-      ...current,
-      title: current.title.trim() ? current.title : filename,
-      contentMd: content
-    }));
-    setDirty(true);
-    setMessage("已导入 Markdown");
+    try {
+      const content = await file.text();
+      const parsed = parseMarkdownImport(content, mode);
+      const filename = file.name.replace(/\.md(?:own)?$/i, "");
+      setDraft((current) => ({
+        ...current,
+        title: parsed.title ?? (current.title.trim() ? current.title : filename),
+        contentMd: parsed.contentMd,
+        firstPublishAtLocal: parsed.firstPublishedAt
+          ? localDateTime(parsed.firstPublishedAt)
+          : current.firstPublishAtLocal
+      }));
+      setDirty(true);
+      setMessage(mode === "frontmatter" ? "Front Matter Markdown 已导入，标题和日期已解析" : "普通 Markdown 已导入");
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "markdown_import_failed";
+      const message = code === "frontmatter_missing"
+        ? "没有找到有效的 YAML Front Matter"
+        : code === "frontmatter_date_invalid"
+          ? "Front Matter 的 date 不是可识别的日期"
+          : code === "frontmatter_invalid"
+            ? "YAML Front Matter 格式无法解析"
+            : "Markdown 导入失败";
+      setMessage(message);
+    }
   }
 
   function exportMarkdown() {
@@ -172,8 +284,11 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
       const publishedAt = nextStatus === "scheduled" && draft.publishAtLocal
         ? new Date(draft.publishAtLocal).getTime()
         : nextStatus === "published"
-          ? (storedPublishedAt ?? Date.now())
+          ? (draft.status === "published" ? storedPublishedAt : null)
           : null;
+      const firstPublishedAt = draft.firstPublishAtLocal
+        ? new Date(draft.firstPublishAtLocal).getTime()
+        : null;
 
       const body = {
         title: draft.title,
@@ -185,6 +300,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         seoTitle: draft.seoTitle,
         seoDescription: draft.seoDescription,
         publishedAt,
+        firstPublishedAt,
         tags: splitNames(draft.tags),
         categories: splitNames(draft.categories)
       };
@@ -205,7 +321,8 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         slug: saved.slug,
         excerpt: saved.excerpt,
         status: saved.status,
-        publishAtLocal: localDateTime(saved.publishedAt)
+        publishAtLocal: localDateTime(saved.publishedAt),
+        firstPublishAtLocal: localDateTime(saved.firstPublishedAt)
       }));
       setDirty(false);
       setMessage(silent ? "已自动保存" : saved.status === "published" ? "已发布" : saved.status === "scheduled" ? "已安排发布" : "草稿已保存");
@@ -240,7 +357,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
       }
     }
     function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (!dirty) return;
+      if (!dirty || bypassBeforeUnloadRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     }
@@ -323,11 +440,38 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
   async function remove() {
     if (!postId || !window.confirm("确定删除这篇文章？这个操作不会删除历史备份之外的数据。")) return;
     const response = await fetch("/api/posts/" + postId, { method: "DELETE" });
-    if (response.ok) window.location.href = "/admin/posts";
+    if (response.ok) {
+      bypassBeforeUnloadRef.current = true;
+      window.location.href = "/admin/posts";
+    }
   }
 
   return (
     <section className="editor-shell">
+      {importDialogOpen ? (
+        <div className="editor-modal-backdrop" onMouseDown={() => setImportDialogOpen(false)}>
+          <section className="editor-import-dialog" role="dialog" aria-modal="true" aria-labelledby="editor-import-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <div className="eyebrow">Import</div>
+                <h2 id="editor-import-title">选择 Markdown 类型</h2>
+                <p>显式选择导入类型，避免把 YAML Front Matter 当正文。</p>
+              </div>
+              <button type="button" aria-label="关闭" onClick={() => setImportDialogOpen(false)}>×</button>
+            </header>
+            <div className="editor-import-modes">
+              <button type="button" onClick={() => beginMarkdownImport("plain")}>
+                <strong>普通 Markdown</strong>
+                <span>整个文件作为正文导入；标题为空时使用文件名。</span>
+              </button>
+              <button type="button" onClick={() => beginMarkdownImport("frontmatter")}>
+                <strong>YAML Front Matter Markdown</strong>
+                <span>解析 title 和 date，并从正文中移除头信息。</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <div className="editor-top">
         <Link href="/admin/posts" className="editor-back" onClick={(event) => { if (dirty && !window.confirm("还有未保存修改，确定离开编辑器？")) event.preventDefault(); }}>←</Link>
         <input
@@ -341,13 +485,14 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         <div className="editor-actions">
           <button type="button" onClick={() => void persist()}>保存</button>
           <button type="button" onClick={() => setSettingsOpen((value) => !value)}>设置</button>
+          <button type="button" aria-pressed={focusMode} className={focusMode ? "is-active" : ""} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "显示预览" : "专注编辑"}</button>
           {postId ? <button type="button" onClick={() => void loadHistory()}>历史</button> : null}
           <button type="button" onClick={() => imageInputRef.current?.click()}>图片</button>
-          <button type="button" onClick={() => markdownInputRef.current?.click()}>导入 MD</button>
+          <button type="button" onClick={() => setImportDialogOpen(true)}>导入 MD</button>
           <button type="button" onClick={exportMarkdown}>导出 MD</button>
           <button type="button" onClick={() => void openPreview()}>预览</button>
           <input ref={imageInputRef} className="editor-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); event.currentTarget.value = ""; }} />
-          <input ref={markdownInputRef} className="editor-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importMarkdown(file); event.currentTarget.value = ""; }} />
+          <input ref={markdownInputRef} className="editor-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importMarkdown(file, importMode); event.currentTarget.value = ""; }} />
           {postId ? <button type="button" className="editor-delete" onClick={() => void remove()}>删除</button> : null}
           <button className="publish" type="button" onClick={() => void persist("published")}>发布</button>
         </div>
@@ -358,9 +503,10 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
           <div className="editor-settings-grid">
             <label>Slug<input value={draft.slug} onChange={(event) => update("slug", event.target.value)} placeholder="自动根据标题生成" /></label>
             <label>状态<select value={draft.status} onChange={(event) => update("status", event.target.value as PostStatus)}><option value="draft">草稿</option><option value="published">已发布</option><option value="scheduled">定时发布</option></select></label>
-            <label>标签<input value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="开发, Markdown" /></label>
-            <label>分类<input value={draft.categories} onChange={(event) => update("categories", event.target.value)} placeholder="技术笔记" /></label>
+            <NameChips label="标签" value={draft.tags} suggestions={taxonomy.tags} onChange={(value) => update("tags", value)} />
+            <NameChips label="分类" value={draft.categories} suggestions={taxonomy.categories} onChange={(value) => update("categories", value)} />
             <label className="span-2">摘要<textarea value={draft.excerpt} onChange={(event) => update("excerpt", event.target.value)} placeholder="留空则从正文自动生成" /></label>
+            <label>首次发布时间<input type="datetime-local" value={draft.firstPublishAtLocal} onChange={(event) => update("firstPublishAtLocal", event.target.value)} /><small>首次发布时自动生成，也可手动调整；Front Matter 的 date 会导入到这里。</small></label>
             {draft.status === "scheduled" ? <label>发布时间<input type="datetime-local" value={draft.publishAtLocal} onChange={(event) => update("publishAtLocal", event.target.value)} /></label> : null}
             <label className="check-label"><input type="checkbox" checked={draft.pinned} onChange={(event) => update("pinned", event.target.checked)} /> 置顶文章</label>
             <label>SEO 标题<input value={draft.seoTitle} onChange={(event) => update("seoTitle", event.target.value)} /></label>
@@ -405,7 +551,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         <span className="editor-toolbar-hint">Ctrl+S 保存 · Ctrl+Shift+Enter 发布</span>
       </div>
 
-      <div className="editor-grid editor-grid--post">
+      <div className={"editor-grid editor-grid--post" + (focusMode ? " is-focus" : "")}>
         <section className="editor-pane">
           <textarea
             ref={textareaRef}
@@ -420,7 +566,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         <section className="preview-pane">
           <div className="eyebrow" style={{ color: "#778395" }}>Preview</div>
           <h1>{draft.title || "无标题"}</h1>
-          <MarkdownRenderer content={draft.contentMd} className="prose editor-preview-prose" />
+          <MarkdownRenderer content={draft.contentMd} documentTitle={draft.title} className="prose editor-preview-prose" />
         </section>
       </div>
 

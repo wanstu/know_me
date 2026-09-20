@@ -18,13 +18,19 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const stringKeys = [
       "profileName", "profileTagline", "profileBio", "avatarUrl", "quote", "quoteAuthor",
-      "githubUrl", "emailUrl", "aboutUrl", "homeBackgroundUrl", "startBackgroundUrl"
+      "githubUrl", "emailUrl", "aboutUrl", "homeBackgroundUrl", "startBackgroundUrl",
+      "icpNumber", "icpUrl", "policeNumber", "policeUrl", "footerText"
     ] as const;
     const input: Partial<SiteSettings> = {};
     for (const key of stringKeys) {
       if (body[key] !== undefined) input[key] = String(body[key]);
     }
     if (body.startPublic !== undefined) input.startPublic = body.startPublic === true;
+    if (body.quoteEnabled !== undefined) input.quoteEnabled = body.quoteEnabled === true;
+    if (body.quoteAuthorEnabled !== undefined) input.quoteAuthorEnabled = body.quoteAuthorEnabled === true;
+    if (body.showIcp !== undefined) input.showIcp = body.showIcp === true;
+    if (body.showPolice !== undefined) input.showPolice = body.showPolice === true;
+    if (body.showFriendLinks !== undefined) input.showFriendLinks = body.showFriendLinks === true;
     if (body.defaultSearchEngine !== undefined) input.defaultSearchEngine = String(body.defaultSearchEngine) as SearchEngineName;
     if (body.themeMode !== undefined) input.themeMode = String(body.themeMode) as ThemeMode;
     if (body.themePreset !== undefined) input.themePreset = String(body.themePreset) as ThemePreset;
@@ -35,6 +41,7 @@ export async function PATCH(request: NextRequest) {
     if (Array.isArray(body.socialLinks)) input.socialLinks = body.socialLinks as SiteSettings["socialLinks"];
     if (Array.isArray(body.homeEntries)) input.homeEntries = body.homeEntries as SiteSettings["homeEntries"];
     if (Array.isArray(body.projects)) input.projects = body.projects as SiteSettings["projects"];
+    if (Array.isArray(body.friendLinks)) input.friendLinks = body.friendLinks as SiteSettings["friendLinks"];
 
     return NextResponse.json({ ok: true, settings: updateSiteSettings(input) });
   } catch (error) {

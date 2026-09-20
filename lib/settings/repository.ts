@@ -7,6 +7,7 @@ export type StartDensity = "compact" | "comfortable" | "spacious";
 export type SocialLink = { id: string; label: string; url: string };
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
+export type FriendLink = { id: string; name: string; url: string; visible: boolean };
 
 export type SiteSettings = {
   profileName: string;
@@ -15,6 +16,8 @@ export type SiteSettings = {
   avatarUrl: string;
   quote: string;
   quoteAuthor: string;
+  quoteEnabled: boolean;
+  quoteAuthorEnabled: boolean;
   githubUrl: string;
   emailUrl: string;
   aboutUrl: string;
@@ -31,6 +34,15 @@ export type SiteSettings = {
   socialLinks: SocialLink[];
   homeEntries: HomeEntry[];
   projects: ProjectEntry[];
+  showIcp: boolean;
+  icpNumber: string;
+  icpUrl: string;
+  showPolice: boolean;
+  policeNumber: string;
+  policeUrl: string;
+  footerText: string;
+  showFriendLinks: boolean;
+  friendLinks: FriendLink[];
 };
 
 const defaults: SiteSettings = {
@@ -40,6 +52,8 @@ const defaults: SiteSettings = {
   avatarUrl: "",
   quote: "生命如意志永存，青春永远年轻。",
   quoteAuthor: "今日短句",
+  quoteEnabled: true,
+  quoteAuthorEnabled: true,
   githubUrl: "",
   emailUrl: "",
   aboutUrl: "",
@@ -62,7 +76,16 @@ const defaults: SiteSettings = {
     { id: "about", name: "About", description: "关于我", url: "#about", newTab: false },
     { id: "admin", name: "Admin", description: "管理后台", url: "/admin", newTab: false }
   ],
-  projects: []
+  projects: [],
+  showIcp: false,
+  icpNumber: "",
+  icpUrl: "",
+  showPolice: false,
+  policeNumber: "",
+  policeUrl: "",
+  footerText: "",
+  showFriendLinks: false,
+  friendLinks: []
 };
 
 function validThemePreset(value: unknown): value is ThemePreset {
@@ -123,6 +146,19 @@ function normalizeProjects(value: unknown, fallback: ProjectEntry[] = []) {
   }).filter((entry) => entry.name);
 }
 
+function normalizeFriendLinks(value: unknown, fallback: FriendLink[] = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value.slice(0, 40).map((entry, index) => {
+    const row = object(entry);
+    return {
+      id: text(row.id, 80) || "friend-" + index,
+      name: text(row.name, 100),
+      url: text(row.url, 1000),
+      visible: row.visible !== false
+    };
+  }).filter((entry) => entry.name && entry.url);
+}
+
 export function getSetting<T>(key: string, fallback: T): T {
   const row = getDb().prepare("SELECT value_json AS valueJson FROM settings WHERE key = ? LIMIT 1").get(key) as { valueJson: string } | undefined;
   if (!row) return fallback;
@@ -164,6 +200,8 @@ export function getSiteSettings(): SiteSettings {
     avatarUrl: typeof stored.avatarUrl === "string" ? stored.avatarUrl : defaults.avatarUrl,
     quote: typeof stored.quote === "string" ? stored.quote : defaults.quote,
     quoteAuthor: typeof stored.quoteAuthor === "string" ? stored.quoteAuthor : defaults.quoteAuthor,
+    quoteEnabled: typeof stored.quoteEnabled === "boolean" ? stored.quoteEnabled : defaults.quoteEnabled,
+    quoteAuthorEnabled: typeof stored.quoteAuthorEnabled === "boolean" ? stored.quoteAuthorEnabled : defaults.quoteAuthorEnabled,
     githubUrl,
     emailUrl,
     aboutUrl,
@@ -179,7 +217,16 @@ export function getSiteSettings(): SiteSettings {
     startBackgroundDim: typeof stored.startBackgroundDim === "number" ? clamp(stored.startBackgroundDim, 0, 90) : defaults.startBackgroundDim,
     socialLinks: normalizeSocialLinks(stored.socialLinks, legacySocialLinks),
     homeEntries: normalizeHomeEntries(stored.homeEntries, defaults.homeEntries),
-    projects: normalizeProjects(stored.projects, defaults.projects)
+    projects: normalizeProjects(stored.projects, defaults.projects),
+    showIcp: stored.showIcp === true,
+    icpNumber: typeof stored.icpNumber === "string" ? stored.icpNumber : defaults.icpNumber,
+    icpUrl: typeof stored.icpUrl === "string" ? stored.icpUrl : defaults.icpUrl,
+    showPolice: stored.showPolice === true,
+    policeNumber: typeof stored.policeNumber === "string" ? stored.policeNumber : defaults.policeNumber,
+    policeUrl: typeof stored.policeUrl === "string" ? stored.policeUrl : defaults.policeUrl,
+    footerText: typeof stored.footerText === "string" ? stored.footerText : defaults.footerText,
+    showFriendLinks: stored.showFriendLinks === true,
+    friendLinks: normalizeFriendLinks(stored.friendLinks, defaults.friendLinks)
   };
 }
 
@@ -194,6 +241,8 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     avatarUrl: input.avatarUrl?.slice(0, 1000) ?? current.avatarUrl,
     quote: input.quote?.slice(0, 500) ?? current.quote,
     quoteAuthor: input.quoteAuthor?.slice(0, 100) ?? current.quoteAuthor,
+    quoteEnabled: input.quoteEnabled ?? current.quoteEnabled,
+    quoteAuthorEnabled: input.quoteAuthorEnabled ?? current.quoteAuthorEnabled,
     githubUrl: input.githubUrl?.slice(0, 1000) ?? current.githubUrl,
     emailUrl: input.emailUrl?.slice(0, 1000) ?? current.emailUrl,
     aboutUrl: input.aboutUrl?.slice(0, 1000) ?? current.aboutUrl,
@@ -218,7 +267,16 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     startBackgroundDim: typeof input.startBackgroundDim === "number" ? clamp(input.startBackgroundDim, 0, 90) : current.startBackgroundDim,
     socialLinks: input.socialLinks === undefined ? current.socialLinks : normalizeSocialLinks(input.socialLinks, current.socialLinks),
     homeEntries: input.homeEntries === undefined ? current.homeEntries : normalizeHomeEntries(input.homeEntries, current.homeEntries),
-    projects: input.projects === undefined ? current.projects : normalizeProjects(input.projects, current.projects)
+    projects: input.projects === undefined ? current.projects : normalizeProjects(input.projects, current.projects),
+    showIcp: input.showIcp ?? current.showIcp,
+    icpNumber: input.icpNumber?.slice(0, 120) ?? current.icpNumber,
+    icpUrl: input.icpUrl?.slice(0, 1000) ?? current.icpUrl,
+    showPolice: input.showPolice ?? current.showPolice,
+    policeNumber: input.policeNumber?.slice(0, 120) ?? current.policeNumber,
+    policeUrl: input.policeUrl?.slice(0, 1000) ?? current.policeUrl,
+    footerText: input.footerText?.slice(0, 500) ?? current.footerText,
+    showFriendLinks: input.showFriendLinks ?? current.showFriendLinks,
+    friendLinks: input.friendLinks === undefined ? current.friendLinks : normalizeFriendLinks(input.friendLinks, current.friendLinks)
   };
   setSetting("site", next);
   return next;

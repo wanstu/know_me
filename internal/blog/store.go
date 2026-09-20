@@ -15,7 +15,7 @@ type Store struct{ db *sql.DB }
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
-const selectPost = "SELECT id, slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, created_at, updated_at FROM posts"
+const selectPost = "SELECT id, slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, first_published_at, created_at, updated_at FROM posts"
 
 type dbq interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
@@ -24,18 +24,19 @@ type dbq interface {
 }
 
 type postRow struct {
-	ID             int64
-	Slug           string
-	Title          string
-	Excerpt        string
-	ContentMD      string
-	Status         Status
-	Pinned         int
-	SEOTitle       string
-	SEODescription string
-	PublishedAt    sql.NullInt64
-	CreatedAt      int64
-	UpdatedAt      int64
+	ID               int64
+	Slug             string
+	Title            string
+	Excerpt          string
+	ContentMD        string
+	Status           Status
+	Pinned           int
+	SEOTitle         string
+	SEODescription   string
+	PublishedAt      sql.NullInt64
+	FirstPublishedAt sql.NullInt64
+	CreatedAt        int64
+	UpdatedAt        int64
 }
 
 type rowScanner interface{ Scan(...any) error }
@@ -44,7 +45,7 @@ func scanPostRow(scanner rowScanner) (postRow, error) {
 	var row postRow
 	err := scanner.Scan(
 		&row.ID, &row.Slug, &row.Title, &row.Excerpt, &row.ContentMD, &row.Status,
-		&row.Pinned, &row.SEOTitle, &row.SEODescription, &row.PublishedAt, &row.CreatedAt, &row.UpdatedAt,
+		&row.Pinned, &row.SEOTitle, &row.SEODescription, &row.PublishedAt, &row.FirstPublishedAt, &row.CreatedAt, &row.UpdatedAt,
 	)
 	return row, err
 }
@@ -58,6 +59,13 @@ func (s *Store) mapPost(ctx context.Context, q dbq, row postRow) (Post, error) {
 	if row.PublishedAt.Valid {
 		value := row.PublishedAt.Int64
 		post.PublishedAt = &value
+	}
+	if row.FirstPublishedAt.Valid {
+		value := row.FirstPublishedAt.Int64
+		post.FirstPublishedAt = &value
+	}
+	if post.Excerpt == "" || (HasFrontMatter(post.ContentMD) && LooksLikeFrontMatterExcerpt(post.Excerpt)) {
+		post.Excerpt = ExcerptFromTitle(post.ContentMD, post.Title)
 	}
 	var err error
 	post.Tags, err = relationNames(ctx, q, "tags", "post_tags", "tag_id", row.ID)
@@ -129,7 +137,7 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 
 	excerpt := strings.TrimSpace(input.Excerpt)
 	if excerpt == "" {
-		excerpt = ExcerptFrom(input.ContentMD)
+		excerpt = ExcerptFromTitle(input.ContentMD, title)
 	}
 
 	publishedAt := input.PublishedAt
@@ -148,12 +156,26 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 		publishedAt = nil
 	}
 
+	firstPublishedAt := input.FirstPublishedAt
+	if firstPublishedAt == nil && existing != nil && existing.FirstPublishedAt.Valid {
+		value := existing.FirstPublishedAt.Int64
+		firstPublishedAt = &value
+	}
+	if firstPublishedAt == nil && input.Status == StatusPublished {
+		value := now
+		firstPublishedAt = &value
+	}
+	if firstPublishedAt == nil && input.Status == StatusScheduled && publishedAt != nil && *publishedAt <= now {
+		value := *publishedAt
+		firstPublishedAt = &value
+	}
+
 	var postID int64
 	if existing != nil && id != nil {
 		if existing.ContentMD != input.ContentMD || existing.Title != title {
 			metadata, _ := json.Marshal(map[string]any{
 				"title": existing.Title, "slug": existing.Slug, "excerpt": existing.Excerpt,
-				"status": existing.Status, "publishedAt": nullableNullInt(existing.PublishedAt),
+				"status": existing.Status, "publishedAt": nullableNullInt(existing.PublishedAt), "firstPublishedAt": nullableNullInt(existing.FirstPublishedAt),
 			})
 			if _, err := tx.ExecContext(ctx,
 				"INSERT INTO post_revisions (post_id, content_md, metadata_json, created_at) VALUES (?, ?, ?, ?)",
@@ -163,9 +185,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 			}
 		}
 		_, err = tx.ExecContext(ctx,
-			"UPDATE posts SET slug = ?, title = ?, excerpt = ?, content_md = ?, status = ?, pinned = ?, seo_title = ?, seo_description = ?, published_at = ?, updated_at = ? WHERE id = ?",
+			"UPDATE posts SET slug = ?, title = ?, excerpt = ?, content_md = ?, status = ?, pinned = ?, seo_title = ?, seo_description = ?, published_at = ?, first_published_at = ?, updated_at = ? WHERE id = ?",
 			slug, title, excerpt, input.ContentMD, input.Status, boolInt(input.Pinned),
-			strings.TrimSpace(input.SEOTitle), strings.TrimSpace(input.SEODescription), nullableInt(input.PublishedAt, publishedAt), now, *id,
+			strings.TrimSpace(input.SEOTitle), strings.TrimSpace(input.SEODescription), nullableInt(input.PublishedAt, publishedAt), ptrValue(firstPublishedAt), now, *id,
 		)
 		if err != nil {
 			return Post{}, err
@@ -173,9 +195,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 		postID = *id
 	} else {
 		result, err := tx.ExecContext(ctx,
-			"INSERT INTO posts (slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO posts (slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, first_published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			slug, title, excerpt, input.ContentMD, input.Status, boolInt(input.Pinned),
-			strings.TrimSpace(input.SEOTitle), strings.TrimSpace(input.SEODescription), ptrValue(publishedAt), now, now,
+			strings.TrimSpace(input.SEOTitle), strings.TrimSpace(input.SEODescription), ptrValue(publishedAt), ptrValue(firstPublishedAt), now, now,
 		)
 		if err != nil {
 			return Post{}, err
@@ -291,7 +313,7 @@ func (s *Store) ListPublished(ctx context.Context, query string, limit int) ([]P
 	query = strings.TrimSpace(query)
 	if query != "" {
 		match := ftsQuery(query)
-		ftsSQL := "SELECT posts.id, posts.slug, posts.title, posts.excerpt, posts.content_md, posts.status, posts.pinned, posts.seo_title, posts.seo_description, posts.published_at, posts.created_at, posts.updated_at FROM posts JOIN posts_fts ON posts_fts.rowid = posts.id WHERE posts_fts MATCH ? AND (posts.status = 'published' OR (posts.status = 'scheduled' AND posts.published_at <= ?)) ORDER BY posts.pinned DESC, bm25(posts_fts), posts.published_at DESC, posts.id DESC LIMIT ?"
+		ftsSQL := "SELECT posts.id, posts.slug, posts.title, posts.excerpt, posts.content_md, posts.status, posts.pinned, posts.seo_title, posts.seo_description, posts.published_at, posts.first_published_at, posts.created_at, posts.updated_at FROM posts JOIN posts_fts ON posts_fts.rowid = posts.id WHERE posts_fts MATCH ? AND (posts.status = 'published' OR (posts.status = 'scheduled' AND posts.published_at <= ?)) ORDER BY posts.pinned DESC, bm25(posts_fts), posts.published_at DESC, posts.id DESC LIMIT ?"
 		if posts, err := s.listRows(ctx, s.db, ftsSQL, match, now, limit); err == nil {
 			return posts, nil
 		}
@@ -489,6 +511,11 @@ func (s *Store) RestoreRevision(ctx context.Context, postID, revisionID int64) (
 		value := int64(number)
 		publishedAt = &value
 	}
+	var firstPublishedAt *int64
+	if number, ok := metadata["firstPublishedAt"].(float64); ok {
+		value := int64(number)
+		firstPublishedAt = &value
+	}
 	title := current.Title
 	if value, ok := metadata["title"].(string); ok {
 		title = value
@@ -505,7 +532,7 @@ func (s *Store) RestoreRevision(ctx context.Context, postID, revisionID int64) (
 	return s.Save(ctx, SaveInput{
 		Title: title, Slug: slug, Excerpt: excerpt, ContentMD: content, Status: status,
 		Pinned: current.Pinned, SEOTitle: current.SEOTitle, SEODescription: current.SEODescription,
-		PublishedAt: publishedAt, Tags: current.Tags, Categories: current.Categories,
+		PublishedAt: publishedAt, FirstPublishedAt: firstPublishedAt, Tags: current.Tags, Categories: current.Categories,
 	}, &id)
 }
 

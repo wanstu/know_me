@@ -1,52 +1,41 @@
 import { getDb } from "@/lib/db";
+import { excerptFrom, hasFrontMatter, looksLikeFrontMatterExcerpt, markdownToText } from "@/lib/blog/markdown";
+export { markdownToText } from "@/lib/blog/markdown";
 
 export type PostStatus = "draft" | "published" | "scheduled";
 
 export type PostRecord = {
   id: number; slug: string; title: string; excerpt: string; contentMd: string; status: PostStatus;
-  pinned: boolean; seoTitle: string; seoDescription: string; publishedAt: number | null;
+  pinned: boolean; seoTitle: string; seoDescription: string; publishedAt: number | null; firstPublishedAt: number | null;
   createdAt: number; updatedAt: number; tags: string[]; categories: string[];
 };
 
 type PostRow = {
   id: number; slug: string; title: string; excerpt: string; contentMd: string; status: PostStatus;
-  pinned: number; seoTitle: string; seoDescription: string; publishedAt: number | null;
+  pinned: number; seoTitle: string; seoDescription: string; publishedAt: number | null; firstPublishedAt: number | null;
   createdAt: number; updatedAt: number;
 };
 
 export type SavePostInput = {
   title: string; slug?: string; excerpt?: string; contentMd: string; status: PostStatus; pinned?: boolean;
-  seoTitle?: string; seoDescription?: string; publishedAt?: number | null; tags?: string[]; categories?: string[];
+  seoTitle?: string; seoDescription?: string; publishedAt?: number | null; firstPublishedAt?: number | null; tags?: string[]; categories?: string[];
 };
 
-const SELECT_POST = "SELECT id, slug, title, excerpt, content_md AS contentMd, status, pinned, seo_title AS seoTitle, seo_description AS seoDescription, published_at AS publishedAt, created_at AS createdAt, updated_at AS updatedAt FROM posts";
+const SELECT_POST = "SELECT id, slug, title, excerpt, content_md AS contentMd, status, pinned, seo_title AS seoTitle, seo_description AS seoDescription, published_at AS publishedAt, first_published_at AS firstPublishedAt, created_at AS createdAt, updated_at AS updatedAt FROM posts";
 
 function mapRow(row: PostRow): PostRecord {
   const db = getDb();
   const tags = db.prepare("SELECT tags.name AS name FROM tags JOIN post_tags ON post_tags.tag_id = tags.id WHERE post_tags.post_id = ? ORDER BY tags.name").all(row.id) as Array<{ name: string }>;
   const categories = db.prepare("SELECT categories.name AS name FROM categories JOIN post_categories ON post_categories.category_id = categories.id WHERE post_categories.post_id = ? ORDER BY categories.name").all(row.id) as Array<{ name: string }>;
+  const excerpt = !row.excerpt || (hasFrontMatter(row.contentMd) && looksLikeFrontMatterExcerpt(row.excerpt))
+    ? excerptFrom(row.contentMd, row.title)
+    : row.excerpt;
   return {
-    id: row.id, slug: row.slug, title: row.title, excerpt: row.excerpt, contentMd: row.contentMd, status: row.status,
-    pinned: row.pinned === 1, seoTitle: row.seoTitle, seoDescription: row.seoDescription, publishedAt: row.publishedAt,
+    id: row.id, slug: row.slug, title: row.title, excerpt, contentMd: row.contentMd, status: row.status,
+    pinned: row.pinned === 1, seoTitle: row.seoTitle, seoDescription: row.seoDescription,
+    publishedAt: row.publishedAt, firstPublishedAt: row.firstPublishedAt,
     createdAt: row.createdAt, updatedAt: row.updatedAt, tags: tags.map((item) => item.name), categories: categories.map((item) => item.name)
   };
-}
-
-export function markdownToText(markdown: string) {
-  return markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/[*_~>|-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function excerptFrom(markdown: string) {
-  const value = markdownToText(markdown);
-  return value.length > 180 ? value.slice(0, 177) + "..." : value;
 }
 
 export function normalizeSlug(value: string) {
@@ -125,20 +114,32 @@ export function savePost(input: SavePostInput, id?: number) {
   const existing = id ? db.prepare(SELECT_POST + " WHERE id = ? LIMIT 1").get(id) as PostRow | undefined : undefined;
   if (id && !existing) throw new Error("post_not_found");
   const slug = uniqueSlug(input.slug?.trim() || title, id);
-  const excerpt = input.excerpt?.trim() || excerptFrom(input.contentMd);
-  let publishedAt = input.publishedAt ?? existing?.publishedAt ?? null;
-  if (input.status === "published" && !publishedAt) publishedAt = now;
+  const excerpt = input.excerpt?.trim() || excerptFrom(input.contentMd, title);
+
+  let publishedAt = input.publishedAt ?? null;
+  if (publishedAt == null && existing?.publishedAt != null && input.status === existing.status) {
+    publishedAt = existing.publishedAt;
+  }
+  if (input.status === "published" && publishedAt == null) publishedAt = now;
+  if (input.status === "scheduled" && publishedAt == null) throw new Error("scheduled_time_required");
   if (input.status === "draft") publishedAt = null;
+
+  let firstPublishedAt = input.firstPublishedAt ?? existing?.firstPublishedAt ?? null;
+  if (firstPublishedAt == null && input.status === "published") firstPublishedAt = now;
+  if (firstPublishedAt == null && input.status === "scheduled" && publishedAt != null && publishedAt <= now) {
+    firstPublishedAt = publishedAt;
+  }
+
   let postId = id ?? 0;
   db.transaction(() => {
     if (existing && id) {
       if (existing.contentMd !== input.contentMd || existing.title !== title) {
-        db.prepare("INSERT INTO post_revisions (post_id, content_md, metadata_json, created_at) VALUES (?, ?, ?, ?)").run(id, existing.contentMd, JSON.stringify({ title: existing.title, slug: existing.slug, excerpt: existing.excerpt, status: existing.status, publishedAt: existing.publishedAt }), now);
+        db.prepare("INSERT INTO post_revisions (post_id, content_md, metadata_json, created_at) VALUES (?, ?, ?, ?)").run(id, existing.contentMd, JSON.stringify({ title: existing.title, slug: existing.slug, excerpt: existing.excerpt, status: existing.status, publishedAt: existing.publishedAt, firstPublishedAt: existing.firstPublishedAt }), now);
       }
-      db.prepare("UPDATE posts SET slug = ?, title = ?, excerpt = ?, content_md = ?, status = ?, pinned = ?, seo_title = ?, seo_description = ?, published_at = ?, updated_at = ? WHERE id = ?").run(slug, title, excerpt, input.contentMd, input.status, input.pinned ? 1 : 0, input.seoTitle?.trim() ?? "", input.seoDescription?.trim() ?? "", publishedAt, now, id);
+      db.prepare("UPDATE posts SET slug = ?, title = ?, excerpt = ?, content_md = ?, status = ?, pinned = ?, seo_title = ?, seo_description = ?, published_at = ?, first_published_at = ?, updated_at = ? WHERE id = ?").run(slug, title, excerpt, input.contentMd, input.status, input.pinned ? 1 : 0, input.seoTitle?.trim() ?? "", input.seoDescription?.trim() ?? "", publishedAt, firstPublishedAt, now, id);
       postId = id;
     } else {
-      const result = db.prepare("INSERT INTO posts (slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(slug, title, excerpt, input.contentMd, input.status, input.pinned ? 1 : 0, input.seoTitle?.trim() ?? "", input.seoDescription?.trim() ?? "", publishedAt, now, now);
+      const result = db.prepare("INSERT INTO posts (slug, title, excerpt, content_md, status, pinned, seo_title, seo_description, published_at, first_published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(slug, title, excerpt, input.contentMd, input.status, input.pinned ? 1 : 0, input.seoTitle?.trim() ?? "", input.seoDescription?.trim() ?? "", publishedAt, firstPublishedAt, now, now);
       postId = Number(result.lastInsertRowid);
     }
     syncRelations(postId, input.tags, input.categories);
@@ -195,6 +196,7 @@ export function restorePostRevision(postId: number, revisionId: number) {
   const revisionStatus =
     metadata.status === "published" || metadata.status === "scheduled" ? metadata.status : "draft";
   const publishedAt = typeof metadata.publishedAt === "number" ? metadata.publishedAt : null;
+  const firstPublishedAt = typeof metadata.firstPublishedAt === "number" ? metadata.firstPublishedAt : current.firstPublishedAt;
 
   return savePost({
     title: typeof metadata.title === "string" ? metadata.title : current.title,
@@ -206,6 +208,7 @@ export function restorePostRevision(postId: number, revisionId: number) {
     seoTitle: current.seoTitle,
     seoDescription: current.seoDescription,
     publishedAt,
+    firstPublishedAt,
     tags: current.tags,
     categories: current.categories
   }, postId);
@@ -233,7 +236,7 @@ export function listPublishedPosts(query = "", limit = 30) {
   if (query.trim()) {
     const match = ftsQuery(query);
     try {
-      const selectWithFts = "SELECT posts.id AS id, posts.slug AS slug, posts.title AS title, posts.excerpt AS excerpt, posts.content_md AS contentMd, posts.status AS status, posts.pinned AS pinned, posts.seo_title AS seoTitle, posts.seo_description AS seoDescription, posts.published_at AS publishedAt, posts.created_at AS createdAt, posts.updated_at AS updatedAt FROM posts JOIN posts_fts ON posts_fts.rowid = posts.id";
+      const selectWithFts = "SELECT posts.id AS id, posts.slug AS slug, posts.title AS title, posts.excerpt AS excerpt, posts.content_md AS contentMd, posts.status AS status, posts.pinned AS pinned, posts.seo_title AS seoTitle, posts.seo_description AS seoDescription, posts.published_at AS publishedAt, posts.first_published_at AS firstPublishedAt, posts.created_at AS createdAt, posts.updated_at AS updatedAt FROM posts JOIN posts_fts ON posts_fts.rowid = posts.id";
       rows = db.prepare(selectWithFts + " WHERE posts_fts MATCH ? AND (posts.status = 'published' OR (posts.status = 'scheduled' AND posts.published_at <= ?)) ORDER BY posts.pinned DESC, bm25(posts_fts), posts.published_at DESC, posts.id DESC LIMIT ?").all(match, now, limit) as PostRow[];
     } catch {
       const like = "%" + query.trim() + "%";

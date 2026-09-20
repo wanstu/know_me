@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
+import { PublicFooter } from "@/components/public-footer";
 import { getSiteSettings } from "@/lib/settings/repository";
 import { randomHomeQuote } from "@/lib/home/quotes";
 import { themeClass } from "@/lib/settings/theme";
@@ -36,7 +37,9 @@ export default function HomePage() {
   const projects = settings.projects
     .map((item) => ({ ...item, href: safeHref(item.url, false) }))
     .filter((item) => item.name);
-  const dailyQuote = randomHomeQuote(settings.quote, settings.quoteAuthor);
+  const dailyQuote = settings.quote.trim()
+    ? { text: settings.quote.trim(), author: settings.quoteAuthor.trim() || "今日短句" }
+    : randomHomeQuote();
 
   return (
     <main className={"immersive-page " + themeClass(settings)}>
@@ -77,10 +80,12 @@ export default function HomePage() {
         </article>
 
         <section className="home-side">
-          <article className="glass-card quote-card">
-            <p>{dailyQuote.text}</p>
-            <span>— {dailyQuote.author}</span>
-          </article>
+          {settings.quoteEnabled ? (
+            <article className="glass-card quote-card">
+              <p>{dailyQuote.text}</p>
+              {settings.quoteAuthorEnabled ? <span>— {dailyQuote.author}</span> : null}
+            </article>
+          ) : null}
 
           <article className="glass-card time-card">
             <LiveClock />
@@ -158,6 +163,7 @@ export default function HomePage() {
           ) : null}
         </section>
       </section>
+      <PublicFooter settings={settings} />
     </main>
   );
 }

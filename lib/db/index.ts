@@ -2,10 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 
-const migrations = [
-  { id: "001_initial", file: "001_initial.sql" },
-  { id: "002_fts_delete_support", file: "002_fts_delete_support.sql" }
-] as const;
+function migrationFiles() {
+  const directory = path.join(process.cwd(), "db", "migrations");
+  return fs.readdirSync(directory)
+    .filter((file) => /^\d+_[A-Za-z0-9_-]+\.sql$/.test(file))
+    .sort((a, b) => a.localeCompare(b))
+    .map((file) => ({ id: file.replace(/\.sql$/, ""), file, directory }));
+}
 
 type Db = Database.Database;
 
@@ -28,10 +31,10 @@ function applyMigrations(db: Db) {
   const hasMigration = db.prepare("SELECT 1 FROM schema_migrations WHERE id = ? LIMIT 1");
   const markMigration = db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)");
 
-  for (const migration of migrations) {
+  for (const migration of migrationFiles()) {
     if (hasMigration.get(migration.id)) continue;
 
-    const sqlPath = path.join(process.cwd(), "db", "migrations", migration.file);
+    const sqlPath = path.join(migration.directory, migration.file);
     const sql = fs.readFileSync(sqlPath, "utf8");
     const run = db.transaction(() => {
       db.exec(sql);

@@ -57,6 +57,13 @@ type ProjectEntry struct {
 	Tag         string `json:"tag"`
 }
 
+type FriendLink struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Visible bool   `json:"visible"`
+}
+
 type SiteSettings struct {
 	ProfileName         string           `json:"profileName"`
 	ProfileTagline      string           `json:"profileTagline"`
@@ -64,6 +71,8 @@ type SiteSettings struct {
 	AvatarURL           string           `json:"avatarUrl"`
 	Quote               string           `json:"quote"`
 	QuoteAuthor         string           `json:"quoteAuthor"`
+	QuoteEnabled        bool             `json:"quoteEnabled"`
+	QuoteAuthorEnabled  bool             `json:"quoteAuthorEnabled"`
 	GitHubURL           string           `json:"githubUrl"`
 	EmailURL            string           `json:"emailUrl"`
 	AboutURL            string           `json:"aboutUrl"`
@@ -80,6 +89,15 @@ type SiteSettings struct {
 	SocialLinks         []SocialLink     `json:"socialLinks"`
 	HomeEntries         []HomeEntry      `json:"homeEntries"`
 	Projects            []ProjectEntry   `json:"projects"`
+	ShowICP             bool             `json:"showIcp"`
+	ICPNumber           string           `json:"icpNumber"`
+	ICPURL              string           `json:"icpUrl"`
+	ShowPolice          bool             `json:"showPolice"`
+	PoliceNumber        string           `json:"policeNumber"`
+	PoliceURL           string           `json:"policeUrl"`
+	FooterText          string           `json:"footerText"`
+	ShowFriendLinks     bool             `json:"showFriendLinks"`
+	FriendLinks         []FriendLink     `json:"friendLinks"`
 }
 
 type SitePatch struct {
@@ -89,6 +107,8 @@ type SitePatch struct {
 	AvatarURL           *string           `json:"avatarUrl"`
 	Quote               *string           `json:"quote"`
 	QuoteAuthor         *string           `json:"quoteAuthor"`
+	QuoteEnabled        *bool             `json:"quoteEnabled"`
+	QuoteAuthorEnabled  *bool             `json:"quoteAuthorEnabled"`
 	GitHubURL           *string           `json:"githubUrl"`
 	EmailURL            *string           `json:"emailUrl"`
 	AboutURL            *string           `json:"aboutUrl"`
@@ -105,6 +125,15 @@ type SitePatch struct {
 	SocialLinks         *[]SocialLink     `json:"socialLinks"`
 	HomeEntries         *[]HomeEntry      `json:"homeEntries"`
 	Projects            *[]ProjectEntry   `json:"projects"`
+	ShowICP             *bool             `json:"showIcp"`
+	ICPNumber           *string           `json:"icpNumber"`
+	ICPURL              *string           `json:"icpUrl"`
+	ShowPolice          *bool             `json:"showPolice"`
+	PoliceNumber        *string           `json:"policeNumber"`
+	PoliceURL           *string           `json:"policeUrl"`
+	FooterText          *string           `json:"footerText"`
+	ShowFriendLinks     *bool             `json:"showFriendLinks"`
+	FriendLinks         *[]FriendLink     `json:"friendLinks"`
 }
 
 type Store struct {
@@ -122,6 +151,8 @@ func Defaults() SiteSettings {
 		ProfileBio:          "一个属于自己的数字入口：主页、博客和浏览器起始页，不再分散在不同服务里。",
 		Quote:               "生命如意志永存，青春永远年轻。",
 		QuoteAuthor:         "今日短句",
+		QuoteEnabled:        true,
+		QuoteAuthorEnabled:  true,
 		DefaultSearchEngine: SearchBing,
 		ThemeMode:           ThemeAuto,
 		ThemePreset:         PresetAurora,
@@ -138,7 +169,8 @@ func Defaults() SiteSettings {
 			{ID: "about", Name: "About", Description: "关于我", URL: "#about"},
 			{ID: "admin", Name: "Admin", Description: "管理后台", URL: "/admin"},
 		},
-		Projects: []ProjectEntry{},
+		Projects:        []ProjectEntry{},
+		FriendLinks:     []FriendLink{},
 	}
 }
 
@@ -209,6 +241,12 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.QuoteAuthor != nil {
 		v.QuoteAuthor = *p.QuoteAuthor
 	}
+	if p.QuoteEnabled != nil {
+		v.QuoteEnabled = *p.QuoteEnabled
+	}
+	if p.QuoteAuthorEnabled != nil {
+		v.QuoteAuthorEnabled = *p.QuoteAuthorEnabled
+	}
 	if p.GitHubURL != nil {
 		v.GitHubURL = *p.GitHubURL
 	}
@@ -257,6 +295,33 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.Projects != nil {
 		v.Projects = *p.Projects
 	}
+	if p.ShowICP != nil {
+		v.ShowICP = *p.ShowICP
+	}
+	if p.ICPNumber != nil {
+		v.ICPNumber = *p.ICPNumber
+	}
+	if p.ICPURL != nil {
+		v.ICPURL = *p.ICPURL
+	}
+	if p.ShowPolice != nil {
+		v.ShowPolice = *p.ShowPolice
+	}
+	if p.PoliceNumber != nil {
+		v.PoliceNumber = *p.PoliceNumber
+	}
+	if p.PoliceURL != nil {
+		v.PoliceURL = *p.PoliceURL
+	}
+	if p.FooterText != nil {
+		v.FooterText = *p.FooterText
+	}
+	if p.ShowFriendLinks != nil {
+		v.ShowFriendLinks = *p.ShowFriendLinks
+	}
+	if p.FriendLinks != nil {
+		v.FriendLinks = *p.FriendLinks
+	}
 }
 
 func normalize(v SiteSettings) SiteSettings {
@@ -266,6 +331,11 @@ func normalize(v SiteSettings) SiteSettings {
 	v.AvatarURL = trim(v.AvatarURL, 1000)
 	v.Quote = trim(v.Quote, 500)
 	v.QuoteAuthor = trim(v.QuoteAuthor, 100)
+	v.ICPNumber = trim(v.ICPNumber, 120)
+	v.ICPURL = trim(v.ICPURL, 1000)
+	v.PoliceNumber = trim(v.PoliceNumber, 120)
+	v.PoliceURL = trim(v.PoliceURL, 1000)
+	v.FooterText = trim(v.FooterText, 500)
 	v.GitHubURL = trim(v.GitHubURL, 1000)
 	v.EmailURL = trim(v.EmailURL, 1000)
 	v.AboutURL = trim(v.AboutURL, 1000)
@@ -296,6 +366,7 @@ func normalize(v SiteSettings) SiteSettings {
 	v.SocialLinks = normalizeSocial(v.SocialLinks)
 	v.HomeEntries = normalizeHome(v.HomeEntries)
 	v.Projects = normalizeProjects(v.Projects)
+	v.FriendLinks = normalizeFriendLinks(v.FriendLinks)
 	return v
 }
 
@@ -362,6 +433,28 @@ func normalizeProjects(values []ProjectEntry) []ProjectEntry {
 		item.URL = trim(item.URL, 1000)
 		item.Tag = trim(item.Tag, 80)
 		if item.Name != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func normalizeFriendLinks(values []FriendLink) []FriendLink {
+	if values == nil {
+		return []FriendLink{}
+	}
+	if len(values) > 40 {
+		values = values[:40]
+	}
+	out := make([]FriendLink, 0, len(values))
+	for i, item := range values {
+		item.ID = trim(item.ID, 80)
+		if item.ID == "" {
+			item.ID = fmt.Sprintf("friend-%d", i)
+		}
+		item.Name = trim(item.Name, 100)
+		item.URL = trim(item.URL, 1000)
+		if item.Name != "" && item.URL != "" {
 			out = append(out, item)
 		}
 	}

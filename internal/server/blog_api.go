@@ -11,17 +11,18 @@ import (
 )
 
 type postPayload struct {
-	Title          string   `json:"title"`
-	Slug           string   `json:"slug"`
-	Excerpt        string   `json:"excerpt"`
-	ContentMD      string   `json:"contentMd"`
-	Status         string   `json:"status"`
-	Pinned         bool     `json:"pinned"`
-	SEOTitle       string   `json:"seoTitle"`
-	SEODescription string   `json:"seoDescription"`
-	PublishedAt    *int64   `json:"publishedAt"`
-	Tags           []string `json:"tags"`
-	Categories     []string `json:"categories"`
+	Title            string   `json:"title"`
+	Slug             string   `json:"slug"`
+	Excerpt          string   `json:"excerpt"`
+	ContentMD        string   `json:"contentMd"`
+	Status           string   `json:"status"`
+	Pinned           bool     `json:"pinned"`
+	SEOTitle         string   `json:"seoTitle"`
+	SEODescription   string   `json:"seoDescription"`
+	PublishedAt      *int64   `json:"publishedAt"`
+	FirstPublishedAt *int64   `json:"firstPublishedAt"`
+	Tags             []string `json:"tags"`
+	Categories       []string `json:"categories"`
 }
 
 func (p postPayload) input() blog.SaveInput {
@@ -34,7 +35,7 @@ func (p postPayload) input() blog.SaveInput {
 	return blog.SaveInput{
 		Title: p.Title, Slug: p.Slug, Excerpt: p.Excerpt, ContentMD: p.ContentMD, Status: status,
 		Pinned: p.Pinned, SEOTitle: p.SEOTitle, SEODescription: p.SEODescription,
-		PublishedAt: p.PublishedAt, Tags: p.Tags, Categories: p.Categories,
+		PublishedAt: p.PublishedAt, FirstPublishedAt: p.FirstPublishedAt, Tags: p.Tags, Categories: p.Categories,
 	}
 }
 

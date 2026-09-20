@@ -1,11 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import GithubSlugger from "github-slugger";
-import remarkGfm from "remark-gfm";
-import rehypeSlug from "rehype-slug";
-import rehypeHighlight from "rehype-highlight";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { requestJSON } from "../api";
 import { contentStats } from "../content";
+import { MarkdownRenderer, tableOfContents } from "../markdown";
 import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame } from "../ui";
 
@@ -20,27 +16,7 @@ type PublicList = {
 
 type Taxonomy = { tags: string[]; categories: string[] };
 type FilterKey = "query" | "tag" | "category" | "year";
-type TOCItem = { level: 2 | 3; text: string; id: string };
 type Neighbors = { previous: PostRecord | null; next: PostRecord | null };
-
-function tableOfContents(markdown: string): TOCItem[] {
-  const slugger = new GithubSlugger();
-  const result: TOCItem[] = [];
-  let fenced = false;
-  for (const line of markdown.split("\n")) {
-    if (/^\s*```/.test(line)) {
-      fenced = !fenced;
-      continue;
-    }
-    if (fenced) continue;
-    const match = line.match(/^\s*(##|###)\s+(.+?)\s*#*\s*$/);
-    if (!match) continue;
-    const text = match[2].replace(/[*_`~\[\]]/g, "").trim();
-    if (!text) continue;
-    result.push({ level: match[1].length as 2 | 3, text, id: slugger.slug(text) });
-  }
-  return result;
-}
 
 function dateText(value: number | null) {
   if (!value) return "未发布";
@@ -118,11 +94,31 @@ export function BlogIndexPage({ settings, user }: { settings: SiteSettings; user
   const page = Math.max(1, Number(params.get("page") || "1") || 1);
   const currentFilters = { query: initialQuery, tag, category, year };
   const [query, setQuery] = useState(initialQuery);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [data, setData] = useState<PublicList | null>(null);
   const [taxonomy, setTaxonomy] = useState<Taxonomy>({ tags: [], categories: [] });
   const [error, setError] = useState("");
 
   usePageMeta("Blog · " + (settings.profileName || "Know Me"), settings.profileTagline || "文章与笔记");
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase() !== "f") return;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     const search = new URLSearchParams();
@@ -175,7 +171,7 @@ export function BlogIndexPage({ settings, user }: { settings: SiteSettings; user
           <p>写下值得留下的内容，也让以后能够重新找到。</p>
         </div>
         <form onSubmit={submit} className="km-blog-search">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文章…" />
+          <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文章…" />
           <button className="dk-button dk-button-primary">搜索</button>
         </form>
       </section>
@@ -272,7 +268,7 @@ export function BlogPostPage({ settings, user, slug }: { settings: SiteSettings;
   }, [slug]);
 
   const stats = useMemo(() => contentStats(post?.contentMd ?? ""), [post?.contentMd]);
-  const toc = useMemo(() => tableOfContents(post?.contentMd ?? ""), [post?.contentMd]);
+  const toc = useMemo(() => tableOfContents(post?.contentMd ?? "", post?.title), [post?.contentMd, post?.title]);
   usePageMeta(
     post ? post.title + " · " + (settings.profileName || "Know Me") : "Blog · " + (settings.profileName || "Know Me"),
     post?.seoDescription || post?.excerpt || settings.profileTagline
@@ -289,7 +285,8 @@ export function BlogPostPage({ settings, user, slug }: { settings: SiteSettings;
               <h1>{post.title}</h1>
               <p>{post.excerpt}</p>
               <div className="km-post-meta">
-                <time>{dateText(post.publishedAt)}</time>
+                <time>首次发布 {dateText(post.firstPublishedAt ?? post.publishedAt)}</time>
+                <span>最后编辑 {dateText(post.updatedAt)}</span>
                 <span>{stats.readingMinutes} 分钟阅读</span>
                 <span>{stats.totalCharacters} 字符</span>
               </div>
@@ -301,9 +298,7 @@ export function BlogPostPage({ settings, user, slug }: { settings: SiteSettings;
               </details>
             ) : null}
             <div className="km-markdown">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug, rehypeHighlight]}>
-                {post.contentMd}
-              </ReactMarkdown>
+              <MarkdownRenderer source={post.contentMd} documentTitle={post.title} />
             </div>
             <footer className="km-article-footer">
               <div className="km-chip-row km-article-tags">

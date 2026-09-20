@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       seoTitle: String(body.seoTitle ?? ""),
       seoDescription: String(body.seoDescription ?? ""),
       publishedAt: typeof body.publishedAt === "number" ? body.publishedAt : null,
+      firstPublishedAt: typeof body.firstPublishedAt === "number" ? body.firstPublishedAt : null,
       tags: strings(body.tags),
       categories: strings(body.categories)
     });

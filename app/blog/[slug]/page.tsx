@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MarkdownRenderer } from "@/components/blog/markdown-renderer";
+import { PublicFooter } from "@/components/public-footer";
 import { extractToc } from "@/lib/blog/toc";
-import { getAdjacentPublishedPosts, getPublishedPostBySlug, markdownToText } from "@/lib/blog/repository";
+import { getAdjacentPublishedPosts, getPublishedPostBySlug } from "@/lib/blog/repository";
+import { markdownToText } from "@/lib/blog/markdown";
 import { getSiteSettings } from "@/lib/settings/repository";
 import { themeClass } from "@/lib/settings/theme";
 
@@ -33,7 +35,8 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
       title: post.seoTitle || post.title,
       description: post.seoDescription || post.excerpt,
       type: "article",
-      publishedTime: post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined
+      publishedTime: (post.firstPublishedAt ?? post.publishedAt) ? new Date(post.firstPublishedAt ?? post.publishedAt!).toISOString() : undefined,
+      modifiedTime: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined
     }
   };
 }
@@ -43,7 +46,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const post = getPublishedPostBySlug(decodeURIComponent(slug));
   if (!post) notFound();
 
-  const toc = extractToc(post.contentMd);
+  const toc = extractToc(post.contentMd, post.title);
   const adjacent = getAdjacentPublishedPosts(post.id);
   const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
   const settings = getSiteSettings();
@@ -65,11 +68,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           </div>
           <h1>{post.title}</h1>
           <div className="article-meta">
-            {formatDate(post.publishedAt)} · 阅读约 {minutes} 分钟
-            {post.updatedAt > (post.publishedAt ?? 0) ? " · 更新于 " + formatDate(post.updatedAt) : ""}
+            首次发布 {formatDate(post.firstPublishedAt ?? post.publishedAt)} · 阅读约 {minutes} 分钟
+            {post.updatedAt > (post.firstPublishedAt ?? post.publishedAt ?? 0) ? " · 最后编辑 " + formatDate(post.updatedAt) : ""}
           </div>
 
-          <MarkdownRenderer content={post.contentMd} />
+          <MarkdownRenderer content={post.contentMd} documentTitle={post.title} />
 
           <footer className="article-footer">
             {post.tags.length ? (
@@ -94,6 +97,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           {toc.length === 0 ? <span className="toc-empty">本文没有二级标题</span> : null}
         </aside>
       </section>
+      <PublicFooter settings={settings} />
     </main>
   );
 }

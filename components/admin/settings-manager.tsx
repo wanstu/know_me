@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { MediaRecord } from "@/lib/media/repository";
 import type {
+  FriendLink,
   HomeEntry,
   ProjectEntry,
   SearchEngineName,
@@ -78,6 +79,10 @@ export function SettingsManager({
     update("projects", settings.projects.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   }
 
+  function updateFriend(index: number, patch: Partial<FriendLink>) {
+    update("friendLinks", settings.friendLinks.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
   function chooseMedia(url: string) {
     if (!mediaTarget) return;
     update(mediaTarget, url);
@@ -146,8 +151,16 @@ export function SettingsManager({
             </div>
           </label>
 
-          <label>自定义短句<input value={settings.quote} onChange={(event) => update("quote", event.target.value)} /><small className="field-hint">会与内置短句一起进入随机池，每次进入个人主页随机展示一条。</small></label>
-          <label>自定义短句署名<input value={settings.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
+          <label>今日短句<input value={settings.quote} onChange={(event) => update("quote", event.target.value)} /><small className="field-hint">填写后固定显示这条；留空时使用内置短句。</small></label>
+          <label>短句署名<input value={settings.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
+          <label className="settings-check">
+            <input type="checkbox" checked={settings.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} />
+            <span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span>
+          </label>
+          <label className="settings-check">
+            <input type="checkbox" checked={settings.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} />
+            <span><strong>显示短句署名</strong><small>仅控制署名，不影响短句正文。</small></span>
+          </label>
         </div>
       </section>
 
@@ -336,6 +349,62 @@ export function SettingsManager({
               <small>只会显示标记为“公开”的导航分组和入口；私有链接不会下发给访客。</small>
             </span>
           </label>
+        </div>
+      </section>
+
+      <section className="admin-panel settings-section" data-settings-section="settings">
+        <div>
+          <div className="eyebrow">Footer</div>
+          <h2>页脚与站点信息</h2>
+          <p className="muted">配置备案、公安备案、页脚附加文字和友情链接；每项都可以独立隐藏。</p>
+        </div>
+
+        <div className="settings-grid">
+          <label className="settings-check span-2">
+            <input type="checkbox" checked={settings.showIcp} onChange={(event) => update("showIcp", event.target.checked)} />
+            <span><strong>显示 ICP 备案</strong><small>填写备案号后才会出现在公开页脚。</small></span>
+          </label>
+          <label>ICP 备案号<input value={settings.icpNumber} onChange={(event) => update("icpNumber", event.target.value)} placeholder="京ICP备XXXXXXXX号" /></label>
+          <label>ICP 链接<input value={settings.icpUrl} onChange={(event) => update("icpUrl", event.target.value)} placeholder="https://beian.miit.gov.cn/" /></label>
+
+          <label className="settings-check span-2">
+            <input type="checkbox" checked={settings.showPolice} onChange={(event) => update("showPolice", event.target.checked)} />
+            <span><strong>显示公安备案</strong><small>填写公安备案号后才会显示。</small></span>
+          </label>
+          <label>公安备案号<input value={settings.policeNumber} onChange={(event) => update("policeNumber", event.target.value)} placeholder="京公网安备 XXXXXXXXXXXXXX号" /></label>
+          <label>公安备案链接<input value={settings.policeUrl} onChange={(event) => update("policeUrl", event.target.value)} placeholder="https://www.beian.gov.cn/..." /></label>
+
+          <label className="span-2">页脚附加文字<textarea value={settings.footerText} onChange={(event) => update("footerText", event.target.value)} placeholder="例如：Built with Know Me · 内容持续更新中" /></label>
+          <label className="settings-check span-2">
+            <input type="checkbox" checked={settings.showFriendLinks} onChange={(event) => update("showFriendLinks", event.target.checked)} />
+            <span><strong>显示友情链接</strong><small>只展示已启用且名称、地址完整的链接。</small></span>
+          </label>
+        </div>
+
+        <div className="settings-collection">
+          {settings.friendLinks.map((item, index) => (
+            <div className="settings-collection-row settings-collection-row--friend" key={item.id}>
+              <input value={item.name} onChange={(event) => updateFriend(index, { name: event.target.value })} placeholder="站点名称" />
+              <input value={item.url} onChange={(event) => updateFriend(index, { url: event.target.value })} placeholder="https://..." />
+              <label className="settings-inline-check">
+                <input type="checkbox" checked={item.visible} onChange={(event) => updateFriend(index, { visible: event.target.checked })} />
+                显示
+              </label>
+              <div className="settings-row-actions">
+                <button type="button" disabled={index === 0} onClick={() => update("friendLinks", move(settings.friendLinks, index, index - 1))}>↑</button>
+                <button type="button" disabled={index === settings.friendLinks.length - 1} onClick={() => update("friendLinks", move(settings.friendLinks, index, index + 1))}>↓</button>
+                <button type="button" className="danger-text" onClick={() => update("friendLinks", settings.friendLinks.filter((_, itemIndex) => itemIndex !== index))}>删除</button>
+              </div>
+            </div>
+          ))}
+          {settings.friendLinks.length === 0 ? <div className="settings-collection-empty">还没有友情链接。</div> : null}
+          <button
+            type="button"
+            className="secondary-button settings-add-button"
+            onClick={() => update("friendLinks", [...settings.friendLinks, { id: id("friend"), name: "", url: "", visible: true }])}
+          >
+            ＋ 添加友情链接
+          </button>
         </div>
       </section>
 

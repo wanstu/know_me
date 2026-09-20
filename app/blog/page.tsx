@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BlogSearch } from "@/components/blog/blog-search";
+import { PublicFooter } from "@/components/public-footer";
 import { archiveCounts, filterPublishedPosts, listTaxonomy } from "@/lib/blog/repository";
 import { getSiteSettings } from "@/lib/settings/repository";
 import { themeClass } from "@/lib/settings/theme";
@@ -51,9 +53,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             </p>
           </div>
 
-          <form action="/blog" method="get">
-            <input className="blog-search" name="q" defaultValue={query} placeholder="搜索文章、标签或关键词…" aria-label="搜索博客" />
-          </form>
+          <BlogSearch defaultValue={query} />
 
           <div className="post-list">
             {posts.map((post, index) => (
@@ -116,6 +116,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           </div>
         </aside>
       </section>
+      <PublicFooter settings={settings} />
     </main>
   );
 }

@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LogoutButton } from "@/components/logout-button";
+import { PublicFooter } from "@/components/public-footer";
 import { StartClient } from "@/components/start/start-client";
 import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { getNavigationTree } from "@/lib/navigation/repository";
@@ -35,6 +36,7 @@ export default async function StartPage() {
       <div className="start-logout">
         {authenticated ? <LogoutButton compact /> : <Link className="public-login-chip" href="/login?next=%2Fstart">登录</Link>}
       </div>
+      <PublicFooter settings={settings} />
     </main>
   );
 }

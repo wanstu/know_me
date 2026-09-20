@@ -69,12 +69,12 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
         </div>
       </section>
 
-      <section className="km-home-grid">
-        <article className="km-panel km-quote-card">
+      <section className={"km-home-grid" + (!settings.quoteEnabled ? " is-single" : "")}>
+        {settings.quoteEnabled ? <article className="km-panel km-quote-card">
           <span className="km-eyebrow">今日短句</span>
           <blockquote>“{quote}”</blockquote>
-          <small>{quote === settings.quote ? settings.quoteAuthor || "Know Me" : "Know Me"}</small>
-        </article>
+          {settings.quoteAuthorEnabled ? <small>{settings.quoteAuthor || "Know Me"}</small> : null}
+        </article> : null}
         <article className="km-panel km-now-card">
           <span className="km-eyebrow">NOW</span>
           <Clock />

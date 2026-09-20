@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   serverExternalPackages: ["better-sqlite3"],
   async headers() {
     return [

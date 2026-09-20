@@ -1,10 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSlug from "rehype-slug";
-import rehypeHighlight from "rehype-highlight";
 import { requestAPI, requestJSON } from "../../api";
 import { contentStats } from "../../content";
+import { MarkdownRenderer, parseMarkdownImport, type MarkdownImportMode } from "../../markdown";
 import { validateMediaFile } from "../../media";
 import type { PostRecord, PostRevision } from "../../types";
 import { AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, errorText } from "../../ui";
@@ -19,6 +16,7 @@ type EditorState = {
   seoTitle: string;
   seoDescription: string;
   publishedAt: string;
+  firstPublishedAt: string;
   tags: string;
   categories: string;
 };
@@ -44,6 +42,7 @@ function readLocalDraft(id?: number): LocalDraftSnapshot | null {
     if (!raw) return null;
     const value = JSON.parse(raw) as LocalDraftSnapshot;
     if (!value?.draft || typeof value.savedAt !== "number") return null;
+    if (typeof value.draft.firstPublishedAt !== "string") value.draft.firstPublishedAt = "";
     return value;
   } catch {
     return null;
@@ -60,7 +59,8 @@ function fromPost(post?: PostRecord | null): EditorState {
     pinned: post?.pinned ?? false,
     seoTitle: post?.seoTitle ?? "",
     seoDescription: post?.seoDescription ?? "",
-    publishedAt: post?.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 16) : "",
+    publishedAt: post?.publishedAt ? localDateTimeInput(new Date(post.publishedAt)) : "",
+    firstPublishedAt: post?.firstPublishedAt ? localDateTimeInput(new Date(post.firstPublishedAt)) : "",
     tags: post?.tags.join(", ") ?? "",
     categories: post?.categories.join(", ") ?? ""
   };
@@ -186,8 +186,19 @@ export function PostEditor({ id }: { id?: number }) {
   const [serverUpdatedAt, setServerUpdatedAt] = useState(0);
   const [localDraftPreviewOpen, setLocalDraftPreviewOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importMode, setImportMode] = useState<MarkdownImportMode>("plain");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const bypassBeforeUnloadRef = useRef(false);
+
+  useEffect(() => {
+    if (!id && new URLSearchParams(window.location.search).get("import") === "1") {
+      setImportDialogOpen(true);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (id) return;
@@ -245,6 +256,7 @@ export function PostEditor({ id }: { id?: number }) {
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (bypassBeforeUnloadRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -380,11 +392,35 @@ export function PostEditor({ id }: { id?: number }) {
     }
   }
 
-  async function importMarkdown(file: File) {
-    const text = await file.text();
-    update("contentMd", text);
-    if (!draft.title.trim()) update("title", file.name.replace(/\.md$/i, ""));
-    setMessage("Markdown 已导入");
+  function beginMarkdownImport(mode: MarkdownImportMode) {
+    setImportMode(mode);
+    setImportDialogOpen(false);
+    window.setTimeout(() => importInputRef.current?.click(), 0);
+  }
+
+  async function importMarkdown(file: File, mode: MarkdownImportMode) {
+    setError("");
+    try {
+      const text = await file.text();
+      const parsed = parseMarkdownImport(text, mode);
+      const fallbackTitle = file.name.replace(/\.md$/i, "");
+      setDraft((current) => ({
+        ...current,
+        contentMd: parsed.contentMd,
+        title: parsed.title ?? (current.title.trim() ? current.title : fallbackTitle),
+        firstPublishedAt: parsed.firstPublishedAt
+          ? localDateTimeInput(new Date(parsed.firstPublishedAt))
+          : current.firstPublishedAt
+      }));
+      setDirty(true);
+      setMessage(
+        mode === "frontmatter"
+          ? "Front Matter Markdown 已导入，标题和日期已解析"
+          : "普通 Markdown 已导入"
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "markdown_import_failed");
+    }
   }
 
   function exportMarkdown() {
@@ -410,6 +446,7 @@ export function PostEditor({ id }: { id?: number }) {
     try {
       const publishNow = overrideStatus === "published" && draft.status !== "published";
       const publishedAt = publishNow ? null : draft.publishedAt ? new Date(draft.publishedAt).getTime() : null;
+      const firstPublishedAt = draft.firstPublishedAt ? new Date(draft.firstPublishedAt).getTime() : null;
       const payload = await requestJSON<{ post: PostRecord }>(id ? "/api/posts/" + id : "/api/posts", {
         method: id ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
@@ -423,6 +460,7 @@ export function PostEditor({ id }: { id?: number }) {
           seoTitle: draft.seoTitle,
           seoDescription: draft.seoDescription,
           publishedAt,
+          firstPublishedAt,
           tags: splitNames(draft.tags),
           categories: splitNames(draft.categories)
         })
@@ -434,8 +472,8 @@ export function PostEditor({ id }: { id?: number }) {
       try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
       setMessage(status === "published" ? "已发布" : "已保存");
       if (!id) {
-        window.history.replaceState({}, "", "/admin/posts/" + payload.post.id);
-        window.location.reload();
+        bypassBeforeUnloadRef.current = true;
+        window.location.replace("/admin/posts/" + payload.post.id);
         return;
       }
       const revisionPayload = await requestJSON<{ revisions: PostRevision[] }>("/api/posts/" + id + "/revisions");
@@ -477,6 +515,7 @@ export function PostEditor({ id }: { id?: number }) {
     try {
       await requestJSON("/api/posts/" + id, { method: "DELETE" });
       try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
+      bypassBeforeUnloadRef.current = true;
       window.location.href = "/admin/posts";
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "delete_failed");
@@ -525,7 +564,7 @@ export function PostEditor({ id }: { id?: number }) {
           </div>
         </section>
       ) : null}
-      <form className="km-editor-layout" onSubmit={(event) => void save(event)}>
+      <form className={"km-editor-layout" + (focusMode ? " is-focus" : "")} onSubmit={(event) => void save(event)}>
         <section className="km-panel km-editor-main">
           <div className="km-editor-heading">
             <label className="dk-field">标题<input value={draft.title} onChange={(e) => update("title", e.target.value)} placeholder="文章标题" /></label>
@@ -543,10 +582,12 @@ export function PostEditor({ id }: { id?: number }) {
             <button type="button" onClick={() => applyToolbar("`", "`", "代码")}>代码</button>
             <button type="button" onClick={() => applyToolbar("\n\n```\n", "\n```\n", "代码块")}>代码块</button>
             <button type="button" onClick={() => mediaInputRef.current?.click()}>图片</button>
-            <label className="km-editor-file-button">导入 MD<input hidden type="file" accept=".md,text/markdown,text/plain" onChange={(e) => { const file = e.target.files?.[0]; if (file) void importMarkdown(file); e.currentTarget.value = ""; }} /></label>
+            <button type="button" onClick={() => setImportDialogOpen(true)}>导入 MD</button>
             <button type="button" onClick={exportMarkdown}>导出 MD</button>
             <button type="button" onClick={() => setPreviewOpen(true)}>整页预览</button>
+            <button type="button" className={focusMode ? "is-active" : ""} aria-pressed={focusMode} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "显示属性" : "专注编辑"}</button>
             <input ref={mediaInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadImage(file); e.currentTarget.value = ""; }} />
+            <input ref={importInputRef} hidden type="file" accept=".md,text/markdown,text/plain" onChange={(e) => { const file = e.target.files?.[0]; if (file) void importMarkdown(file, importMode); e.currentTarget.value = ""; }} />
           </div>
 
           <div className="km-editor-split">
@@ -572,9 +613,7 @@ export function PostEditor({ id }: { id?: number }) {
               <span>实时预览</span>
               <article className="km-markdown">
                 {draft.contentMd ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug, rehypeHighlight]}>
-                    {draft.contentMd}
-                  </ReactMarkdown>
+                  <MarkdownRenderer source={draft.contentMd} documentTitle={draft.title} />
                 ) : <p className="km-muted">这里会实时显示 Markdown 预览。</p>}
               </article>
             </div>
@@ -590,6 +629,10 @@ export function PostEditor({ id }: { id?: number }) {
                 <option value="published">已发布</option>
                 <option value="scheduled">定时发布</option>
               </select>
+            </label>
+            <label className="dk-field">首次发布时间
+              <input type="datetime-local" value={draft.firstPublishedAt} onChange={(e) => update("firstPublishedAt", e.target.value)} />
+              <small className="km-field-hint">首次发布时自动生成，也可手动调整；Front Matter 的 date 会导入到这里。</small>
             </label>
             {draft.status === "scheduled" ? (
               <label className="dk-field">发布时间
@@ -642,6 +685,30 @@ export function PostEditor({ id }: { id?: number }) {
           </div>
         </aside>
       </form>
+      {importDialogOpen ? (
+        <div className="km-modal-backdrop" onMouseDown={() => setImportDialogOpen(false)}>
+          <section className="km-panel km-import-markdown-dialog" role="dialog" aria-modal="true" aria-labelledby="km-import-markdown-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span className="km-eyebrow">IMPORT</span>
+                <h2 id="km-import-markdown-title">选择 Markdown 类型</h2>
+                <p>导入类型需要显式选择，避免把 YAML Front Matter 当成正文。</p>
+              </div>
+              <button type="button" aria-label="关闭" onClick={() => setImportDialogOpen(false)}>×</button>
+            </header>
+            <div className="km-import-mode-grid">
+              <button type="button" onClick={() => beginMarkdownImport("plain")}>
+                <strong>普通 Markdown</strong>
+                <span>整个文件作为正文导入；标题为空时使用文件名。</span>
+              </button>
+              <button type="button" onClick={() => beginMarkdownImport("frontmatter")}>
+                <strong>YAML Front Matter Markdown</strong>
+                <span>解析 title 和 date，并从正文中移除 --- 头信息。</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {localDraft && localDraftPreviewOpen ? (
         <div className="km-modal-backdrop" onMouseDown={() => setLocalDraftPreviewOpen(false)}>
           <section className="km-panel km-revision-preview" role="dialog" aria-modal="true" aria-labelledby="km-local-draft-preview-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -698,7 +765,7 @@ export function PostEditor({ id }: { id?: number }) {
                 <div className="km-post-meta"><span>{stats.readingMinutes} 分钟阅读</span><span>{stats.totalCharacters} 字符</span><span>{draft.status === "published" ? "已发布" : draft.status === "scheduled" ? "定时" : "草稿"}</span></div>
               </div>
               <div className="km-markdown">
-                {draft.contentMd ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug, rehypeHighlight]}>{draft.contentMd}</ReactMarkdown> : <p className="km-muted">暂无正文。</p>}
+                {draft.contentMd ? <MarkdownRenderer source={draft.contentMd} documentTitle={draft.title} /> : <p className="km-muted">暂无正文。</p>}
               </div>
               <div className="km-chip-row">{splitNames(draft.tags).map((tag) => <span key={tag}>{tag}</span>)}</div>
             </article>

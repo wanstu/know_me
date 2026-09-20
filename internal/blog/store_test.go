@@ -79,6 +79,21 @@ func TestBlogDraftRevisionPublishSearchSchedule(t *testing.T) {
 	if _, err := store.GetPublishedBySlug(ctx, published.Slug); err != nil {
 		t.Fatal(err)
 	}
+	if published.FirstPublishedAt == nil {
+		t.Fatal("first published time was not generated")
+	}
+	firstPublishedAt := *published.FirstPublishedAt
+	id = published.ID
+	editedPublished, err := store.Save(ctx, SaveInput{
+		Title: published.Title, Slug: published.Slug, ContentMD: published.ContentMD + "\n\npost publish edit",
+		Status: StatusPublished, Tags: published.Tags, Categories: published.Categories,
+	}, &id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if editedPublished.FirstPublishedAt == nil || *editedPublished.FirstPublishedAt != firstPublishedAt {
+		t.Fatalf("first published time changed after edit: before=%d after=%#v", firstPublishedAt, editedPublished.FirstPublishedAt)
+	}
 
 	search, err := store.ListPublished(ctx, "alpha_unique_term", 20)
 	if err != nil {

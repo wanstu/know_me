@@ -17,3 +17,7 @@ cmd/know-me-desktop/frontend/wailsjs/
 *.tsbuildinfo
 .idea/
 .DS_Store
+
+# Local Next.js development database
+know-me.db
+know-me.db-*

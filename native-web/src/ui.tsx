@@ -54,6 +54,10 @@ const errorMessages: Record<string, string> = {
   backup_expanded_size_invalid: "备份解压后的媒体数据过大，已拒绝恢复。",
   title_required: "请输入文章标题。",
   scheduled_time_required: "定时发布必须选择发布时间。",
+  markdown_import_failed: "Markdown 导入失败。",
+  frontmatter_missing: "没有找到有效的 YAML Front Matter，请确认文件以 --- 开始并正确结束。",
+  frontmatter_invalid: "YAML Front Matter 格式无法解析，请检查头信息。",
+  frontmatter_date_invalid: "Front Matter 的 date 不是可识别的日期格式。",
   revision_not_found: "这个历史版本已经不存在。",
   taxonomy_name_required: "请输入分类或标签名称。",
   taxonomy_name_exists: "已经存在同名分类或标签。",
@@ -302,6 +306,43 @@ export function SiteHeader({ settings, user }: { settings: SiteSettings; user?: 
   );
 }
 
+function PublicFooter({ settings }: { settings: SiteSettings }) {
+  const friends = (settings.friendLinks ?? []).filter((item) => item.visible && safeHref(item.url) !== "#");
+  const hasMeta = Boolean(
+    settings.footerText?.trim() ||
+    (settings.showIcp && settings.icpNumber?.trim()) ||
+    (settings.showPolice && settings.policeNumber?.trim()) ||
+    (settings.showFriendLinks && friends.length)
+  );
+
+  return (
+    <footer className="km-footer">
+      <div className="km-footer-main">
+        <strong>{settings.profileName || "Know Me"}</strong>
+        {settings.footerText?.trim() ? <span>{settings.footerText}</span> : null}
+      </div>
+      {hasMeta ? (
+        <div className="km-footer-meta">
+          {settings.showIcp && settings.icpNumber?.trim() ? (
+            settings.icpUrl?.trim() ? <a href={safeHref(settings.icpUrl)} target="_blank" rel="noreferrer">{settings.icpNumber}</a> : <span>{settings.icpNumber}</span>
+          ) : null}
+          {settings.showPolice && settings.policeNumber?.trim() ? (
+            settings.policeUrl?.trim() ? <a href={safeHref(settings.policeUrl)} target="_blank" rel="noreferrer">{settings.policeNumber}</a> : <span>{settings.policeNumber}</span>
+          ) : null}
+          {settings.showFriendLinks && friends.length ? (
+            <nav aria-label="友情链接">
+              {friends.map((item) => {
+                const href = safeHref(item.url);
+                return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.name}</a>;
+              })}
+            </nav>
+          ) : null}
+        </div>
+      ) : null}
+    </footer>
+  );
+}
+
 export function PageFrame({
   settings,
   user,
@@ -317,7 +358,7 @@ export function PageFrame({
     <div className={"km-page " + className}>
       <SiteHeader settings={settings} user={user} />
       <main className="km-main">{children}</main>
-      <footer className="km-footer">Know Me</footer>
+      <PublicFooter settings={settings} />
     </div>
   );
 }
