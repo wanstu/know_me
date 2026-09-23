@@ -3250,8 +3250,35 @@ a.project-card:hover {
 .paper-page .prose {
   color: var(--paper-text);
 }
+.paper-page .prose a,
+.paper-page .article-adjacent a {
+  color: rgb(var(--ui-accent-rgb));
+}
 .paper-page .prose code {
   background: var(--paper-code);
+  color: var(--paper-text);
+}
+.paper-page .prose pre,
+.paper-page .prose pre code {
+  background: var(--paper-code);
+  color: var(--paper-text);
+}
+.paper-page .prose blockquote {
+  border-left-color: rgb(var(--ui-accent-rgb));
+  background: color-mix(in srgb, var(--paper-panel) 86%, rgb(var(--ui-accent-rgb)) 14%);
+  color: var(--paper-muted);
+}
+.paper-page .prose th,
+.paper-page .prose td {
+  border-color: var(--ui-line-strong);
+}
+.paper-page .prose th {
+  background: var(--paper-code);
+  color: var(--paper-text);
+}
+.paper-page .prose hr,
+.paper-page .article-footer {
+  border-color: var(--ui-line-strong);
 }
 .paper-page .article-toc {
   border-color: var(--ui-line-strong);
