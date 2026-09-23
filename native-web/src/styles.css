@@ -2055,8 +2055,22 @@ select:focus-visible {
 }
 .km-markdown .katex { color: inherit; }
 
-/* v0.1.5 editor focus */
+/* v0.1.5 editor focus and view modes */
 .km-editor-toolbar button.is-active { border-color: var(--dk-primary, #6366f1); background: color-mix(in srgb, var(--dk-primary, #6366f1) 11%, var(--dk-bg-elevated, #fff)); color: var(--dk-primary, #6366f1); }
+.km-editor-view-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 10px;
+  background: var(--dk-bg-elevated, #fff);
+}
+.km-editor-view-switch button { min-width: auto; }
+.km-editor-split.is-edit,
+.km-editor-split.is-preview { grid-template-columns: minmax(0, 1fr); }
+.km-editor-split.is-edit .km-editor-preview { display: none; }
+.km-editor-split.is-preview .km-editor-source { display: none; }
 
 
 /* v0.1.5 navigation/editor closeout */

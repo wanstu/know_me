@@ -3827,9 +3827,27 @@ a.project-card:hover {
   font-weight: 700;
 }
 
-/* v0.1.5 editor focus */
-.editor-grid--post.is-focus { grid-template-columns: minmax(0, 1fr); }
-.editor-grid--post.is-focus .preview-pane { display: none; }
+/* v0.1.5 editor view modes */
+.editor-view-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--ui-line, #283140);
+  border-radius: 10px;
+  background: var(--ui-panel-2, #151d29);
+}
+.admin-page .editor-view-switch button { min-width: auto; }
+.admin-page .editor-view-switch button.is-active {
+  border-color: rgb(var(--ui-accent-rgb, 99 102 241) / .4);
+  background: var(--ui-active, rgba(99,102,241,.12));
+  color: rgb(var(--ui-accent-rgb, 99 102 241));
+}
+.editor-view-switch + .editor-toolbar-hint { margin-left: 0; }
+.editor-grid--post.is-edit,
+.editor-grid--post.is-preview { grid-template-columns: minmax(0, 1fr); }
+.editor-grid--post.is-edit .preview-pane { display: none; }
+.editor-grid--post.is-preview .editor-pane { display: none; }
 .editor-actions button.is-active { border-color: rgb(var(--ui-accent-rgb, 99 102 241) / .45); background: var(--ui-active, rgba(99,102,241,.12)); color: rgb(var(--ui-accent-rgb, 99 102 241)); }
 
 

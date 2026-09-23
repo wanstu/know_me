@@ -162,7 +162,7 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState(initialPost ? "已载入" : "新草稿");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [focusMode, setFocusMode] = useState(false);
+  const [viewMode, setViewMode] = useState<"split" | "edit" | "preview">("split");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<MarkdownImportMode>("plain");
@@ -531,7 +531,6 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         <div className="editor-actions">
           <button type="button" onClick={() => void persist()}>保存</button>
           <button type="button" onClick={() => setSettingsOpen((value) => !value)}>设置</button>
-          <button type="button" aria-pressed={focusMode} className={focusMode ? "is-active" : ""} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "显示预览" : "专注编辑"}</button>
           {postId ? <button type="button" onClick={() => void loadHistory()}>历史</button> : null}
           <button type="button" onClick={() => imageInputRef.current?.click()}>图片</button>
           <button type="button" onClick={() => setImportDialogOpen(true)}>导入 MD</button>
@@ -594,10 +593,15 @@ export function PostEditor({ initialPost }: { initialPost: PostRecord | null }) 
         <button type="button" title="代码块" onMouseDown={(event) => event.preventDefault()} onClick={() => replaceSelection("```\n", "\n```", "code")}>代码块</button>
         <button type="button" title="分隔线" onMouseDown={(event) => event.preventDefault()} onClick={() => insertBlock("\n---\n")}>—</button>
         <button type="button" title="插入图片" onMouseDown={(event) => event.preventDefault()} onClick={() => imageInputRef.current?.click()}>图片</button>
+        <div className="editor-view-switch" role="group" aria-label="正文视图">
+          <button type="button" className={viewMode === "split" ? "is-active" : ""} aria-pressed={viewMode === "split"} onClick={() => setViewMode("split")}>并排</button>
+          <button type="button" className={viewMode === "edit" ? "is-active" : ""} aria-pressed={viewMode === "edit"} onClick={() => setViewMode("edit")}>仅编辑</button>
+          <button type="button" className={viewMode === "preview" ? "is-active" : ""} aria-pressed={viewMode === "preview"} onClick={() => setViewMode("preview")}>仅预览</button>
+        </div>
         <span className="editor-toolbar-hint">Ctrl+S 保存 · Ctrl+Shift+Enter 发布</span>
       </div>
 
-      <div className={"editor-grid editor-grid--post" + (focusMode ? " is-focus" : "")}>
+      <div className={"editor-grid editor-grid--post is-" + viewMode}>
         <section className="editor-pane">
           <textarea
             ref={textareaRef}

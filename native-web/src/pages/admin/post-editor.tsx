@@ -233,6 +233,7 @@ export function PostEditor({ id }: { id?: number }) {
   const [localDraftPreviewOpen, setLocalDraftPreviewOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [viewMode, setViewMode] = useState<"split" | "edit" | "preview">("split");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<MarkdownImportMode>("plain");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -632,11 +633,16 @@ export function PostEditor({ id }: { id?: number }) {
             <button type="button" onClick={exportMarkdown}>导出 MD</button>
             <button type="button" onClick={() => setPreviewOpen(true)}>整页预览</button>
             <button type="button" className={focusMode ? "is-active" : ""} aria-pressed={focusMode} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "显示属性" : "专注编辑"}</button>
+            <div className="km-editor-view-switch" role="group" aria-label="正文视图">
+              <button type="button" className={viewMode === "split" ? "is-active" : ""} aria-pressed={viewMode === "split"} onClick={() => setViewMode("split")}>并排</button>
+              <button type="button" className={viewMode === "edit" ? "is-active" : ""} aria-pressed={viewMode === "edit"} onClick={() => setViewMode("edit")}>仅编辑</button>
+              <button type="button" className={viewMode === "preview" ? "is-active" : ""} aria-pressed={viewMode === "preview"} onClick={() => setViewMode("preview")}>仅预览</button>
+            </div>
             <input ref={mediaInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadImage(file); e.currentTarget.value = ""; }} />
             <input ref={importInputRef} hidden type="file" accept=".md,text/markdown,text/plain" onChange={(e) => { const file = e.target.files?.[0]; if (file) void importMarkdown(file, importMode); e.currentTarget.value = ""; }} />
           </div>
 
-          <div className="km-editor-split">
+          <div className={"km-editor-split is-" + viewMode}>
             <label className="km-editor-source">
               <span title={`中文 ${stats.cjkCharacters} 字 · 英文 ${stats.latinWords} 词`}>Markdown · {stats.totalCharacters} 字符 · 约 {stats.readingMinutes} 分钟</span>
               <textarea
