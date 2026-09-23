@@ -466,7 +466,12 @@ export function NavigationManager({ initialTree, showImportPanel = false }: { in
                 <div className="nav-item-actions">
                   {item.type === "folder" ? <button type="button" onClick={() => newItem(item.id)}>＋子项</button> : null}
                   <button type="button" onClick={() => editItem(item)}>编辑</button>
-                  <button type="button" className="danger-text" onClick={() => void removeItem(item)}>删除</button>
+                  <details className="nav-row-more">
+                    <summary aria-label={"更多操作：" + item.name} title="更多操作">•••</summary>
+                    <div className="nav-row-more-menu">
+                      <button type="button" className="danger-text" onClick={() => void removeItem(item)}>删除</button>
+                    </div>
+                  </details>
                 </div>
 
                 {item.children.length ? (
@@ -487,7 +492,12 @@ export function NavigationManager({ initialTree, showImportPanel = false }: { in
                         <strong>{child.name}</strong>
                         <small>{child.url || "无 URL"}</small>
                         <button type="button" onClick={() => editItem(child)}>编辑</button>
-                        <button type="button" className="danger-text" onClick={() => void removeItem(child)}>删除</button>
+                        <details className="nav-row-more">
+                          <summary aria-label={"更多操作：" + child.name} title="更多操作">•••</summary>
+                          <div className="nav-row-more-menu">
+                            <button type="button" className="danger-text" onClick={() => void removeItem(child)}>删除</button>
+                          </div>
+                        </details>
                       </div>
                     ))}
                   </div>
@@ -579,18 +589,40 @@ export function NavigationManager({ initialTree, showImportPanel = false }: { in
               <h3>{itemForm.mode === "create" ? "新增导航项" : "编辑导航项"}</h3>
               <button type="button" onClick={() => setItemForm(null)}>×</button>
             </div>
-            <div className="admin-form-grid">
-              <label>名称<input value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} required /></label>
-              <label>类型<select value={itemForm.type} onChange={(event) => setItemForm({ ...itemForm, type: event.target.value as "link" | "folder" })}><option value="link">链接</option><option value="folder">文件夹</option></select></label>
-              <label className="span-2">URL<input value={itemForm.url} onChange={(event) => setItemForm({ ...itemForm, url: event.target.value })} placeholder="https://..." /><small className="field-hint">支持 http/https，也保留 about:、chrome:、edge: 等浏览器内部地址。</small></label>
-              <label className="span-2">图标 URL<input value={itemForm.iconUrl} onChange={(event) => setItemForm({ ...itemForm, iconUrl: event.target.value })} /><small className="field-hint">留空时起始页会尝试读取站点 favicon，失败后使用文字图标。</small></label>
-              <label>文字图标<input value={itemForm.iconText} onChange={(event) => setItemForm({ ...itemForm, iconText: event.target.value })} /></label>
-              <label>背景色<input value={itemForm.backgroundColor} onChange={(event) => setItemForm({ ...itemForm, backgroundColor: event.target.value })} placeholder="#1681ff" /></label>
-              <label>尺寸<select value={itemForm.size} onChange={(event) => setItemForm({ ...itemForm, size: event.target.value as "1x1" | "2x1" | "2x2" })}><option value="1x1">1 × 1</option><option value="2x1">2 × 1</option><option value="2x2">2 × 2</option></select></label>
-              <label>可见性<select value={itemForm.visibility} onChange={(event) => setItemForm({ ...itemForm, visibility: event.target.value as "private" | "public" })}><option value="private">私有</option><option value="public">公开</option></select></label>
-              <label>所属分组<select value={itemForm.groupId} onChange={(event) => setItemForm({ ...itemForm, groupId: Number(event.target.value), parentId: null })}>{tree.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
-              <label>所属文件夹<select value={itemForm.parentId ?? ""} onChange={(event) => setItemForm({ ...itemForm, parentId: event.target.value ? Number(event.target.value) : null })}><option value="">不放入文件夹</option>{folders.filter((folder) => folder.id !== itemForm.id).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
-            </div>
+            <section className="nav-edit-section">
+              <div className="nav-edit-section-head"><strong>基础信息</strong><small>名称、类型与所在位置</small></div>
+              <div className="admin-form-grid">
+                <label>名称<input value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} required /></label>
+                <label>类型<select value={itemForm.type} onChange={(event) => setItemForm({ ...itemForm, type: event.target.value as "link" | "folder", url: event.target.value === "folder" ? "" : itemForm.url })}><option value="link">链接</option><option value="folder">文件夹</option></select></label>
+                <label className="span-2">URL<input value={itemForm.url} disabled={itemForm.type === "folder"} onChange={(event) => setItemForm({ ...itemForm, url: event.target.value })} placeholder={itemForm.type === "folder" ? "文件夹不需要 URL" : "https://..."} /><small className="field-hint">支持 http/https，也保留 about:、chrome:、edge: 等浏览器内部地址。</small></label>
+                <label>所属分组<select value={itemForm.groupId} onChange={(event) => setItemForm({ ...itemForm, groupId: Number(event.target.value), parentId: null })}>{tree.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+                <label>所属文件夹<select value={itemForm.parentId ?? ""} onChange={(event) => setItemForm({ ...itemForm, parentId: event.target.value ? Number(event.target.value) : null })}><option value="">不放入文件夹</option>{folders.filter((folder) => folder.id !== itemForm.id).map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+              </div>
+            </section>
+            <section className="nav-edit-section">
+              <div className="nav-edit-section-head"><strong>外观</strong><small>设置卡片图标、颜色与尺寸</small></div>
+              <div className="admin-form-grid">
+                <label className="span-2">图标 URL<input value={itemForm.iconUrl} onChange={(event) => setItemForm({ ...itemForm, iconUrl: event.target.value })} /><small className="field-hint">留空时起始页会尝试读取站点 favicon，失败后使用文字图标。</small></label>
+                <label>文字图标<input value={itemForm.iconText} onChange={(event) => setItemForm({ ...itemForm, iconText: event.target.value })} /></label>
+                <label>背景色<input value={itemForm.backgroundColor} onChange={(event) => setItemForm({ ...itemForm, backgroundColor: event.target.value })} placeholder="#1681ff" /></label>
+                <label>尺寸<select value={itemForm.size} onChange={(event) => setItemForm({ ...itemForm, size: event.target.value as "1x1" | "2x1" | "2x2" })}><option value="1x1">1 × 1</option><option value="2x1">2 × 1</option><option value="2x2">2 × 2</option></select></label>
+                <div className="nav-live-preview-wrap">
+                  <span>即时预览</span>
+                  <div className={"nav-item-live-preview is-" + itemForm.size} style={itemForm.backgroundColor ? { background: itemForm.backgroundColor } : undefined}>
+                    <div className="nav-item-live-preview-icon">{safeIconUrl(itemForm.iconUrl) ? <img src={safeIconUrl(itemForm.iconUrl)} alt="" /> : (itemForm.iconText || (itemForm.type === "folder" ? "▣" : itemForm.name.slice(0, 1) || "N"))}</div>
+                    <strong>{itemForm.name || "导航名称"}</strong>
+                    <small>{itemForm.type === "folder" ? "文件夹" : itemForm.url || "https://example.com"}</small>
+                    <em>{itemForm.size}</em>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section className="nav-edit-section">
+              <div className="nav-edit-section-head"><strong>行为</strong><small>控制访问范围</small></div>
+              <div className="admin-form-grid">
+                <label>可见性<select value={itemForm.visibility} onChange={(event) => setItemForm({ ...itemForm, visibility: event.target.value as "private" | "public" })}><option value="private">私有</option><option value="public">公开</option></select></label>
+              </div>
+            </section>
             <button className="primary-button" type="submit" disabled={busy}>保存</button>
           </form>
         </div>

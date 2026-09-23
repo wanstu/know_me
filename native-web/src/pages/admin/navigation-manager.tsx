@@ -81,7 +81,8 @@ export function NavigationManager() {
 
   const selectedGroup = groups?.find((group) => group.id === selectedGroupId) ?? groups?.[0] ?? null;
   const allItems = useMemo(() => selectedGroup ? flatten(selectedGroup.items ?? []) : [], [selectedGroup]);
-  const folders = useMemo(() => allItems.filter(({ item }) => item.type === "folder"), [allItems]);
+  const itemDraftGroup = groups?.find((group) => group.id === itemDraft?.groupId) ?? selectedGroup;
+  const folders = useMemo(() => itemDraftGroup ? flatten(itemDraftGroup.items ?? []).filter(({ item }) => item.type === "folder") : [], [itemDraftGroup]);
 
   async function action(action: string, data: Record<string, unknown>) {
     setBusy(true);
@@ -351,7 +352,12 @@ export function NavigationManager() {
                       <button title={"上移“" + item.name + "”"} aria-label={"上移“" + item.name + "”"} onClick={() => void moveItem(item, -1)}>↑</button>
                       <button title={"下移“" + item.name + "”"} aria-label={"下移“" + item.name + "”"} onClick={() => void moveItem(item, 1)}>↓</button>
                       <button title={"编辑“" + item.name + "”"} onClick={() => editItem(item)}>编辑</button>
-                      <button title={"删除“" + item.name + "”"} onClick={() => setPendingDelete({ kind: "item", item })}>删除</button>
+                      <details className="km-nav-row-more">
+                        <summary aria-label={"更多操作：" + item.name} title="更多操作">•••</summary>
+                        <div className="km-nav-row-more-menu">
+                          <button className="is-danger" title={"删除“" + item.name + "”"} onClick={() => setPendingDelete({ kind: "item", item })}>删除</button>
+                        </div>
+                      </details>
                     </div>
                   </article>
                 ))}
@@ -378,18 +384,41 @@ export function NavigationManager() {
         <div className="km-modal-backdrop" onMouseDown={() => setItemDraft(null)}>
           <form className="km-panel km-edit-modal is-wide" onSubmit={(e) => void saveItem(e)} onMouseDown={(e) => e.stopPropagation()}>
             <header><div><span className="km-eyebrow">ITEM</span><h2>{itemDraft.id ? "编辑导航" : "新增导航"}</h2></div><button type="button" aria-label="关闭导航编辑" title="关闭" onClick={() => setItemDraft(null)}>×</button></header>
-            <div className="km-form-grid">
-              <label className="dk-field">名称<input autoFocus value={itemDraft.name} onChange={(e) => setItemDraft({ ...itemDraft, name: e.target.value })} /></label>
-              <label className="dk-field">类型<select value={itemDraft.type} onChange={(e) => setItemDraft({ ...itemDraft, type: e.target.value as ItemDraft["type"] })}><option value="link">链接</option><option value="folder">文件夹</option></select></label>
-              <label className="dk-field km-span-2">URL<input value={itemDraft.url} disabled={itemDraft.type === "folder"} onChange={(e) => setItemDraft({ ...itemDraft, url: e.target.value })} placeholder="https://..." /></label>
-              <label className="dk-field">父文件夹<select value={itemDraft.parentId ?? 0} onChange={(e) => setItemDraft({ ...itemDraft, parentId: Number(e.target.value) || null })}><option value={0}>顶层</option>{folders.filter(({ item }) => item.id !== itemDraft.id).map(({ item, depth }) => <option key={item.id} value={item.id}>{"—".repeat(depth + 1)} {item.name}</option>)}</select></label>
-              <label className="dk-field">尺寸<select value={itemDraft.size} onChange={(e) => setItemDraft({ ...itemDraft, size: e.target.value as ItemDraft["size"] })}><option value="1x1">1×1</option><option value="2x1">2×1</option><option value="2x2">2×2</option></select></label>
-              <label className="dk-field">图标 URL<input value={itemDraft.iconUrl} onChange={(e) => setItemDraft({ ...itemDraft, iconUrl: e.target.value })} /></label>
-              <label className="dk-field">图标文字<input value={itemDraft.iconText} onChange={(e) => setItemDraft({ ...itemDraft, iconText: e.target.value })} /></label>
-              <label className="dk-field">背景色<input value={itemDraft.backgroundColor} onChange={(e) => setItemDraft({ ...itemDraft, backgroundColor: e.target.value })} placeholder="#6366f1" /></label>
-              <label className="dk-field">可见性<select value={itemDraft.visibility} onChange={(e) => setItemDraft({ ...itemDraft, visibility: e.target.value as ItemDraft["visibility"] })}><option value="private">私有</option><option value="public">公开</option></select></label>
-              <label className="dk-field">打开方式<select value={itemDraft.openMode} disabled={itemDraft.type === "folder" || Boolean(itemDraft.url && /^(about:|chrome:|edge:|file:|moz-extension:|chrome-extension:)/i.test(itemDraft.url))} onChange={(e) => setItemDraft({ ...itemDraft, openMode: e.target.value as ItemDraft["openMode"] })}><option value="new_tab">新窗口 / 新标签</option><option value="same_tab">当前页</option></select></label>
-            </div>
+            <section className="km-nav-edit-section">
+              <header><strong>基础信息</strong><small>名称、类型与所在位置</small></header>
+              <div className="km-form-grid">
+                <label className="dk-field">名称<input autoFocus value={itemDraft.name} onChange={(e) => setItemDraft({ ...itemDraft, name: e.target.value })} /></label>
+                <label className="dk-field">类型<select value={itemDraft.type} onChange={(e) => setItemDraft({ ...itemDraft, type: e.target.value as ItemDraft["type"], url: e.target.value === "folder" ? "" : itemDraft.url })}><option value="link">链接</option><option value="folder">文件夹</option></select></label>
+                <label className="dk-field km-span-2">URL<input value={itemDraft.url} disabled={itemDraft.type === "folder"} onChange={(e) => setItemDraft({ ...itemDraft, url: e.target.value })} placeholder={itemDraft.type === "folder" ? "文件夹不需要 URL" : "https://..."} /></label>
+                <label className="dk-field">所属分组<select value={itemDraft.groupId} onChange={(e) => setItemDraft({ ...itemDraft, groupId: Number(e.target.value), parentId: null })}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+                <label className="dk-field">父文件夹<select value={itemDraft.parentId ?? 0} onChange={(e) => setItemDraft({ ...itemDraft, parentId: Number(e.target.value) || null })}><option value={0}>顶层</option>{folders.filter(({ item }) => item.id !== itemDraft.id).map(({ item, depth }) => <option key={item.id} value={item.id}>{"—".repeat(depth + 1)} {item.name}</option>)}</select></label>
+              </div>
+            </section>
+            <section className="km-nav-edit-section">
+              <header><strong>外观</strong><small>设置卡片图标、颜色与尺寸</small></header>
+              <div className="km-form-grid">
+                <label className="dk-field km-span-2">图标 URL<input value={itemDraft.iconUrl} onChange={(e) => setItemDraft({ ...itemDraft, iconUrl: e.target.value })} /></label>
+                <label className="dk-field">图标文字<input value={itemDraft.iconText} onChange={(e) => setItemDraft({ ...itemDraft, iconText: e.target.value })} /></label>
+                <label className="dk-field">背景色<input value={itemDraft.backgroundColor} onChange={(e) => setItemDraft({ ...itemDraft, backgroundColor: e.target.value })} placeholder="#6366f1" /></label>
+                <label className="dk-field">尺寸<select value={itemDraft.size} onChange={(e) => setItemDraft({ ...itemDraft, size: e.target.value as ItemDraft["size"] })}><option value="1x1">1×1</option><option value="2x1">2×1</option><option value="2x2">2×2</option></select></label>
+                <div className="km-nav-live-preview-wrap">
+                  <span>即时预览</span>
+                  <div className={"km-nav-item-live-preview is-" + itemDraft.size} style={itemDraft.backgroundColor ? { background: itemDraft.backgroundColor } : undefined}>
+                    <div className="km-nav-item-live-preview-icon">{itemDraft.iconUrl ? <img src={itemDraft.iconUrl} alt="" /> : (itemDraft.iconText || (itemDraft.type === "folder" ? "▣" : itemDraft.name.slice(0, 1) || "N"))}</div>
+                    <strong>{itemDraft.name || "导航名称"}</strong>
+                    <small>{itemDraft.type === "folder" ? "文件夹" : itemDraft.url || "https://example.com"}</small>
+                    <em>{itemDraft.size}</em>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section className="km-nav-edit-section">
+              <header><strong>行为</strong><small>控制可见性与打开方式</small></header>
+              <div className="km-form-grid">
+                <label className="dk-field">可见性<select value={itemDraft.visibility} onChange={(e) => setItemDraft({ ...itemDraft, visibility: e.target.value as ItemDraft["visibility"] })}><option value="private">私有</option><option value="public">公开</option></select></label>
+                <label className="dk-field">打开方式<select value={itemDraft.openMode} disabled={itemDraft.type === "folder" || Boolean(itemDraft.url && /^(about:|chrome:|edge:|file:|moz-extension:|chrome-extension:)/i.test(itemDraft.url))} onChange={(e) => setItemDraft({ ...itemDraft, openMode: e.target.value as ItemDraft["openMode"] })}><option value="new_tab">新窗口 / 新标签</option><option value="same_tab">当前页</option></select></label>
+              </div>
+            </section>
             {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
             <footer><button type="button" className="dk-button" onClick={() => setItemDraft(null)}>取消</button><button className="dk-button dk-button-primary" disabled={busy || !itemDraft.name.trim()}>保存</button></footer>
           </form>

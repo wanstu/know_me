@@ -621,62 +621,70 @@ export function PostEditor({ id }: { id?: number }) {
         </section>
 
         <aside className="km-editor-side">
-          <section className="km-panel km-editor-settings">
-            <h3>发布</h3>
-            <label className="dk-field">状态
-              <select value={draft.status} onChange={(e) => changeStatus(e.target.value as EditorState["status"])}>
-                <option value="draft">草稿</option>
-                <option value="published">已发布</option>
-                <option value="scheduled">定时发布</option>
-              </select>
-            </label>
-            <label className="dk-field">首次发布时间
-              <input type="datetime-local" value={draft.firstPublishedAt} onChange={(e) => update("firstPublishedAt", e.target.value)} />
-              <small className="km-field-hint">首次发布时自动生成，也可手动调整；Front Matter 的 date 会导入到这里。</small>
-            </label>
-            {draft.status === "scheduled" ? (
-              <label className="dk-field">发布时间
-                <input required type="datetime-local" value={draft.publishedAt} onChange={(e) => update("publishedAt", e.target.value)} />
-                {draft.publishedAt && new Date(draft.publishedAt).getTime() <= Date.now() ? <small className="km-field-warning">这个时间已过去，保存后文章会立即公开。</small> : <small className="km-field-hint">按当前设备时区设置。</small>}
+          <details className="km-panel km-editor-settings km-editor-disclosure" open>
+            <summary><span>发布</span><small>{draft.status === "published" ? "已发布" : draft.status === "scheduled" ? "定时发布" : "草稿"}</small></summary>
+            <div className="km-editor-disclosure-body">
+              <label className="dk-field">状态
+                <select value={draft.status} onChange={(e) => changeStatus(e.target.value as EditorState["status"])}>
+                  <option value="draft">草稿</option>
+                  <option value="published">已发布</option>
+                  <option value="scheduled">定时发布</option>
+                </select>
               </label>
-            ) : null}
-            <label className="km-check"><input type="checkbox" checked={draft.pinned} onChange={(e) => update("pinned", e.target.checked)} /><span><strong>置顶文章</strong></span></label>
-            <div className="km-editor-actions">
-              <button className="dk-button dk-button-primary" disabled={busy || !draft.title.trim()}>{busy ? "保存中…" : "保存"}</button>
-              <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => setPendingAction({ kind: "publish" })}>保存并发布</button>
-              {id && draft.status === "published" && draft.slug ? <a className="dk-button" href={"/blog/" + encodeURIComponent(draft.slug)} target="_blank" rel="noreferrer">查看文章</a> : null}
+              <label className="dk-field">首次发布时间
+                <input type="datetime-local" value={draft.firstPublishedAt} onChange={(e) => update("firstPublishedAt", e.target.value)} />
+                <small className="km-field-hint">首次发布时自动生成，也可手动调整；Front Matter 的 date 会导入到这里。</small>
+              </label>
+              {draft.status === "scheduled" ? (
+                <label className="dk-field">发布时间
+                  <input required type="datetime-local" value={draft.publishedAt} onChange={(e) => update("publishedAt", e.target.value)} />
+                  {draft.publishedAt && new Date(draft.publishedAt).getTime() <= Date.now() ? <small className="km-field-warning">这个时间已过去，保存后文章会立即公开。</small> : <small className="km-field-hint">按当前设备时区设置。</small>}
+                </label>
+              ) : null}
+              <label className="km-check"><input type="checkbox" checked={draft.pinned} onChange={(e) => update("pinned", e.target.checked)} /><span><strong>置顶文章</strong></span></label>
+              <div className="km-editor-actions">
+                <button className="dk-button dk-button-primary" disabled={busy || !draft.title.trim()}>{busy ? "保存中…" : "保存"}</button>
+                <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => setPendingAction({ kind: "publish" })}>保存并发布</button>
+                {id && draft.status === "published" && draft.slug ? <a className="dk-button" href={"/blog/" + encodeURIComponent(draft.slug)} target="_blank" rel="noreferrer">查看文章</a> : null}
+              </div>
+              <small className="km-editor-autosave">{dirty ? "未保存修改会自动保护到本浏览器" : "服务器内容已同步"} · Ctrl/Cmd+S 保存 · Ctrl/Cmd+Enter 发布</small>
+              {message ? <div className="dk-message">{message}</div> : null}
+              {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
             </div>
-            <small className="km-editor-autosave">{dirty ? "未保存修改会自动保护到本浏览器" : "服务器内容已同步"} · Ctrl/Cmd+S 保存 · Ctrl/Cmd+Enter 发布</small>
-            {message ? <div className="dk-message">{message}</div> : null}
-            {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
-          </section>
+          </details>
 
-          <section className="km-panel km-editor-settings">
-            <h3>分类与标签</h3>
-            <NameChips label="分类" value={draft.categories} suggestions={taxonomy.categories} onChange={(value) => update("categories", value)} />
-            <NameChips label="标签" value={draft.tags} suggestions={taxonomy.tags} onChange={(value) => update("tags", value)} />
-          </section>
+          <details className="km-panel km-editor-settings km-editor-disclosure" open>
+            <summary><span>分类与标签</span><small>{splitNames(draft.categories).length} 分类 · {splitNames(draft.tags).length} 标签</small></summary>
+            <div className="km-editor-disclosure-body">
+              <NameChips label="分类" value={draft.categories} suggestions={taxonomy.categories} onChange={(value) => update("categories", value)} />
+              <NameChips label="标签" value={draft.tags} suggestions={taxonomy.tags} onChange={(value) => update("tags", value)} />
+            </div>
+          </details>
 
-          <section className="km-panel km-editor-settings">
-            <h3>摘要与 SEO</h3>
-            <label className="dk-field">摘要<textarea rows={4} value={draft.excerpt} onChange={(e) => update("excerpt", e.target.value)} placeholder="留空自动生成" /></label>
-            <label className="dk-field">SEO 标题<input value={draft.seoTitle} onChange={(e) => update("seoTitle", e.target.value)} /></label>
-            <label className="dk-field">SEO 描述<textarea rows={3} value={draft.seoDescription} onChange={(e) => update("seoDescription", e.target.value)} /></label>
-          </section>
+          <details className="km-panel km-editor-settings km-editor-disclosure" open>
+            <summary><span>摘要与 SEO</span><small>{draft.excerpt.trim() ? "已填写摘要" : "摘要可留空自动生成"}</small></summary>
+            <div className="km-editor-disclosure-body">
+              <label className="dk-field">摘要<textarea rows={4} value={draft.excerpt} onChange={(e) => update("excerpt", e.target.value)} placeholder="留空自动生成" /></label>
+              <label className="dk-field">SEO 标题<input value={draft.seoTitle} onChange={(e) => update("seoTitle", e.target.value)} /></label>
+              <label className="dk-field">SEO 描述<textarea rows={3} value={draft.seoDescription} onChange={(e) => update("seoDescription", e.target.value)} /></label>
+            </div>
+          </details>
 
           {id ? (
-            <section className="km-panel km-editor-settings">
-              <h3>历史版本</h3>
-              <div className="km-revision-list">
-                {revisions.slice(0, 12).map((revision) => (
-                  <button type="button" key={revision.id} onClick={() => setPreviewRevision(revision)}>
-                    <span>{new Date(revision.createdAt).toLocaleString("zh-CN")}</span>
-                    <small>{String(revision.metadata?.title ?? "历史版本")}</small>
-                  </button>
-                ))}
-                {!revisions.length ? <small className="km-muted">暂时没有历史版本。</small> : null}
+            <details className="km-panel km-editor-settings km-editor-disclosure">
+              <summary><span>历史版本</span><small>{revisions.length ? revisions.length + " 个可恢复版本" : "暂无可恢复版本"}</small></summary>
+              <div className="km-editor-disclosure-body">
+                <div className="km-revision-list">
+                  {revisions.slice(0, 12).map((revision) => (
+                    <button type="button" key={revision.id} onClick={() => setPreviewRevision(revision)}>
+                      <span>{new Date(revision.createdAt).toLocaleString("zh-CN")}</span>
+                      <small>{String(revision.metadata?.title ?? "历史版本")}</small>
+                    </button>
+                  ))}
+                  {!revisions.length ? <small className="km-muted">暂时没有历史版本。</small> : null}
+                </div>
               </div>
-            </section>
+            </details>
           ) : null}
 
           <div className="km-editor-bottom-links">
