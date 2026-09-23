@@ -471,6 +471,20 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="km-check"><input type="checkbox" checked={draft.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} /><span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span></label>
               <label className="km-check"><input type="checkbox" checked={draft.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} /><span><strong>显示短句署名</strong><small>仅控制署名，不影响短句正文。</small></span></label>
             </div>
+            <div className={"km-settings-quote-preview" + (!draft.quoteEnabled ? " is-disabled" : "")} aria-live="polite">
+              <div>
+                <span className="km-eyebrow">主页即时预览</span>
+                <small>{draft.quoteEnabled ? "保存前即可确认短句卡片效果" : "短句卡片已关闭"}</small>
+              </div>
+              {draft.quoteEnabled ? (
+                <blockquote>
+                  <p>{draft.quote.trim() || "留空后，主页会从内置短句中选择一条显示。"}</p>
+                  {draft.quoteAuthorEnabled ? <cite>— {draft.quoteAuthor.trim() || "默认署名"}</cite> : null}
+                </blockquote>
+              ) : (
+                <p className="km-muted">主页将隐藏今日短句卡片。</p>
+              )}
+            </div>
           </section>
         ) : null}
 

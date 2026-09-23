@@ -1117,6 +1117,43 @@ select:focus-visible {
 .km-settings-pane > header h2 { margin: 5px 0 6px; font-size: 21px; }
 .km-settings-pane > header p { margin: 0; color: var(--dk-text-secondary, #556078); font-size: 11px; line-height: 1.6; }
 .km-settings-pane .km-settings-collection:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+.km-settings-quote-preview {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 14px;
+  background: var(--dk-bg-subtle, #eef1f6);
+  display: grid;
+  gap: 14px;
+}
+.km-settings-quote-preview > div {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.km-settings-quote-preview > div small,
+.km-settings-quote-preview cite { color: var(--dk-text-muted, #7a849a); }
+.km-settings-quote-preview blockquote {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 14px;
+  background: var(--dk-bg-elevated, #fff);
+}
+.km-settings-quote-preview blockquote p {
+  margin: 0;
+  color: var(--dk-text, #172033);
+  font-size: 18px;
+  line-height: 1.65;
+}
+.km-settings-quote-preview cite {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-style: normal;
+}
+.km-settings-quote-preview.is-disabled { opacity: .78; }
 
 .km-media-field { min-width: 0; }
 .km-media-field > span { font-size: 11px; color: var(--dk-text-secondary, #556078); }

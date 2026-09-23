@@ -162,6 +162,21 @@ export function SettingsManager({
             <span><strong>显示短句署名</strong><small>仅控制署名，不影响短句正文。</small></span>
           </label>
         </div>
+
+        <div className={"settings-quote-preview" + (!settings.quoteEnabled ? " is-disabled" : "")} aria-live="polite">
+          <div>
+            <span className="eyebrow">主页即时预览</span>
+            <small>{settings.quoteEnabled ? "保存前即可确认短句卡片效果" : "短句卡片已关闭"}</small>
+          </div>
+          {settings.quoteEnabled ? (
+            <blockquote>
+              <p>{settings.quote.trim() || "留空后，主页会从内置短句中选择一条显示。"}</p>
+              {settings.quoteAuthorEnabled ? <cite>— {settings.quoteAuthor.trim() || "默认署名"}</cite> : null}
+            </blockquote>
+          ) : (
+            <p className="muted">主页将隐藏今日短句卡片。</p>
+          )}
+        </div>
       </section>
 
       <section className="admin-panel settings-section" data-settings-section="profile">

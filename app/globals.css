@@ -1375,6 +1375,43 @@ button { cursor: pointer; }
   color: #7e8b9b;
   line-height: 1.5;
 }
+.settings-quote-preview {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--ui-line, #283140);
+  border-radius: 14px;
+  background: var(--ui-panel-2, #151d29);
+  display: grid;
+  gap: 14px;
+}
+.settings-quote-preview > div {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-quote-preview > div small,
+.settings-quote-preview cite { color: var(--ui-muted, #7e8b9b); }
+.settings-quote-preview blockquote {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--ui-line, #283140);
+  border-radius: 14px;
+  background: var(--ui-panel, #111925);
+}
+.settings-quote-preview blockquote p {
+  margin: 0;
+  color: var(--ui-text, #f3f6fb);
+  font-size: 18px;
+  line-height: 1.65;
+}
+.settings-quote-preview cite {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-style: normal;
+}
+.settings-quote-preview.is-disabled { opacity: .78; }
 .settings-savebar {
   position: sticky;
   bottom: 12px;
