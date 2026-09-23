@@ -20,6 +20,7 @@ body {
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
+a.dk-button { text-decoration: none; }
 img { max-width: 100%; }
 #root { min-height: 100vh; }
 
@@ -282,13 +283,14 @@ img { max-width: 100%; }
   width: 46px; height: 46px; margin: 0 auto; border-radius: 15px; display: grid; place-items: center;
   background: var(--dk-primary, #6366f1); color: #fff; text-decoration: none; font-weight: 850; font-size: 18px;
 }
-.km-start-rail nav { display: grid; gap: 7px; overflow-y: auto; }
+.km-start-rail nav { display: grid; gap: 7px; min-width: 0; overflow-y: auto; overflow-x: hidden; }
 .km-start-rail nav button {
+  width: 100%; min-width: 0; overflow: hidden;
   border: 0; background: transparent; color: var(--dk-text-secondary, #556078); border-radius: 13px;
   padding: 9px 7px; display: grid; place-items: center; gap: 4px; cursor: pointer;
 }
-.km-start-rail nav button > span { font-size: 18px; min-height: 22px; }
-.km-start-rail nav button small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.km-start-rail nav button > span { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; min-height: 22px; }
+.km-start-rail nav button small { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .km-start-rail nav button:hover, .km-start-rail nav button.is-active { background: var(--dk-nav-active-bg, rgba(99,102,241,.1)); color: var(--dk-nav-active-text, var(--dk-primary, #6366f1)); }
 .km-start-admin { margin-top: auto; text-align: center; text-decoration: none; font-size: 10px; color: var(--dk-text-muted, #7a849a); }
 .km-start-main { width: min(1320px, calc(100% - 64px)); margin: 0 auto; padding: 34px 0 70px; }
