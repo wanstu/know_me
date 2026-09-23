@@ -48,7 +48,7 @@ export function AdminPage({
   else content = <AdminNotFound />;
 
   return (
-    <AdminShell settings={settings} user={user} current={current}>
+    <AdminShell settings={settings} user={user} current={current} onLogout={() => void logout().finally(() => { window.location.href = "/"; })}>
       <div className="km-admin-top-actions">
         <button className="dk-button" type="button" onClick={() => void logout().finally(() => { window.location.href = "/"; })}>退出登录</button>
       </div>

@@ -377,11 +377,13 @@ export function AdminShell({
   settings,
   user,
   current,
+  onLogout,
   children
 }: {
   settings: SiteSettings;
   user: SessionUser;
   current: string;
+  onLogout?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -396,7 +398,7 @@ export function AdminShell({
         <div className="km-admin-user">
           <strong>{user.displayName || user.username}</strong>
           <small>@{user.username}</small>
-          <a href="/">返回站点</a>
+          <div className="km-admin-user-actions"><a href="/">返回站点</a>{onLogout ? <button type="button" onClick={onLogout}>退出登录</button> : null}</div>
         </div>
       </aside>
       <main className="km-admin-main">{children}</main>
