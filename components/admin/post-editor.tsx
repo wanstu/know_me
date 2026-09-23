@@ -61,8 +61,19 @@ function NameChips({
   onChange: (value: string) => void;
 }) {
   const [input, setInput] = useState("");
+  const [open, setOpen] = useState(false);
   const values = splitNames(value);
-  const listId = "editor-" + label + "-suggestions";
+  const menuId = "editor-" + label + "-suggestions";
+  const needle = input.trim().toLocaleLowerCase();
+  const available = suggestions
+    .filter((item) => !values.some((value) => value.toLocaleLowerCase() === item.toLocaleLowerCase()))
+    .filter((item) => !needle || item.toLocaleLowerCase().includes(needle))
+    .slice(0, 8);
+  const canCreate = Boolean(
+    input.trim() &&
+    !values.some((item) => item.toLocaleLowerCase() === needle) &&
+    !suggestions.some((item) => item.toLocaleLowerCase() === needle)
+  );
 
   function add(raw = input) {
     const next = raw.trim().replace(/,+$/, "").trim();
@@ -87,23 +98,58 @@ function NameChips({
           </button>
         ))}
         <input
-          list={listId}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={menuId}
           value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onBlur={() => add()}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setInput(event.target.value);
+            setOpen(true);
+          }}
+          onBlur={() => {
+            add();
+            setOpen(false);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === ",") {
               event.preventDefault();
               add();
             } else if (event.key === "Backspace" && !input && values.length) {
               remove(values[values.length - 1]);
+            } else if (event.key === "Escape") {
+              setOpen(false);
             }
           }}
-          placeholder={values.length ? "继续添加…" : "输入或选择已有" + label}
+          placeholder={values.length ? "继续添加…" : "搜索或创建" + label}
         />
-        <datalist id={listId}>
-          {suggestions.filter((item) => !values.includes(item)).map((item) => <option value={item} key={item} />)}
-        </datalist>
+        {open && (available.length > 0 || canCreate) ? (
+          <div className="editor-name-chip-suggestions" id={menuId} role="listbox" aria-label={label + "候选项"}>
+            {available.map((item) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected="false"
+                key={item}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => add(item)}
+              >
+                <span>{item}</span><small>已有{label}</small>
+              </button>
+            ))}
+            {canCreate ? (
+              <button
+                type="button"
+                className="is-create"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => add()}
+              >
+                <span>创建“{input.trim()}”</span><small>新{label}</small>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

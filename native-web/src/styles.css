@@ -998,6 +998,7 @@ select:focus-visible {
 .km-name-chips { display: grid; gap: 6px; }
 .km-name-chips > span { font-size: 11px; color: var(--dk-text-secondary, #556078); }
 .km-name-chip-list {
+  position: relative;
   min-height: 40px;
   padding: 5px;
   display: flex;
@@ -1029,6 +1030,50 @@ select:focus-visible {
   padding: 5px 6px;
   background: transparent;
   color: var(--dk-text, #172033);
+}
+.km-name-chip-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 7px);
+  z-index: 45;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 6px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 12px;
+  background: var(--dk-bg-elevated, #fff);
+  box-shadow: var(--dk-shadow-panel, 0 16px 36px rgba(30, 45, 75, .14));
+}
+.km-name-chip-suggestions > button {
+  min-height: 38px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dk-text, #172033);
+  text-align: left;
+  cursor: pointer;
+}
+.km-name-chip-suggestions > button:hover,
+.km-name-chip-suggestions > button:focus-visible {
+  outline: 0;
+  background: var(--dk-bg-subtle, #eef1f6);
+}
+.km-name-chip-suggestions > button small {
+  color: var(--dk-text-muted, #7a849a);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.km-name-chip-suggestions > button.is-create span {
+  color: var(--dk-primary, #6366f1);
+  font-weight: 700;
 }
 
 @media (max-width: 680px) {
