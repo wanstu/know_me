@@ -692,24 +692,25 @@ function PostsAdmin() {
     <>
       <div className="km-admin-title-with-action">
         <AdminTitle eyebrow="BLOG" title="文章" description="管理 Markdown 文章、草稿、定时发布与历史版本。" />
-        <div className="km-admin-title-actions"><a className="dk-button" href="/admin/posts/new?import=1">导入 Markdown</a><a className="dk-button dk-button-primary" href="/admin/posts/new">新建文章</a></div>
+
       </div>
       {error ? <ErrorCard message={error} /> : !posts ? <LoadingCard /> : (
         <>
-          <div className="km-panel km-list-filter km-post-list-filter">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题、Slug、标签…" />
+          <div className="km-panel km-post-list-toolbar">
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题、Slug、分类或标签…" aria-label="搜索文章" />
             <div className="km-status-filter" aria-label="文章状态筛选">
               {([
                 ["all", "全部"], ["published", "已发布"], ["draft", "草稿"], ["scheduled", "定时"]
               ] as const).map(([value, label]) => <button type="button" key={value} className={status === value ? "is-active" : ""} onClick={() => setStatus(value)}>{label}</button>)}
             </div>
-            <span>{filtered.length} / {posts.length}</span>
+            <span className="km-post-list-count">{filtered.length} / {posts.length}</span>
+            <div className="km-post-list-actions"><a className="dk-button" href="/admin/posts/new?import=1">导入 Markdown</a><a className="dk-button dk-button-primary" href="/admin/posts/new">＋ 新建文章</a></div>
           </div>
           <section className="km-panel km-post-admin-list">
             {filtered.map((post) => (
               <a href={"/admin/posts/" + post.id} key={post.id}>
                 <span className={"km-status-dot is-" + post.status} />
-                <span><strong>{post.title}</strong><small>{post.slug} · {post.categories.join(" / ") || "未分类"}</small></span>
+                <span><strong>{post.title}</strong><small>/{post.slug}{post.categories.length ? " · " + post.categories.join(" / ") : ""}{post.tags.length ? " · " + post.tags.map((tag) => "#" + tag).join(" ") : ""}</small></span>
                 {post.pinned ? <em>置顶</em> : null}
                 <b>{post.status === "published" ? "已发布" : post.status === "scheduled" ? "定时" : "草稿"}</b>
                 <time>{new Date(post.updatedAt).toLocaleString("zh-CN")}</time>
