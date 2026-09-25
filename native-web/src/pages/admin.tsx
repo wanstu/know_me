@@ -690,10 +690,7 @@ function PostsAdmin() {
 
   return (
     <>
-      <div className="km-admin-title-with-action">
-        <AdminTitle eyebrow="BLOG" title="文章" description="管理 Markdown 文章、草稿、定时发布与历史版本。" />
-
-      </div>
+      <AdminTitle eyebrow="BLOG" title="文章" description="管理 Markdown 文章、草稿、定时发布与历史版本。" />
       {error ? <ErrorCard message={error} /> : !posts ? <LoadingCard /> : (
         <>
           <div className="km-panel km-post-list-toolbar">

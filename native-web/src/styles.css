@@ -2316,6 +2316,38 @@ select:focus-visible {
 }
 .km-nav-item-live-preview-icon img { width: 100%; height: 100%; object-fit: contain; }
 
+
+/* v0.1.5 visual closeout — keep secondary text readable across public/admin surfaces */
+.km-home-post-card > div,
+.km-home-post-card > b,
+.km-folder-modal header small,
+.km-article-toc a,
+.km-article-toc-mobile a,
+.km-article-neighbors span,
+.km-blog-pagination a,
+.km-blog-pagination span {
+  font-size: 11px;
+}
+.km-password-input button { font-size: 12px; }
+.km-password-rules > span { font-size: 11px; }
+
+.km-upload-drop small,
+.km-upload-queue > span,
+.km-theme-picker > small,
+.km-backup-preview-grid dt,
+.km-media-reference-list span,
+.km-revision-meta span,
+.km-local-draft-banner > div:first-child span,
+.km-post-page-preview .km-chip-row > span,
+.km-dashboard-backup-status p,
+.km-backup-activity span {
+  font-size: 11px;
+}
+.km-media-reference-list b,
+.km-backup-activity strong {
+  font-size: 12px;
+}
+
 .km-editor-disclosure {
   padding: 0;
   display: block;
