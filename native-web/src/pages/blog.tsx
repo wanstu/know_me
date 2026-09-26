@@ -276,7 +276,13 @@ export function BlogPostPage({ settings, user, slug }: { settings: SiteSettings;
 
   return (
     <PageFrame settings={settings} user={user} className="km-blog-page">
-      {error ? <ErrorCard message={error === "not_found" ? "文章不存在或尚未发布。" : error} retryLabel="重新加载" onRetry={error === "not_found" ? undefined : () => window.location.reload()} /> : !post ? <LoadingCard text="正在读取文章…" /> : (
+      {error === "not_found" ? (
+        <section className="km-panel km-empty is-error">
+          <strong>文章不存在或尚未发布</strong>
+          <p>这篇文章可能已被删除、改名，或者目前还是草稿。</p>
+          <div className="km-empty-actions"><a className="dk-button dk-button-primary" href="/blog">返回 Blog</a></div>
+        </section>
+      ) : error ? <ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /> : !post ? <LoadingCard text="正在读取文章…" /> : (
         <div className={"km-article-layout" + (toc.length ? " has-toc" : "")}>
           <article className="km-panel km-article">
             <a className="km-back-link" href="/blog">← 返回 Blog</a>

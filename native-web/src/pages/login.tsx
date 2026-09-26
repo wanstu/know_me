@@ -23,16 +23,28 @@ export function LoginPage({ settings, user }: { settings: SiteSettings; user: Se
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState(params.get("error") === "session_expired" ? "登录已过期，请重新登录。" : params.get("error") ? "登录信息无效，请重试。" : "");
+  const [setupError, setSetupError] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  async function loadSetup() {
+    setSetupError(false);
+    try {
+      const { needsSetup: value } = await getAuthSetup();
+      setNeedsSetup(value);
+      setMessage((current) => current.startsWith("无法检查管理员账号状态") ? "" : current);
+    } catch {
+      setNeedsSetup(null);
+      setSetupError(true);
+      setMessage("无法检查管理员账号状态。");
+    }
+  }
 
   useEffect(() => {
     if (user) {
       window.location.replace(next);
       return;
     }
-    void getAuthSetup()
-      .then(({ needsSetup: value }) => setNeedsSetup(value))
-      .catch(() => setMessage("无法检查管理员账号状态，请刷新后重试。"));
+    void loadSetup();
   }, [next, user]);
 
   async function submit(event: FormEvent) {
@@ -136,6 +148,7 @@ export function LoginPage({ settings, user }: { settings: SiteSettings; user: Se
               </>
             ) : null}
             {message ? <div className="dk-message is-danger">{message}</div> : null}
+            {setupError ? <button type="button" className="dk-button km-full-button" onClick={() => void loadSetup()}>重新检查管理员状态</button> : null}
             <button
               className="dk-button dk-button-primary km-full-button"
               disabled={busy || needsSetup === null || !username.trim() || !password || (setupMode && !confirmPassword)}
