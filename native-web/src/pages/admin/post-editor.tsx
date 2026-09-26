@@ -4,7 +4,7 @@ import { contentStats } from "../../content";
 import { MarkdownRenderer, parseMarkdownImport, type MarkdownImportMode } from "../../markdown";
 import { validateMediaFile } from "../../media";
 import type { PostRecord, PostRevision } from "../../types";
-import { AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, errorText } from "../../ui";
+import { AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../../ui";
 
 type EditorState = {
   title: string;
@@ -758,13 +758,14 @@ export function PostEditor({ id }: { id?: number }) {
           </div>
         </aside>
         <div className="km-editor-mobile-actions">
-          <span>{dirty ? "有未保存修改" : "服务器内容已同步"}</span>
+          <span>{message || (dirty ? "有未保存修改" : "服务器内容已同步")}</span>
           <div>
             <button className="dk-button dk-button-primary" disabled={busy || !draft.title.trim()}>{busy ? "保存中…" : "保存"}</button>
             <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => setPendingAction({ kind: "publish" })}>保存并发布</button>
           </div>
         </div>
       </form>
+      {message ? <Toast message={message} onClose={() => setMessage("")} /> : null}
       {importDialogOpen ? (
         <div className="km-modal-backdrop" onMouseDown={() => setImportDialogOpen(false)}>
           <section className="km-panel km-import-markdown-dialog" role="dialog" aria-modal="true" aria-labelledby="km-import-markdown-title" onMouseDown={(event) => event.stopPropagation()}>
