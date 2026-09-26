@@ -794,6 +794,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 function PostsAdmin() {
   const [posts, setPosts] = useState<PostRecord[] | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | PostRecord["status"]>("all");
 
@@ -807,7 +808,16 @@ function PostsAdmin() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    try {
+      const flash = window.sessionStorage.getItem("know-me:post-list-flash");
+      if (flash) {
+        setMessage(flash);
+        window.sessionStorage.removeItem("know-me:post-list-flash");
+      }
+    } catch {}
+  }, []);
 
   const filtered = useMemo(() => {
     if (!posts) return [];
@@ -856,6 +866,7 @@ function PostsAdmin() {
           </section>
         </>
       )}
+      {message ? <Toast message={message} onClose={() => setMessage("")} /> : null}
     </>
   );
 }

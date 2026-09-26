@@ -583,6 +583,7 @@ export function PostEditor({ id }: { id?: number }) {
     try {
       await requestJSON("/api/posts/" + id, { method: "DELETE" });
       try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
+      try { window.sessionStorage.setItem("know-me:post-list-flash", "文章已删除"); } catch {}
       bypassBeforeUnloadRef.current = true;
       window.location.href = "/admin/posts";
     } catch (reason) {
