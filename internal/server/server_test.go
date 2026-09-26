@@ -54,7 +54,7 @@ func TestServerHealthAndKitAssets(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
 		t.Fatal(err)
 	}
-	if health["status"] != "ok" || health["version"] != "test" || health["build_time"] != "2026-09-26T00:00:00Z" {
+	if health["status"] != "ok" || health["version"] != "test" || health["build_time"] != "2026-09-26T00:00:00Z" || health["os"] == nil || health["arch"] == nil {
 		t.Fatalf("unexpected health: %#v", health)
 	}
 

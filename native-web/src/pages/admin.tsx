@@ -64,6 +64,8 @@ type HealthInfo = {
   version: string;
   commit: string;
   build_time: string;
+  os: string;
+  arch: string;
   uptime_sec: number;
   time: string;
 };
@@ -114,6 +116,7 @@ function AboutAdmin() {
       "version: " + (health.version || "dev"),
       "commit: " + (health.commit || "unknown"),
       "build_time: " + (health.build_time || "unknown"),
+      "platform: " + (health.os || "unknown") + "/" + (health.arch || "unknown"),
       "status: " + health.status,
       "database: " + health.database,
       "uptime_sec: " + health.uptime_sec,
@@ -148,6 +151,7 @@ function AboutAdmin() {
             <div className="km-panel"><span>版本</span><strong>{health.version || "dev"}</strong></div>
             <div className="km-panel"><span>Commit</span><strong className="is-mono">{health.commit || "unknown"}</strong></div>
             <div className="km-panel"><span>构建时间</span><strong>{formatHealthTime(health.build_time)}</strong></div>
+            <div className="km-panel"><span>运行平台</span><strong className="is-mono">{(health.os || "unknown") + "/" + (health.arch || "unknown")}</strong></div>
             <div className="km-panel"><span>运行时长</span><strong>{formatUptime(health.uptime_sec)}</strong></div>
             <div className="km-panel"><span>数据库</span><strong>{health.database === "ok" ? "正常" : "异常"}</strong></div>
             <div className="km-panel"><span>服务时间</span><strong>{formatHealthTime(health.time)}</strong></div>

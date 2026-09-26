@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -186,6 +187,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"version":    s.build.Version,
 		"commit":     s.build.Commit,
 		"build_time": s.build.BuildTime,
+		"os":         runtime.GOOS,
+		"arch":       runtime.GOARCH,
 		"uptime_sec": int64(time.Since(s.startedAt).Seconds()),
 		"time":       time.Now().UTC().Format(time.RFC3339),
 	})
