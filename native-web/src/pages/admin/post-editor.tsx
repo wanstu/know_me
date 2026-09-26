@@ -245,6 +245,13 @@ export function PostEditor({ id }: { id?: number }) {
     if (!id && new URLSearchParams(window.location.search).get("import") === "1") {
       setImportDialogOpen(true);
     }
+    try {
+      const flash = window.sessionStorage.getItem("know-me:post-flash");
+      if (flash) {
+        setMessage(flash);
+        window.sessionStorage.removeItem("know-me:post-flash");
+      }
+    } catch {}
   }, [id]);
 
   useEffect(() => {
@@ -532,6 +539,7 @@ export function PostEditor({ id }: { id?: number }) {
       try { window.localStorage.removeItem(localDraftKey(id)); } catch {}
       setMessage(status === "published" ? "已发布" : "已保存");
       if (!id) {
+        try { window.sessionStorage.setItem("know-me:post-flash", status === "published" ? "文章已发布" : "文章已保存"); } catch {}
         bypassBeforeUnloadRef.current = true;
         window.location.replace("/admin/posts/" + payload.post.id);
         return;
