@@ -225,7 +225,7 @@ function DashboardAdmin() {
               <b>›</b>
             </a>
           ))}
-          {!recentPosts.length ? <p className="km-muted">还没有文章。</p> : null}
+          {!recentPosts.length ? <div className="km-dashboard-empty"><p>还没有文章，可以从这里开始。</p><a className="dk-button dk-button-primary" href="/admin/posts/new">新建文章</a></div> : null}
         </section>
 
         <section className="km-panel km-dashboard-list">
@@ -236,7 +236,7 @@ function DashboardAdmin() {
               <b>›</b>
             </a>
           ))}
-          {!recentMedia.length ? <p className="km-muted">还没有媒体。</p> : null}
+          {!recentMedia.length ? <div className="km-dashboard-empty"><p>还没有媒体，可以先上传图片。</p><a className="dk-button" href="/admin/media">打开媒体库</a></div> : null}
         </section>
       </div>
 

@@ -986,6 +986,16 @@ select:focus-visible {
 .km-dashboard-list > a small { color: var(--dk-text-muted, #7a849a); font-size: 9px; }
 .km-dashboard-list > a b { color: var(--dk-text-muted, #7a849a); font-size: 20px; }
 .km-dashboard-list > p { padding: 18px; margin: 0; }
+.km-dashboard-empty {
+  min-height: 92px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.km-dashboard-empty p { margin: 0; color: var(--dk-text-secondary, #556078); line-height: 1.55; }
+.km-dashboard-empty .dk-button { flex: none; }
 .km-dashboard-shortcuts { margin-top: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .km-dashboard-shortcuts .km-admin-card { min-height: 140px; }
 
@@ -997,6 +1007,8 @@ select:focus-visible {
 }
 @media (max-width: 560px) {
   .km-dashboard-shortcuts { grid-template-columns: 1fr; }
+  .km-dashboard-empty { align-items: stretch; flex-direction: column; }
+  .km-dashboard-empty .dk-button { justify-content: center; }
 }
 
 
