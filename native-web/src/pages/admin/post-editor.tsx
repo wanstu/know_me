@@ -272,30 +272,33 @@ export function PostEditor({ id }: { id?: number }) {
       .catch(() => undefined);
   }, []);
 
-  useEffect(() => {
+  async function loadPost() {
     if (!id) return;
-    void Promise.all([
-      requestJSON<{ post: PostRecord }>("/api/posts/" + id),
-      requestJSON<{ revisions: PostRevision[] }>("/api/posts/" + id + "/revisions")
-    ])
-      .then(([postPayload, revisionPayload]) => {
-        const serverDraft = fromPost(postPayload.post);
-        setDraft(serverDraft);
-        setServerUpdatedAt(postPayload.post.updatedAt);
-        setRevisions(revisionPayload.revisions ?? []);
-        const snapshot = readLocalDraft(id);
-        if (snapshot && JSON.stringify(snapshot.draft) !== JSON.stringify(serverDraft)) {
-          setLocalDraft(snapshot);
-        } else {
-          setLocalDraft(null);
-        }
-        setLoaded(true);
-      })
-      .catch((reason) => {
-        setError(reason instanceof Error ? reason.message : "post_failed");
-        setLoaded(true);
-      });
-  }, [id]);
+    setLoaded(false);
+    setError("");
+    try {
+      const [postPayload, revisionPayload] = await Promise.all([
+        requestJSON<{ post: PostRecord }>("/api/posts/" + id),
+        requestJSON<{ revisions: PostRevision[] }>("/api/posts/" + id + "/revisions")
+      ]);
+      const serverDraft = fromPost(postPayload.post);
+      setDraft(serverDraft);
+      setServerUpdatedAt(postPayload.post.updatedAt);
+      setRevisions(revisionPayload.revisions ?? []);
+      const snapshot = readLocalDraft(id);
+      if (snapshot && JSON.stringify(snapshot.draft) !== JSON.stringify(serverDraft)) {
+        setLocalDraft(snapshot);
+      } else {
+        setLocalDraft(null);
+      }
+      setLoaded(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "post_failed");
+      setLoaded(true);
+    }
+  }
+
+  useEffect(() => { void loadPost(); }, [id]);
 
   useEffect(() => {
     if (!loaded || !dirty) return;
@@ -586,7 +589,7 @@ export function PostEditor({ id }: { id?: number }) {
   const localDraftDiff = useMemo(() => localDraft ? diffLines(draft.contentMd, localDraft.draft.contentMd) : [], [draft.contentMd, localDraft]);
 
   if (!loaded) return <LoadingCard text="正在加载文章…" />;
-  if (error && !draft.title && id) return <ErrorCard message={error} />;
+  if (error && !draft.title && id) return <ErrorCard message={error} onRetry={() => void loadPost()} />;
 
   return (
     <>
