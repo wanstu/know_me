@@ -17,7 +17,7 @@ func TestServerHealthAndKitAssets(t *testing.T) {
 		Listen:     "127.0.0.1:0",
 		DataDir:    root + "/data",
 		UploadsDir: root + "/uploads",
-	}, BuildInfo{Version: "test", Commit: "abc"})
+	}, BuildInfo{Version: "test", Commit: "abc", BuildTime: "2026-09-26T00:00:00Z"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestServerHealthAndKitAssets(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
 		t.Fatal(err)
 	}
-	if health["status"] != "ok" || health["version"] != "test" {
+	if health["status"] != "ok" || health["version"] != "test" || health["build_time"] != "2026-09-26T00:00:00Z" {
 		t.Fatalf("unexpected health: %#v", health)
 	}
 

@@ -370,7 +370,8 @@ const adminMenu = [
   ["/admin/taxonomy", "分类与标签"],
   ["/admin/media", "媒体库"],
   ["/admin/settings", "站点设置"],
-  ["/admin/backup", "备份与恢复"]
+  ["/admin/backup", "备份与恢复"],
+  ["/admin/about", "关于"]
 ] as const;
 
 export function AdminShell({

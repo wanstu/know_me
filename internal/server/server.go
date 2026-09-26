@@ -185,6 +185,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"database":   databaseStatus,
 		"version":    s.build.Version,
 		"commit":     s.build.Commit,
+		"build_time": s.build.BuildTime,
 		"uptime_sec": int64(time.Since(s.startedAt).Seconds()),
 		"time":       time.Now().UTC().Format(time.RFC3339),
 	})

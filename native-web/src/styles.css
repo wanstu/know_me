@@ -2395,3 +2395,30 @@ select:focus-visible {
   .km-editor-disclosure > summary { grid-template-columns: minmax(0, 1fr) 14px; }
   .km-editor-disclosure > summary small { grid-column: 1 / -1; grid-row: 2; }
 }
+/* v0.1.6 — explicit build/about diagnostics */
+.km-about-hero {
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+.km-about-hero h2 { margin: 6px 0 8px; font-size: 32px; letter-spacing: -.03em; }
+.km-about-hero p { margin: 0; color: var(--dk-text-secondary, #556078); line-height: 1.6; }
+.km-health-badge { flex: none; padding: 7px 10px; border-radius: 999px; font-size: 12px; font-weight: 750; }
+.km-health-badge.is-ok { background: color-mix(in srgb, #16a34a 12%, var(--dk-bg-subtle, #eef1f6)); color: #15803d; }
+.km-health-badge.is-warning { background: color-mix(in srgb, #d97706 12%, var(--dk-bg-subtle, #eef1f6)); color: #b45309; }
+.km-about-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.km-about-grid > .km-panel { min-height: 112px; padding: 18px; display: grid; align-content: center; gap: 8px; }
+.km-about-grid span { color: var(--dk-text-muted, #7a849a); font-size: 12px; }
+.km-about-grid strong { min-width: 0; overflow-wrap: anywhere; font-size: 16px; }
+.km-about-grid strong.is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.km-about-actions { margin-top: 12px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.km-about-actions p { margin: 5px 0 0; color: var(--dk-text-secondary, #556078); line-height: 1.55; }
+@media (max-width: 900px) { .km-about-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .km-about-hero, .km-about-actions { align-items: stretch; flex-direction: column; }
+  .km-about-grid { grid-template-columns: 1fr; }
+  .km-about-actions .dk-button { width: 100%; justify-content: center; }
+}

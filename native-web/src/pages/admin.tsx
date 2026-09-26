@@ -44,6 +44,7 @@ export function AdminPage({
   else if (path === "/admin/taxonomy") content = <TaxonomyManager />;
   else if (path === "/admin/media") content = <MediaManager />;
   else if (path === "/admin/backup") content = <BackupAdmin />;
+  else if (path === "/admin/about") content = <AboutAdmin />;
   else if (path === "/admin") content = <DashboardAdmin />;
   else content = <AdminNotFound />;
 
@@ -54,6 +55,95 @@ export function AdminPage({
       </div>
       {content}
     </AdminShell>
+  );
+}
+
+type HealthInfo = {
+  status: string;
+  database: string;
+  version: string;
+  commit: string;
+  build_time: string;
+  uptime_sec: number;
+  time: string;
+};
+
+function formatUptime(totalSeconds: number) {
+  const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days) return days + " 天 " + hours + " 小时";
+  if (hours) return hours + " 小时 " + minutes + " 分钟";
+  return minutes + " 分钟";
+}
+
+function formatHealthTime(value: string) {
+  if (!value || value === "unknown") return "开发构建 / 未注入";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("zh-CN");
+}
+
+function AboutAdmin() {
+  const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function load(silent = false) {
+    if (!silent) setRefreshing(true);
+    try {
+      const value = await requestJSON<HealthInfo>("/api/health");
+      setHealth(value);
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "dashboard_failed");
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    void load(true);
+  }, []);
+
+  return (
+    <>
+      <AdminTitle eyebrow="ABOUT" title="关于" description="查看当前 Know Me 的版本、构建信息与运行状态。" />
+      {error && !health ? <ErrorCard message={error} /> : !health ? <LoadingCard text="正在读取版本信息…" /> : (
+        <>
+          <section className="km-panel km-about-hero">
+            <div>
+              <span className="km-eyebrow">KNOW ME</span>
+              <h2>{health.version || "dev"}</h2>
+              <p>当前运行实例的版本信息来自实际后端进程，不依赖页面缓存。</p>
+            </div>
+            <span className={"km-health-badge " + (health.status === "ok" ? "is-ok" : "is-warning")}>
+              {health.status === "ok" ? "运行正常" : "状态异常"}
+            </span>
+          </section>
+
+          <section className="km-about-grid">
+            <div className="km-panel"><span>版本</span><strong>{health.version || "dev"}</strong></div>
+            <div className="km-panel"><span>Commit</span><strong className="is-mono">{health.commit || "unknown"}</strong></div>
+            <div className="km-panel"><span>构建时间</span><strong>{formatHealthTime(health.build_time)}</strong></div>
+            <div className="km-panel"><span>运行时长</span><strong>{formatUptime(health.uptime_sec)}</strong></div>
+            <div className="km-panel"><span>数据库</span><strong>{health.database === "ok" ? "正常" : "异常"}</strong></div>
+            <div className="km-panel"><span>服务时间</span><strong>{formatHealthTime(health.time)}</strong></div>
+          </section>
+
+          <section className="km-panel km-about-actions">
+            <div>
+              <strong>诊断信息</strong>
+              <p>遇到问题时，版本号和 Commit 可以直接用于确认正在运行的具体构建。</p>
+            </div>
+            <button type="button" className="dk-button" disabled={refreshing} onClick={() => void load()}>
+              {refreshing ? "刷新中…" : "刷新状态"}
+            </button>
+          </section>
+          {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
+        </>
+      )}
+    </>
   );
 }
 
