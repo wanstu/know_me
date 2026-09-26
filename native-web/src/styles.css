@@ -486,9 +486,20 @@ img { max-width: 100%; }
   .km-start-grid, .km-start-page.is-compact .km-start-grid, .km-start-page.is-spacious .km-start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .km-start-card.size-2x1, .km-start-card.size-2x2 { grid-column: span 2; grid-row: auto; min-height: 116px; }
   .km-admin-layout { grid-template-columns: 1fr; }
-  .km-admin-sidebar { height: auto; position: sticky; top: 0; z-index: 25; border-right: 0; border-bottom: 1px solid var(--dk-border, #dde2ea); padding: 12px; }
-  .km-admin-nav { display: flex; overflow-x: auto; }
-  .km-admin-nav a { white-space: nowrap; }
+  .km-admin-sidebar {
+    height: auto; position: sticky; top: 0; z-index: 25;
+    grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px;
+    border-right: 0; border-bottom: 1px solid var(--dk-border, #dde2ea); padding: 8px 10px;
+  }
+  .km-admin-brand { padding: 0; }
+  .km-admin-brand > span { width: 32px; height: 32px; border-radius: 10px; }
+  .km-admin-brand > strong { display: none; }
+  .km-admin-nav {
+    min-width: 0; display: flex; gap: 4px; overflow-x: auto;
+    scrollbar-width: none; scroll-snap-type: x proximity; overscroll-behavior-inline: contain;
+  }
+  .km-admin-nav::-webkit-scrollbar { display: none; }
+  .km-admin-nav a { flex: none; padding: 8px 10px; white-space: nowrap; scroll-snap-align: center; }
   .km-admin-user { display: none; }
   .km-admin-top-actions { display: flex; }
   .km-admin-main { padding: 14px 16px 50px; }

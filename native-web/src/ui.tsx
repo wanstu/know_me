@@ -387,11 +387,20 @@ export function AdminShell({
   onLogout?: () => void;
   children: ReactNode;
 }) {
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 820px)").matches) return;
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!active) return;
+    window.requestAnimationFrame(() => active.scrollIntoView({ block: "nearest", inline: "center" }));
+  }, [current]);
+
   return (
     <div className="km-admin-layout">
       <aside className="km-admin-sidebar">
         <a className="km-admin-brand" href="/"><span>K</span><strong>Know Me</strong></a>
-        <nav className="km-admin-nav">
+        <nav ref={navRef} className="km-admin-nav">
           {adminMenu.map(([href, label]) => (
             <a key={href} href={href} aria-current={current === href ? "page" : undefined}>{label}</a>
           ))}
