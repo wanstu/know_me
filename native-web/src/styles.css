@@ -2447,3 +2447,56 @@ select:focus-visible {
   .km-about-grid { grid-template-columns: 1fr; }
   .km-about-actions .dk-button { width: 100%; justify-content: center; }
 }
+/* v0.1.6 — mobile editor usability */
+.km-editor-mobile-actions { display: none; }
+@media (max-width: 860px) {
+  .km-editor-layout { padding-bottom: 86px; }
+  .km-editor-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+  .km-editor-toolbar::-webkit-scrollbar { display: none; }
+  .km-editor-toolbar > button { flex: 0 0 auto; }
+  .km-editor-view-switch {
+    order: -1;
+    flex: 0 0 auto;
+    margin-left: 0;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    box-shadow: 8px 0 12px color-mix(in srgb, var(--dk-bg-subtle, #eef1f6) 88%, transparent);
+  }
+  .km-editor-view-switch .km-view-split { display: none; }
+  .km-editor-split { min-height: 0; }
+  .km-editor-source textarea { min-height: 55vh; }
+  .km-editor-preview .km-markdown { min-height: 55vh; }
+  .km-editor-mobile-actions {
+    position: fixed;
+    z-index: 24;
+    left: 16px;
+    right: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 58px;
+    padding: 9px 10px 9px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--dk-border, #dde2ea);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--dk-bg-elevated, #fff) 94%, transparent);
+    box-shadow: var(--dk-shadow-panel, 0 12px 32px rgba(15, 23, 42, .16));
+    backdrop-filter: blur(12px);
+  }
+  .km-editor-mobile-actions > span { min-width: 0; color: var(--dk-text-muted, #7a849a); font-size: 11px; }
+  .km-editor-mobile-actions > div { display: flex; gap: 7px; }
+  .km-editor-mobile-actions .dk-button { min-height: 38px; justify-content: center; white-space: nowrap; }
+}
+@media (max-width: 480px) {
+  .km-editor-mobile-actions > span { display: none; }
+  .km-editor-mobile-actions > div { width: 100%; }
+  .km-editor-mobile-actions .dk-button { flex: 1; }
+}

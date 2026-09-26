@@ -233,7 +233,7 @@ export function PostEditor({ id }: { id?: number }) {
   const [localDraftPreviewOpen, setLocalDraftPreviewOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  const [viewMode, setViewMode] = useState<"split" | "edit" | "preview">("split");
+  const [viewMode, setViewMode] = useState<"split" | "edit" | "preview">(() => typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches ? "edit" : "split");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<MarkdownImportMode>("plain");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -246,6 +246,16 @@ export function PostEditor({ id }: { id?: number }) {
       setImportDialogOpen(true);
     }
   }, [id]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 860px)");
+    const adaptView = (event?: MediaQueryListEvent) => {
+      if (event?.matches ?? media.matches) setViewMode((current) => current === "split" ? "edit" : current);
+    };
+    adaptView();
+    media.addEventListener("change", adaptView);
+    return () => media.removeEventListener("change", adaptView);
+  }, []);
 
   useEffect(() => {
     if (id) return;
@@ -634,7 +644,7 @@ export function PostEditor({ id }: { id?: number }) {
             <button type="button" onClick={() => setPreviewOpen(true)}>整页预览</button>
             <button type="button" className={focusMode ? "is-active" : ""} aria-pressed={focusMode} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "显示属性" : "专注编辑"}</button>
             <div className="km-editor-view-switch" role="group" aria-label="正文视图">
-              <button type="button" className={viewMode === "split" ? "is-active" : ""} aria-pressed={viewMode === "split"} onClick={() => setViewMode("split")}>并排</button>
+              <button type="button" className={"km-view-split " + (viewMode === "split" ? "is-active" : "")} aria-pressed={viewMode === "split"} onClick={() => setViewMode("split")}>并排</button>
               <button type="button" className={viewMode === "edit" ? "is-active" : ""} aria-pressed={viewMode === "edit"} onClick={() => setViewMode("edit")}>仅编辑</button>
               <button type="button" className={viewMode === "preview" ? "is-active" : ""} aria-pressed={viewMode === "preview"} onClick={() => setViewMode("preview")}>仅预览</button>
             </div>
@@ -744,6 +754,13 @@ export function PostEditor({ id }: { id?: number }) {
             {id ? <button type="button" className="dk-button km-danger-button" onClick={() => setPendingAction({ kind: "delete" })} disabled={busy}>删除文章</button> : null}
           </div>
         </aside>
+        <div className="km-editor-mobile-actions">
+          <span>{dirty ? "有未保存修改" : "服务器内容已同步"}</span>
+          <div>
+            <button className="dk-button dk-button-primary" disabled={busy || !draft.title.trim()}>{busy ? "保存中…" : "保存"}</button>
+            <button type="button" className="dk-button" disabled={busy || !draft.title.trim()} onClick={() => setPendingAction({ kind: "publish" })}>保存并发布</button>
+          </div>
+        </div>
       </form>
       {importDialogOpen ? (
         <div className="km-modal-backdrop" onMouseDown={() => setImportDialogOpen(false)}>
