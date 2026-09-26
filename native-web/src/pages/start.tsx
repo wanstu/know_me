@@ -209,7 +209,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     return <PageFrame settings={settings} user={user}><LoadingCard text="正在加载起始页…" /></PageFrame>;
   }
   if (error) {
-    return <PageFrame settings={settings} user={user}><ErrorCard message={error} /></PageFrame>;
+    return <PageFrame settings={settings} user={user}><ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /></PageFrame>;
   }
   if (!user && !settings.startPublic) {
     return (

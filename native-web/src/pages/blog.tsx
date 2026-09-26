@@ -186,7 +186,7 @@ export function BlogIndexPage({ settings, user }: { settings: SiteSettings; user
         </div>
       ) : null}
 
-      {error ? <ErrorCard message={error} /> : !data ? <LoadingCard text="正在读取文章…" /> : (
+      {error ? <ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /> : !data ? <LoadingCard text="正在读取文章…" /> : (
         <div className="km-blog-layout">
           <section className="km-blog-list">
             {data.posts.map((post) => (
@@ -276,7 +276,7 @@ export function BlogPostPage({ settings, user, slug }: { settings: SiteSettings;
 
   return (
     <PageFrame settings={settings} user={user} className="km-blog-page">
-      {error ? <ErrorCard message={error === "not_found" ? "文章不存在或尚未发布。" : error} /> : !post ? <LoadingCard text="正在读取文章…" /> : (
+      {error ? <ErrorCard message={error === "not_found" ? "文章不存在或尚未发布。" : error} retryLabel="重新加载" onRetry={error === "not_found" ? undefined : () => window.location.reload()} /> : !post ? <LoadingCard text="正在读取文章…" /> : (
         <div className={"km-article-layout" + (toc.length ? " has-toc" : "")}>
           <article className="km-panel km-article">
             <a className="km-back-link" href="/blog">← 返回 Blog</a>

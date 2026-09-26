@@ -107,7 +107,7 @@ export function App() {
   }, []);
 
   if (error) {
-    return <main className="km-boot"><ErrorCard message={error} /></main>;
+    return <main className="km-boot"><ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /></main>;
   }
   if (!settings || user === undefined) {
     return <main className="km-boot"><LoadingCard text="正在启动 Know Me…" /></main>;
