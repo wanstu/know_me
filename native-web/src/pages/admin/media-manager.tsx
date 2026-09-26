@@ -226,7 +226,7 @@ export function MediaManager() {
     }
   }
 
-  if (!media) return error ? <ErrorCard message={error} /> : <LoadingCard text="正在加载媒体库…" />;
+  if (!media) return error ? <ErrorCard message={error} onRetry={() => { setError(""); void load().catch((e) => setError(e instanceof Error ? e.message : "media_failed")); }} /> : <LoadingCard text="正在加载媒体库…" />;
 
   return (
     <>

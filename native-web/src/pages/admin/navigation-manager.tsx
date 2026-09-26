@@ -264,7 +264,7 @@ export function NavigationManager() {
     }
   }
 
-  if (!groups) return error ? <ErrorCard message={error} /> : <LoadingCard text="正在加载导航…" />;
+  if (!groups) return error ? <ErrorCard message={error} onRetry={() => { setError(""); void reload().catch((reason) => setError(reason instanceof Error ? reason.message : "navigation_failed")); }} /> : <LoadingCard text="正在加载导航…" />;
 
   return (
     <>

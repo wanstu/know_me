@@ -99,7 +99,7 @@ export function TaxonomyManager() {
     if (ok) setPendingMerge(null);
   }
 
-  if (!data) return error ? <ErrorCard message={error} /> : <LoadingCard text="正在加载分类与标签…" />;
+  if (!data) return error ? <ErrorCard message={error} onRetry={() => { setError(""); void load().catch((e) => setError(e instanceof Error ? e.message : "taxonomy_failed")); }} /> : <LoadingCard text="正在加载分类与标签…" />;
 
   return (
     <>

@@ -94,8 +94,23 @@ export function LoadingCard({ text = "正在加载…" }: { text?: string }) {
   return <section className="km-panel km-empty"><span className="km-spinner" />{text}</section>;
 }
 
-export function ErrorCard({ message }: { message: string }) {
-  return <section className="km-panel km-empty is-error">{errorText(message)}</section>;
+export function ErrorCard({
+  message,
+  onRetry,
+  retryLabel = "重试"
+}: {
+  message: string;
+  onRetry?: () => void;
+  retryLabel?: string;
+}) {
+  if (!onRetry) return <section className="km-panel km-empty is-error">{errorText(message)}</section>;
+  return (
+    <section className="km-panel km-empty is-error">
+      <strong>加载失败</strong>
+      <p>{errorText(message)}</p>
+      <div className="km-empty-actions"><button type="button" className="dk-button" onClick={onRetry}>{retryLabel}</button></div>
+    </section>
+  );
 }
 
 export function Toast({

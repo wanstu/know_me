@@ -109,7 +109,7 @@ function AboutAdmin() {
   return (
     <>
       <AdminTitle eyebrow="ABOUT" title="关于" description="查看当前 Know Me 的版本、构建信息与运行状态。" />
-      {error && !health ? <ErrorCard message={error} /> : !health ? <LoadingCard text="正在读取版本信息…" /> : (
+      {error && !health ? <ErrorCard message={error} onRetry={() => void load()} /> : !health ? <LoadingCard text="正在读取版本信息…" /> : (
         <>
           <section className="km-panel km-about-hero">
             <div>
@@ -167,14 +167,16 @@ function DashboardAdmin() {
   } | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    void Promise.all([
-      requestJSON<{ posts: PostRecord[] }>("/api/posts?summary=1"),
-      requestJSON<{ media: MediaRecord[] }>("/api/media"),
-      requestJSON<{ groups: NavGroup[] }>("/api/navigation"),
-      requestJSON<{ tags: Array<{ id: number; name: string; count: number }>; categories: Array<{ id: number; name: string; count: number }> }>("/api/taxonomy"),
-      requestJSON<{ version: string }>("/api/health")
-    ]).then(([posts, media, navigation, taxonomy, health]) => {
+  async function load() {
+    setError("");
+    try {
+      const [posts, media, navigation, taxonomy, health] = await Promise.all([
+        requestJSON<{ posts: PostRecord[] }>("/api/posts?summary=1"),
+        requestJSON<{ media: MediaRecord[] }>("/api/media"),
+        requestJSON<{ groups: NavGroup[] }>("/api/navigation"),
+        requestJSON<{ tags: Array<{ id: number; name: string; count: number }>; categories: Array<{ id: number; name: string; count: number }> }>("/api/taxonomy"),
+        requestJSON<{ version: string }>("/api/health")
+      ]);
       setData({
         posts: posts.posts ?? [],
         media: media.media ?? [],
@@ -183,14 +185,18 @@ function DashboardAdmin() {
         categories: taxonomy.categories ?? [],
         version: health.version || "dev"
       });
-    }).catch((reason) => setError(reason instanceof Error ? reason.message : "dashboard_failed"));
-  }, []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "dashboard_failed");
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
 
   function countItems(items: NavItem[]): number {
     return items.reduce((total, item) => total + 1 + countItems(item.children ?? []), 0);
   }
 
-  if (error) return <><AdminTitle eyebrow="DASHBOARD" title="管理总览" /><ErrorCard message={error} /></>;
+  if (error) return <><AdminTitle eyebrow="DASHBOARD" title="管理总览" /><ErrorCard message={error} onRetry={() => void load()} /></>;
   if (!data) return <><AdminTitle eyebrow="DASHBOARD" title="管理总览" /><LoadingCard text="正在读取站点状态…" /></>;
 
   const published = data.posts.filter((post) => post.status === "published").length;
@@ -761,11 +767,17 @@ function PostsAdmin() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | PostRecord["status"]>("all");
 
-  useEffect(() => {
-    void requestJSON<{ posts: PostRecord[] }>("/api/posts?summary=1")
-      .then((value) => setPosts(value.posts))
-      .catch((reason) => setError(reason instanceof Error ? reason.message : "blog_failed"));
-  }, []);
+  async function load() {
+    setError("");
+    try {
+      const value = await requestJSON<{ posts: PostRecord[] }>("/api/posts?summary=1");
+      setPosts(value.posts);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "blog_failed");
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
 
   const filtered = useMemo(() => {
     if (!posts) return [];
@@ -781,7 +793,7 @@ function PostsAdmin() {
   return (
     <>
       <AdminTitle eyebrow="BLOG" title="文章" description="管理 Markdown 文章、草稿、定时发布与历史版本。" />
-      {error ? <ErrorCard message={error} /> : !posts ? <LoadingCard /> : (
+      {error ? <ErrorCard message={error} onRetry={() => void load()} /> : !posts ? <LoadingCard /> : (
         <>
           <div className="km-panel km-post-list-toolbar">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题、Slug、分类或标签…" aria-label="搜索文章" />
