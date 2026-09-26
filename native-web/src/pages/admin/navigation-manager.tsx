@@ -361,10 +361,26 @@ export function NavigationManager() {
                     </div>
                   </article>
                 ))}
-                {!allItems.length ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
+                {!allItems.length ? (
+                  <section className="km-panel km-empty">
+                    <strong>这个分组还没有导航项</strong>
+                    <p>添加第一个链接或文件夹后，就会出现在 Start 页面中。</p>
+                    <div className="km-empty-actions">
+                      <button type="button" className="dk-button dk-button-primary" onClick={() => setItemDraft(emptyItem(selectedGroup.id))}>新增导航</button>
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </>
-          ) : <section className="km-panel km-empty">先创建或选择一个分组。</section>}
+          ) : (
+            <section className="km-panel km-empty">
+              <strong>还没有导航分组</strong>
+              <p>先创建一个分组，再往里面添加链接或文件夹。</p>
+              <div className="km-empty-actions">
+                <button type="button" className="dk-button dk-button-primary" onClick={() => setGroupDraft(emptyGroup())}>新增分组</button>
+              </div>
+            </section>
+          )}
         </section>
       </div>
 

@@ -313,7 +313,25 @@ export function MediaManager() {
           );
         })}
       </div>
-      {!filtered.length ? <section className="km-panel km-empty">{media.length ? "没有匹配的媒体。" : "媒体库还是空的。"}</section> : null}
+      {!filtered.length ? (
+        <section className="km-panel km-empty">
+          <strong>{media.length ? "没有匹配的媒体" : "媒体库还是空的"}</strong>
+          <p>{media.length ? "换个关键词，或者清除当前筛选后再找。" : "从上方上传区域选择或拖入第一张图片。"}</p>
+          <div className="km-empty-actions">
+            {media.length ? (
+              <button type="button" className="dk-button" onClick={() => { setQuery(""); setSort("newest"); }}>清除筛选</button>
+            ) : (
+              <button
+                type="button"
+                className="dk-button dk-button-primary"
+                onClick={() => document.querySelector<HTMLInputElement>('.km-upload-drop input[type="file"]')?.click()}
+              >
+                选择图片
+              </button>
+            )}
+          </div>
+        </section>
+      ) : null}
       <TextPromptDialog
         open={Boolean(manualCopy)}
         title="手动复制媒体地址"
