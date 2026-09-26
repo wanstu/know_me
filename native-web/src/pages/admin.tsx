@@ -87,6 +87,7 @@ function formatHealthTime(value: string) {
 function AboutAdmin() {
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   async function load(silent = false) {
@@ -105,6 +106,27 @@ function AboutAdmin() {
   useEffect(() => {
     void load(true);
   }, []);
+
+  async function copyDiagnostics() {
+    if (!health) return;
+    const text = [
+      "Know Me diagnostics",
+      "version: " + (health.version || "dev"),
+      "commit: " + (health.commit || "unknown"),
+      "build_time: " + (health.build_time || "unknown"),
+      "status: " + health.status,
+      "database: " + health.database,
+      "uptime_sec: " + health.uptime_sec,
+      "server_time: " + health.time
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("诊断信息已复制");
+      setError("");
+    } catch {
+      setError("复制失败，请手动复制版本和 Commit");
+    }
+  }
 
   return (
     <>
@@ -136,10 +158,14 @@ function AboutAdmin() {
               <strong>诊断信息</strong>
               <p>遇到问题时，版本号和 Commit 可以直接用于确认正在运行的具体构建。</p>
             </div>
-            <button type="button" className="dk-button" disabled={refreshing} onClick={() => void load()}>
-              {refreshing ? "刷新中…" : "刷新状态"}
-            </button>
+            <div className="km-about-action-buttons">
+              <button type="button" className="dk-button" onClick={() => void copyDiagnostics()}>复制诊断信息</button>
+              <button type="button" className="dk-button" disabled={refreshing} onClick={() => void load()}>
+                {refreshing ? "刷新中…" : "刷新状态"}
+              </button>
+            </div>
           </section>
+          {message ? <Toast message={message} onClose={() => setMessage("")} /> : null}
           {error ? <div className="dk-message is-danger">{errorText(error)}</div> : null}
         </>
       )}
