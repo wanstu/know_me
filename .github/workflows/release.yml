@@ -113,11 +113,16 @@ jobs:
   desktop:
     name: Desktop packages
     needs: verify
-    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.8.0
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.10.0-rc.1
     with:
       app-name: know-me-desktop
       desktop-dir: cmd/know-me-desktop
-      desktopkit-cli-version: v0.8.0
+      desktopkit-cli-version: v0.10.0-rc.1
+      windows-installer: true
+      windows-install-scope: user
+      windows-product-name: Know Me
+      windows-publisher: wanstu
+      windows-app-id: know-me
       test-command: ""
       vet-command: ""
       build-command-windows: ./scripts/build-desktop.ps1
@@ -192,6 +197,7 @@ jobs:
             "know-me-${GITHUB_REF_NAME}-macos-amd64"
             "know-me-${GITHUB_REF_NAME}-macos-arm64"
             "know-me-desktop-${GITHUB_REF_NAME}-windows-amd64.exe"
+            "know-me-desktop-${GITHUB_REF_NAME}-windows-amd64-setup.exe"
             "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64"
             "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64.deb"
             "know-me-desktop-${GITHUB_REF_NAME}-linux-amd64.tar.gz"
