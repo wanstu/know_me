@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,12 +121,58 @@ func main() {
 	}
 }
 
+func loadDesktopConfig() (runtimeconfig.Config, error) {
+	configPath, err := runtimeconfig.ConfigPath()
+	if err != nil {
+		return runtimeconfig.Config{}, err
+	}
+	_, statErr := os.Stat(configPath)
+	hasConfig := statErr == nil
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return runtimeconfig.Config{}, fmt.Errorf("stat desktop config: %w", statErr)
+	}
+
+	config, err := runtimeconfig.Load()
+	if err != nil {
+		return runtimeconfig.Config{}, err
+	}
+	return applyDesktopStorageDefaults(
+		config,
+		filepath.Dir(configPath),
+		installedDesktopExecutable(),
+		hasConfig,
+		os.Getenv,
+	), nil
+}
+
+func applyDesktopStorageDefaults(config runtimeconfig.Config, configDir string, installed, hasConfig bool, getenv func(string) string) runtimeconfig.Config {
+	if !installed || hasConfig {
+		return config
+	}
+	if strings.TrimSpace(getenv("KNOW_ME_DATA_DIR")) == "" {
+		config.DataDir = filepath.Join(configDir, "data")
+	}
+	if strings.TrimSpace(getenv("KNOW_ME_UPLOADS_DIR")) == "" {
+		config.UploadsDir = filepath.Join(configDir, "uploads")
+	}
+	return config
+}
+
+func installedDesktopExecutable() bool {
+	executable, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(filepath.Dir(executable), "Uninstall.exe"))
+	return err == nil && !info.IsDir()
+}
+
 func run() error {
 	launch, err := desktopkit.ParseLaunchOptions(os.Args[1:])
 	if err != nil {
 		return err
 	}
-	config, err := runtimeconfig.Load()
+	config, err := loadDesktopConfig()
 	if err != nil {
 		return err
 	}
