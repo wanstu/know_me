@@ -18,11 +18,11 @@ permissions:
 
 jobs:
   desktop:
-    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.8.0
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.11.0-rc.2
     with:
       app-name: know-me-desktop
       desktop-dir: cmd/know-me-desktop
-      desktopkit-cli-version: v0.8.0
+      desktopkit-cli-version: v0.11.0-rc.2
       test-command: ""
       vet-command: ""
       build-command-windows: ./scripts/build-desktop.ps1

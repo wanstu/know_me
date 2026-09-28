@@ -14,6 +14,7 @@ import (
 	"time"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wanstu/know_me/internal/desktopupdate"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/server"
 	desktopkit "github.com/wanstu/wails-desktop-kit"
@@ -54,7 +55,7 @@ type coreRuntime struct {
 	once   sync.Once
 }
 
-func startCore(config runtimeconfig.Config) (*coreRuntime, string, error) {
+func startCore(config runtimeconfig.Config, updateService server.DesktopUpdateService) (*coreRuntime, string, error) {
 	// The desktop wrapper always binds the embedded HTTP Core to a private
 	// ephemeral loopback port. Server deployments continue to use know-me serve.
 	config.Listen = coreHost
@@ -62,11 +63,11 @@ func startCore(config runtimeconfig.Config) (*coreRuntime, string, error) {
 	// used by an HTTPS server deployment. Do not inherit public SiteURL cookie policy.
 	config.SiteURL = ""
 
-	core, err := server.New(config, server.BuildInfo{
+	core, err := server.NewWithOptions(config, server.BuildInfo{
 		Version:   version,
 		Commit:    commit,
 		BuildTime: buildTime,
-	})
+	}, server.ServerOptions{DesktopUpdate: updateService})
 	if err != nil {
 		return nil, "", err
 	}
@@ -176,7 +177,38 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	core, coreURL, err := startCore(config)
+
+	var controllerMu sync.RWMutex
+	var controller *desktopkit.Controller
+	canQuit := func() bool {
+		controllerMu.RLock()
+		defer controllerMu.RUnlock()
+		return controller != nil
+	}
+	quit := func() error {
+		controllerMu.RLock()
+		current := controller
+		controllerMu.RUnlock()
+		if current == nil {
+			return errors.New("desktop controller is not ready")
+		}
+		current.Quit()
+		return nil
+	}
+	updateService, err := desktopupdate.New(desktopupdate.Config{
+		AppID:             appID,
+		CurrentVersion:    version,
+		Owner:             "wanstu",
+		Repository:        "know_me",
+		IncludePrerelease: strings.Contains(version, "-") || strings.EqualFold(strings.TrimSpace(os.Getenv("KNOW_ME_UPDATE_CHANNEL")), "prerelease"),
+		CanQuit:           canQuit,
+		Quit:              quit,
+	})
+	if err != nil {
+		return fmt.Errorf("configure desktop updater: %w", err)
+	}
+
+	core, coreURL, err := startCore(config, updateService)
 	if err != nil {
 		return fmt.Errorf("start native core: %w", err)
 	}
@@ -232,7 +264,16 @@ func run() error {
 			},
 		},
 		Hooks: desktopkit.Hooks{
+			Ready: func(current *desktopkit.Controller) {
+				controllerMu.Lock()
+				controller = current
+				controllerMu.Unlock()
+			},
 			Shutdown: func(context.Context) {
+				controllerMu.Lock()
+				controller = nil
+				controllerMu.Unlock()
+				updateService.Close()
 				shutdownErr = core.stop()
 			},
 			TrayError: func(ctx context.Context, trayErr error) {

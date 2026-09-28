@@ -86,11 +86,73 @@ function formatHealthTime(value: string) {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("zh-CN");
 }
 
+type DesktopUpdateStatus = {
+  available: boolean;
+  state: string;
+  channel: string;
+  currentVersion: string;
+  latestVersion?: string;
+  updateAvailable: boolean;
+  releaseName?: string;
+  releaseUrl?: string;
+  publishedAt?: string;
+  prerelease: boolean;
+  assetName?: string;
+  assetSize?: number;
+  downloaded?: number;
+  total?: number;
+  verified: boolean;
+  sha256?: string;
+  downloadPath?: string;
+  installationMode: string;
+  canAutoInstall: boolean;
+  message?: string;
+  error?: string;
+};
+
+function formatBytes(value = 0) {
+  const bytes = Math.max(0, value || 0);
+  if (bytes < 1024) return bytes + " B";
+  const units = ["KB", "MB", "GB"];
+  let size = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && size >= 1024; index += 1) {
+    size /= 1024;
+    unit = units[index];
+  }
+  return size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2) + " " + unit;
+}
+
+function installationModeLabel(mode: string) {
+  if (mode === "user") return "Windows 用户安装";
+  if (mode === "machine") return "Windows 机器安装";
+  if (mode === "portable") return "Portable";
+  return mode || "未知安装方式";
+}
+
+async function parseDesktopUpdateResponse(response: Response) {
+  const payload = await response.json().catch(() => ({})) as {
+    status?: DesktopUpdateStatus;
+    error?: string;
+    detail?: string;
+  } & Partial<DesktopUpdateStatus>;
+  if (response.ok) {
+    return { status: payload as DesktopUpdateStatus, error: "" };
+  }
+  return {
+    status: payload.status ?? null,
+    error: payload.detail || payload.error || ("HTTP " + response.status)
+  };
+}
+
 function AboutAdmin() {
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null);
+  const [updateError, setUpdateError] = useState("");
+  const [updateBusy, setUpdateBusy] = useState<"" | "check" | "download" | "install">("");
 
   async function load(silent = false) {
     if (!silent) setRefreshing(true);
@@ -105,9 +167,65 @@ function AboutAdmin() {
     }
   }
 
+  async function loadUpdateStatus(silent = false) {
+    try {
+      const response = await requestAPI("/api/desktop/update");
+      if (response.status === 404) {
+        setUpdateStatus(null);
+        setUpdateError("");
+        return;
+      }
+      const result = await parseDesktopUpdateResponse(response);
+      if (result.status) setUpdateStatus(result.status);
+      if (!response.ok) {
+        if (!silent) setUpdateError(result.error);
+        return;
+      }
+      setUpdateError("");
+    } catch (reason) {
+      if (!silent) setUpdateError(reason instanceof Error ? reason.message : "update_status_failed");
+    }
+  }
+
+  async function runUpdateAction(action: "check" | "download" | "install") {
+    setUpdateBusy(action);
+    setUpdateError("");
+    try {
+      const response = await requestAPI("/api/desktop/update/" + action, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      });
+      const result = await parseDesktopUpdateResponse(response);
+      if (result.status) setUpdateStatus(result.status);
+      if (!response.ok) {
+        setUpdateError(result.error);
+        return;
+      }
+      if (action === "check") {
+        setMessage(result.status?.updateAvailable ? "发现可用更新" : "当前已是最新版本");
+      } else if (action === "download") {
+        setMessage("已开始下载更新");
+      } else {
+        setMessage("安装程序已启动，Know Me 即将退出并在升级后重新打开");
+      }
+    } catch (reason) {
+      setUpdateError(reason instanceof Error ? reason.message : "update_action_failed");
+    } finally {
+      setUpdateBusy("");
+    }
+  }
+
   useEffect(() => {
     void load(true);
+    void loadUpdateStatus(true);
   }, []);
+
+  useEffect(() => {
+    if (updateStatus?.state !== "downloading") return;
+    const timer = window.setInterval(() => void loadUpdateStatus(true), 500);
+    return () => window.clearInterval(timer);
+  }, [updateStatus?.state]);
 
   async function copyDiagnostics() {
     if (!health) return;
@@ -120,7 +238,12 @@ function AboutAdmin() {
       "status: " + health.status,
       "database: " + health.database,
       "uptime_sec: " + health.uptime_sec,
-      "server_time: " + health.time
+      "server_time: " + health.time,
+      ...(updateStatus ? [
+        "update_state: " + updateStatus.state,
+        "update_channel: " + updateStatus.channel,
+        "installation_mode: " + updateStatus.installationMode
+      ] : [])
     ].join("\n");
     try {
       await navigator.clipboard.writeText(text);
@@ -131,9 +254,14 @@ function AboutAdmin() {
     }
   }
 
+  const downloaded = updateStatus?.downloaded || 0;
+  const total = updateStatus?.total || 0;
+  const progress = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+  const updateLocked = updateBusy !== "" || updateStatus?.state === "downloading" || updateStatus?.state === "installing";
+
   return (
     <>
-      <AdminTitle eyebrow="ABOUT" title="关于" description="查看当前 Know Me 的版本、构建信息与运行状态。" />
+      <AdminTitle eyebrow="ABOUT" title="关于" description="查看当前 Know Me 的版本、构建信息、运行状态与桌面更新。" />
       {error && !health ? <ErrorCard message={error} onRetry={() => void load()} /> : !health ? <LoadingCard text="正在读取版本信息…" /> : (
         <>
           <section className="km-panel km-about-hero">
@@ -156,6 +284,88 @@ function AboutAdmin() {
             <div className="km-panel"><span>数据库</span><strong>{health.database === "ok" ? "正常" : "异常"}</strong></div>
             <div className="km-panel"><span>服务时间</span><strong>{formatHealthTime(health.time)}</strong></div>
           </section>
+
+          {updateStatus ? (
+            <section className="km-panel km-update-card">
+              <div className="km-update-heading">
+                <div>
+                  <span className="km-eyebrow">DESKTOP UPDATE</span>
+                  <h3>应用更新</h3>
+                  <p>{updateStatus.message || "检查 GitHub Release 并下载经过 SHA256 校验的更新。"}</p>
+                </div>
+                <div className="km-update-badges">
+                  <span>{updateStatus.channel === "prerelease" ? "预发布通道" : "稳定通道"}</span>
+                  <span>{installationModeLabel(updateStatus.installationMode)}</span>
+                </div>
+              </div>
+
+              <div className="km-update-version-row">
+                <div><span>当前版本</span><strong>{updateStatus.currentVersion || health.version || "dev"}</strong></div>
+                <div><span>最新版本</span><strong>{updateStatus.latestVersion || "尚未检查"}</strong></div>
+                <div><span>安装方式</span><strong>{updateStatus.canAutoInstall ? "可自动安装并重启" : "需要手动安装"}</strong></div>
+              </div>
+
+              {updateStatus.releaseName || updateStatus.publishedAt ? (
+                <div className="km-update-release">
+                  <div>
+                    <strong>{updateStatus.releaseName || updateStatus.latestVersion}</strong>
+                    <span>{updateStatus.publishedAt ? formatHealthTime(updateStatus.publishedAt) : ""}</span>
+                  </div>
+                  {updateStatus.releaseUrl ? <a className="dk-button" href={updateStatus.releaseUrl} target="_blank" rel="noreferrer">查看 Release</a> : null}
+                </div>
+              ) : null}
+
+              {updateStatus.state === "downloading" ? (
+                <div className="km-update-progress-block">
+                  <div className="km-update-progress-label">
+                    <span>下载并校验</span>
+                    <strong>{total > 0 ? progress + "%" : formatBytes(downloaded)}</strong>
+                  </div>
+                  <div className="km-update-progress" aria-label="更新下载进度">
+                    <span style={{ width: progress + "%" }} />
+                  </div>
+                  <small>{formatBytes(downloaded)}{total > 0 ? " / " + formatBytes(total) : ""}</small>
+                </div>
+              ) : null}
+
+              {updateStatus.verified ? (
+                <div className="km-update-verified">
+                  <strong>SHA256 校验通过</strong>
+                  <code>{updateStatus.sha256}</code>
+                  {updateStatus.downloadPath ? <small>{updateStatus.downloadPath}</small> : null}
+                </div>
+              ) : null}
+
+              {!updateStatus.canAutoInstall && updateStatus.verified ? (
+                <div className="dk-message">
+                  已下载并校验完成。{updateStatus.installationMode === "portable"
+                    ? "当前是 Portable 版本，请手动运行下载的 Setup 完成升级。"
+                    : "当前安装方式暂不自动提权，请手动运行下载文件完成升级。"}
+                </div>
+              ) : null}
+
+              {updateError ? <div className="dk-message is-danger">{updateError}</div> : null}
+
+              <div className="km-update-actions">
+                {updateStatus.available && !updateStatus.verified ? (
+                  <button type="button" className="dk-button" disabled={updateLocked} onClick={() => void runUpdateAction("check")}>
+                    {updateBusy === "check" ? "检查中…" : "检查更新"}
+                  </button>
+                ) : null}
+                {updateStatus.available && updateStatus.updateAvailable && !updateStatus.verified && updateStatus.state !== "downloading" ? (
+                  <button type="button" className="dk-button is-primary" disabled={updateLocked} onClick={() => void runUpdateAction("download")}>
+                    {updateBusy === "download" ? "准备下载…" : "下载并校验"}
+                  </button>
+                ) : null}
+                {updateStatus.verified && updateStatus.canAutoInstall ? (
+                  <button type="button" className="dk-button is-primary" disabled={updateLocked} onClick={() => void runUpdateAction("install")}>
+                    {updateBusy === "install" || updateStatus.state === "installing" ? "正在启动安装程序…" : "安装并重启"}
+                  </button>
+                ) : null}
+                {!updateStatus.available ? <span className="km-update-disabled">{updateStatus.message}</span> : null}
+              </div>
+            </section>
+          ) : null}
 
           <section className="km-panel km-about-actions">
             <div>
