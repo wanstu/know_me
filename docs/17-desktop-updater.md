@@ -122,3 +122,16 @@ Install v0.1.7-rc.1 user-scope Setup
 ```
 
 The E2E must also confirm that the update does not place business data under the application installation directory.
+
+## Isolated installed-updater E2E (2026-10-08)
+
+The Windows Actions runner executed the released RC1 installer, called the authenticated desktop updater API, and confirmed the installed executable was replaced and restarted as RC2.
+
+- Source: `v0.1.7-rc.1` Windows user-scope Setup downloaded from GitHub Release, with SHA256 verified before execution.
+- Update: discovered `v0.1.7-rc.2`, downloaded its Windows Setup and passed Desktop Kit SHA256 verification.
+- Lifecycle: accepted InstallAndRestart, old process exited, new process served a healthy API reporting `v0.1.7-rc.2`.
+- Data: the marker placed under `~/.config/know-me/data` survived the upgrade, and the application installation directory did not contain business data.
+- CI job: https://github.com/wanstu/know_me/actions/runs/37782768613/job/113329790880 (`success`).
+- Script: `scripts/verify-desktop-updater-e2e.ps1`, manually triggered by `workflow_dispatch` with `updater_e2e=true`.
+
+This verifies the real installed update backend and process lifecycle, using authenticated loopback HTTP actions rather than automated mouse clicks. Visual About page interaction and accessibility remain separate UI checks.
