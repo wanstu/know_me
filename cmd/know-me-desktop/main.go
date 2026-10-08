@@ -68,7 +68,7 @@ type coreRuntime struct {
 	once   sync.Once
 }
 
-func startCore(config runtimeconfig.Config, updateService server.DesktopUpdateService) (*coreRuntime, string, error) {
+func startCore(config runtimeconfig.Config, updateService server.DesktopUpdateService, openExternal func(string) error) (*coreRuntime, string, error) {
 	// The desktop wrapper always binds the embedded HTTP Core to a private
 	// ephemeral loopback port. Server deployments continue to use know-me serve.
 	config.Listen = coreHost
@@ -80,7 +80,7 @@ func startCore(config runtimeconfig.Config, updateService server.DesktopUpdateSe
 		Version:   version,
 		Commit:    commit,
 		BuildTime: buildTime,
-	}, server.ServerOptions{DesktopUpdate: updateService})
+	}, server.ServerOptions{DesktopUpdate: updateService, DesktopBrowserOpen: openExternal})
 	if err != nil {
 		return nil, "", err
 	}
@@ -221,7 +221,16 @@ func run() error {
 		return fmt.Errorf("configure desktop updater: %w", err)
 	}
 
-	core, coreURL, err := startCore(config, updateService)
+	openExternal := func(target string) error {
+		controllerMu.RLock()
+		current := controller
+		controllerMu.RUnlock()
+		if current == nil {
+			return errors.New("desktop controller is not ready")
+		}
+		return current.OpenURL(target)
+	}
+	core, coreURL, err := startCore(config, updateService, openExternal)
 	if err != nil {
 		return fmt.Errorf("start native core: %w", err)
 	}
@@ -246,15 +255,7 @@ func run() error {
 	window.MinWidth = 820
 	window.MinHeight = 600
 
-	bridge := &DesktopBridge{url: coreURL, openExternal: func(target string) error {
-		controllerMu.RLock()
-		current := controller
-		controllerMu.RUnlock()
-		if current == nil {
-			return errors.New("desktop controller is not ready")
-		}
-		return current.OpenURL(target)
-	}}
+	bridge := &DesktopBridge{url: coreURL, openExternal: openExternal}
 
 	var shutdownErr error
 	err = desktopkit.Run(desktopkit.Config{

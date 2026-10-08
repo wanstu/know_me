@@ -91,7 +91,7 @@ func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings_failed"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"settings": value})
+	writeJSON(w, http.StatusOK, map[string]any{"settings": value, "desktopBrowser": s.desktopBrowserOpen != nil})
 }
 
 func (s *Server) handleAuthSetupGet(w http.ResponseWriter, r *http.Request) {

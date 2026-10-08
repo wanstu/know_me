@@ -32,26 +32,28 @@ type BuildInfo struct {
 }
 
 type Server struct {
-	config        runtimeconfig.Config
-	build         BuildInfo
-	startedAt     time.Time
-	http          *http.Server
-	listener      net.Listener
-	database      *database.DB
-	auth          *auth.Store
-	settings      *settings.Store
-	navigation    *navigation.Store
-	blog          *blog.Store
-	media         *media.Store
-	backup        *backup.Store
-	theme         *kittheme.Manager
-	loginLimiter  *loginLimiter
-	desktopUpdate DesktopUpdateService
-	networkAccess *networkAccessStore
+	config             runtimeconfig.Config
+	build              BuildInfo
+	startedAt          time.Time
+	http               *http.Server
+	listener           net.Listener
+	database           *database.DB
+	auth               *auth.Store
+	settings           *settings.Store
+	navigation         *navigation.Store
+	blog               *blog.Store
+	media              *media.Store
+	backup             *backup.Store
+	theme              *kittheme.Manager
+	loginLimiter       *loginLimiter
+	desktopUpdate      DesktopUpdateService
+	desktopBrowserOpen func(string) error
+	networkAccess      *networkAccessStore
 }
 
 type ServerOptions struct {
-	DesktopUpdate DesktopUpdateService
+	DesktopUpdate      DesktopUpdateService
+	DesktopBrowserOpen func(string) error
 }
 
 func New(config runtimeconfig.Config, build BuildInfo) (*Server, error) {
@@ -101,24 +103,26 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 	}
 
 	s := &Server{
-		config:        config,
-		build:         build,
-		startedAt:     time.Now(),
-		database:      db,
-		auth:          auth.NewStore(db.SQL),
-		settings:      settings.NewStore(db.SQL),
-		navigation:    navigation.NewStore(db.SQL),
-		blog:          blog.NewStore(db.SQL),
-		media:         mediaStore,
-		backup:        backupStore,
-		theme:         themeManager,
-		loginLimiter:  newLoginLimiter(),
-		desktopUpdate: options.DesktopUpdate,
-		networkAccess: networkAccess,
+		config:             config,
+		build:              build,
+		startedAt:          time.Now(),
+		database:           db,
+		auth:               auth.NewStore(db.SQL),
+		settings:           settings.NewStore(db.SQL),
+		navigation:         navigation.NewStore(db.SQL),
+		blog:               blog.NewStore(db.SQL),
+		media:              mediaStore,
+		backup:             backupStore,
+		theme:              themeManager,
+		loginLimiter:       newLoginLimiter(),
+		desktopUpdate:      options.DesktopUpdate,
+		desktopBrowserOpen: options.DesktopBrowserOpen,
+		networkAccess:      networkAccess,
 	}
 	mux := http.NewServeMux()
 	s.registerAPI(mux)
 	s.registerDesktopUpdateAPI(mux)
+	s.registerDesktopBrowserAPI(mux)
 	s.registerNetworkAccessAPI(mux)
 	s.registerNavigationAPI(mux)
 	s.registerBlogAPI(mux)

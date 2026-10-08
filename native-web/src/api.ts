@@ -1,4 +1,5 @@
 import type { SessionUser, SiteSettings } from "./types";
+import { setDesktopBrowserMode } from "./external-links";
 
 function loginRedirectURL() {
   const next = encodeURIComponent(window.location.pathname + window.location.search);
@@ -36,7 +37,8 @@ export async function requestJSON<T>(url: string, init?: RequestInit): Promise<T
 }
 
 export async function getSiteSettings() {
-  const payload = await requestJSON<{ settings: SiteSettings }>("/api/site");
+  const payload = await requestJSON<{ settings: SiteSettings; desktopBrowser?: boolean }>("/api/site");
+  setDesktopBrowserMode(payload.desktopBrowser === true);
   return payload.settings;
 }
 
