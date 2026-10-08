@@ -8,6 +8,12 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      updater_e2e:
+        description: Run installed RC1 to RC2 updater E2E on an isolated Windows runner
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: native-desktop-${{ github.workflow }}-${{ github.ref }}
@@ -35,3 +41,16 @@ jobs:
       linux-desktop-file: cmd/know-me-desktop/packaging/know-me-desktop.desktop
       linux-icon-file: cmd/know-me-desktop/build/appicon.png
       publish-release: false
+
+  updater_e2e:
+    name: Installed desktop RC1 to RC2 updater E2E
+    if: github.event_name == 'workflow_dispatch' && inputs.updater_e2e
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Check, Download, SHA256, Install, Restart and data preservation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/verify-desktop-updater-e2e.ps1
