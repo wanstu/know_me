@@ -113,11 +113,11 @@ jobs:
   desktop:
     name: Desktop packages
     needs: verify
-    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.11.0-rc.4
+    uses: wanstu/wails-desktop-kit/.github/workflows/wails-desktop.yml@v0.11.0
     with:
       app-name: know-me-desktop
       desktop-dir: cmd/know-me-desktop
-      desktopkit-cli-version: v0.11.0-rc.4
+      desktopkit-cli-version: v0.11.0
       windows-installer: true
       windows-install-scope: user
       windows-product-name: Know Me
