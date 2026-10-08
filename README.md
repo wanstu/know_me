@@ -43,7 +43,7 @@ docker compose up -d --build
 项目正在迁移到 **Go Core + 跨平台 CLI + 可选 Wails Desktop**。当前原生运行时基线已经可以单独启动 HTTP Server：
 
 ~~~powershell
-go run ./cmd/know-me serve --listen 127.0.0.1:3000
+go run ./cmd/know-me serve
 ~~~
 
 也可以构建当前平台：
@@ -67,11 +67,9 @@ know-me-<version>-darwin-amd64
 know-me-<version>-darwin-arm64
 ~~~
 
-CLI 默认只监听 `127.0.0.1:3000`。服务器部署需要显式开放地址：
+CLI 默认监听 **`0.0.0.0:3000`**，在端口可达的情况下可以通过服务器任意 IP 或指向它的域名访问；不会默认限制 Host 或客户端 IP。已存在的 `~/.config/know-me/settings.json` 如明确配置了 `127.0.0.1:3000`，仍会尊重该配置，可在其中将 `listen` 改为 `0.0.0.0:3000`。
 
-~~~bash
-./know-me-linux-amd64 serve --listen 0.0.0.0:3000
-~~~
+后台 **设置 → 网络访问** 提供可选的域名 / IP 白名单，**默认关闭**。启用后域名按访问时的 Host 匹配，IP 可填写单个地址或 CIDR 网段；两栏都填写时必须同时命中。客户端 IP 使用直接连接地址，反向代理部署需要考虑代理的实际连接来源；规则保存在持久化数据目录下的 `network-access.json`。桌面版本地 Core 为保护本地控制接口仍固定绑定 `127.0.0.1` 随机端口。
 
 Native UI 已升级到 `wails-desktop-kit v0.6.1`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.6.1 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
 

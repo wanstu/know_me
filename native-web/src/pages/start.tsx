@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { requestJSON } from "../api";
+import { openExternalBrowser } from "../external-links";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 
@@ -172,6 +173,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         body: JSON.stringify({ action: "visit", data: { id: item.id } })
       }).catch(() => {});
     }
+    if (openExternalBrowser(item.url)) return;
     if (item.browserLocal || item.extra?.openMode === "same_tab") {
       window.location.href = item.url;
       return;
@@ -182,7 +184,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   function searchWeb() {
     const value = query.trim();
     if (!value) return;
-    window.location.href = looksLikeURL(value) ? value : searchURL(settings.defaultSearchEngine, value);
+    const target = looksLikeURL(value) ? value : searchURL(settings.defaultSearchEngine, value);
+    if (openExternalBrowser(target)) return;
+    window.location.href = target;
   }
 
   function submitSearch(event: FormEvent) {

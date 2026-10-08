@@ -14,7 +14,7 @@ import (
 const (
 	AppID             = "know-me"
 	ConfigFileName    = "settings.json"
-	DefaultListen     = "127.0.0.1:3000"
+	DefaultListen     = "0.0.0.0:3000"
 	DefaultDataDir    = "./data"
 	DefaultUploadsDir = "./uploads"
 )

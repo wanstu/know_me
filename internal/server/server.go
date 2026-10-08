@@ -47,6 +47,7 @@ type Server struct {
 	theme         *kittheme.Manager
 	loginLimiter  *loginLimiter
 	desktopUpdate DesktopUpdateService
+	networkAccess *networkAccessStore
 }
 
 type ServerOptions struct {
@@ -69,6 +70,12 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("database: %w", err)
+	}
+
+	networkAccess, err := newNetworkAccessStore(config.DataDir)
+	if err != nil {
+		db.Close()
+		return nil, err
 	}
 
 	assets, err := webassets.FS()
@@ -107,10 +114,12 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 		theme:         themeManager,
 		loginLimiter:  newLoginLimiter(),
 		desktopUpdate: options.DesktopUpdate,
+		networkAccess: networkAccess,
 	}
 	mux := http.NewServeMux()
 	s.registerAPI(mux)
 	s.registerDesktopUpdateAPI(mux)
+	s.registerNetworkAccessAPI(mux)
 	s.registerNavigationAPI(mux)
 	s.registerBlogAPI(mux)
 	s.registerMediaAPI(mux)
@@ -119,7 +128,7 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{
-		Handler:           securityHeaders(mux),
+		Handler:           securityHeaders(s.networkAccessMiddleware(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

@@ -77,6 +77,8 @@ github.com/wailsapp/wails/v2 v2.15.0 h1:u7cHK+UesZOlYxyJxfYLteaCPhws6UsZoDdqUeju
 github.com/wailsapp/wails/v2 v2.15.0/go.mod h1:scxrgwfsv6yR6fE6cCF+Flfl+JeU+SR87T9x4kILJ6M=
 github.com/wanstu/wails-desktop-kit v0.11.0-rc.2 h1:WbtPAFSysyaod7JOAZSzoSMCZs/C0XuH1jCJ531zc9A=
 github.com/wanstu/wails-desktop-kit v0.11.0-rc.2/go.mod h1:3PHy0sjNqcLwurVZfihR+31U84ZIp7EfDsgYiPbyPaQ=
+github.com/wanstu/wails-desktop-kit v0.11.0-rc.3 h1:AuOZEOR8YleZ5porOYM1+T+6dMVwX9c5a9CLSfCd1js=
+github.com/wanstu/wails-desktop-kit v0.11.0-rc.3/go.mod h1:3PHy0sjNqcLwurVZfihR+31U84ZIp7EfDsgYiPbyPaQ=
 golang.org/x/crypto v0.53.0 h1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto=
 golang.org/x/crypto v0.53.0/go.mod h1:DNLU434OwVakk9PzuwV8w62mAJpRJL3vsgcfp4Qnsio=
 golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=

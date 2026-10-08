@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { getSession, getSiteSettings } from "./api";
 import { applyTheme } from "./kit";
+import { openExternalBrowser } from "./external-links";
 import type { SessionUser, SiteSettings } from "./types";
 import { ErrorCard, LoadingCard } from "./ui";
 import { HomePage } from "./pages/home";
@@ -16,6 +17,24 @@ function PageLoading() {
 }
 
 export function App() {
+  useEffect(() => {
+    // Native Wails links to external sites open in the system browser.
+    function openExternal(event: MouseEvent) {
+      if (event.defaultPrevented || event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.hasAttribute("download")) return;
+      let parsed: URL;
+      try { parsed = new URL(anchor.href, location.href); } catch { return; }
+      if (!["http:", "https:"].includes(parsed.protocol)) return;
+      if (parsed.origin === location.origin && anchor.target !== "_blank") return;
+      if (openExternalBrowser(parsed.href, anchor.target === "_blank")) event.preventDefault();
+    }
+    document.addEventListener("click", openExternal, true);
+    return () => document.removeEventListener("click", openExternal, true);
+  }, []);
+
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
   const [error, setError] = useState("");

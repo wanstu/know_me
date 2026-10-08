@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,11 +42,23 @@ var frontend embed.FS
 var appIcon []byte
 
 type DesktopBridge struct {
-	url string
+	url          string
+	openExternal func(string) error
 }
 
 func (b *DesktopBridge) URL() string {
 	return b.url
+}
+
+func (b *DesktopBridge) OpenExternalURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		return errors.New("invalid external browser URL")
+	}
+	if b.openExternal == nil {
+		return errors.New("desktop browser is not ready")
+	}
+	return b.openExternal(raw)
 }
 
 type coreRuntime struct {
@@ -233,7 +246,15 @@ func run() error {
 	window.MinWidth = 820
 	window.MinHeight = 600
 
-	bridge := &DesktopBridge{url: coreURL}
+	bridge := &DesktopBridge{url: coreURL, openExternal: func(target string) error {
+		controllerMu.RLock()
+		current := controller
+		controllerMu.RUnlock()
+		if current == nil {
+			return errors.New("desktop controller is not ready")
+		}
+		return current.OpenURL(target)
+	}}
 
 	var shutdownErr error
 	err = desktopkit.Run(desktopkit.Config{

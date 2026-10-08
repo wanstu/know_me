@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -86,7 +87,8 @@ func serve(args []string) error {
 	}
 
 	fmt.Printf("Know Me %s\n", version)
-	fmt.Printf("Listen:   http://%s\n", displayAddress(address))
+	fmt.Printf("Bind:     %s\n", address)
+	fmt.Printf("Local:    http://%s\n", displayAddress(address))
 	fmt.Printf("Health:   http://%s/api/health\n", displayAddress(address))
 	fmt.Printf("Data:     %s\n", config.DataDir)
 	fmt.Printf("Database: %s\n", database.ResolvePath(config.DataDir, config.Database))
@@ -383,8 +385,12 @@ func addStorageFlags(flags *flag.FlagSet, config *runtimeconfig.Config) {
 }
 
 func displayAddress(address string) string {
-	if len(address) > 0 && address[0] == ':' {
-		return "127.0.0.1" + address
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		return net.JoinHostPort("127.0.0.1", port)
 	}
 	return address
 }
@@ -407,7 +413,7 @@ func printHelp() {
 		"  know-me backup restore --file file.zip\n" +
 		"  know-me version\n\n" +
 		"Serve options:\n" +
-		"  --listen       HTTP listen address (default 127.0.0.1:3000)\n" +
+		"  --listen       HTTP listen address (default 0.0.0.0:3000)\n" +
 		"  --data-dir     persistent data directory (default ./data)\n" +
 		"  --uploads-dir  media uploads directory (default ./uploads)\n" +
 		"  --database     SQLite path (default <data-dir>/know-me.db)\n" +

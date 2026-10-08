@@ -509,7 +509,7 @@ function AdminNotFound() {
   );
 }
 
-type SettingsSection = "profile" | "start" | "theme" | "content" | "footer";
+type SettingsSection = "profile" | "start" | "theme" | "content" | "footer" | "network";
 
 function reorderValues<T>(values: T[], from: number, to: number) {
   if (from === to || from < 0 || to < 0 || from >= values.length || to >= values.length) return values;
@@ -615,6 +615,88 @@ function MediaField({
         </div>
       ) : null}
     </div>
+  );
+}
+
+type NetworkAccessPolicy = { enabled: boolean; allowedHosts: string[]; allowedIPs: string[] };
+
+function networkAccessError(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : "保存失败";
+  const translated: Record<string, string> = {
+    invalid_access_policy: "规则不合法：请填写正确的域名、IP 或 CIDR，启用白名单时至少配置一项。",
+    current_connection_not_allowed: "新规则不允许你当前的连接。请先加入当前域名和客户端 IP，避免无法进入后台。",
+    save_access_policy_failed: "保存访问规则失败，请检查数据目录权限。",
+    unauthorized: "请先登录后再修改访问规则。"
+  };
+  return translated[message] || message;
+}
+
+function NetworkAccessSettings() {
+  const [value, setValue] = useState<NetworkAccessPolicy | null>(null);
+  const [hosts, setHosts] = useState("");
+  const [ips, setIPs] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void requestJSON<{policy: NetworkAccessPolicy}>("/api/admin/network-access")
+      .then(({policy}) => {
+        setValue(policy);
+        setHosts((policy.allowedHosts ?? []).join("\n"));
+        setIPs((policy.allowedIPs ?? []).join("\n"));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "无法读取网络访问设置"));
+  }, []);
+
+  async function savePolicy() {
+    if (!value) return;
+    setError("");
+    setMessage("");
+    setSaving(true);
+    try {
+      const list = (raw: string) => raw.split(/[\n,;]+/).map((text) => text.trim()).filter(Boolean);
+      const next = { enabled: value.enabled, allowedHosts: list(hosts), allowedIPs: list(ips) };
+      const result = await requestJSON<{policy: NetworkAccessPolicy}>("/api/admin/network-access", {
+        method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(next)
+      });
+      setValue(result.policy);
+      setHosts(result.policy.allowedHosts.join("\n"));
+      setIPs(result.policy.allowedIPs.join("\n"));
+      setMessage("已保存，立即生效");
+    } catch (reason) {
+      setError(networkAccessError(reason));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!value) return <section className="km-panel km-admin-form"><p className="km-muted">{error || "正在读取访问规则…"}</p><button className="dk-button" onClick={() => window.location.reload()}>重试</button></section>;
+  return (
+    <section className="km-panel km-admin-form km-settings-form">
+      <header><span className="km-eyebrow">NETWORK</span><h2>网络访问</h2><p>默认允许通过任意域名或 IP 访问。此处只负责可选访问白名单，不改变服务监听地址。</p></header>
+      <label className="km-settings-checkbox">
+        <input type="checkbox" checked={value.enabled} onChange={(event) => setValue({ ...value, enabled: event.target.checked })} />
+        <span>启用域名 / IP 白名单（默认关闭）</span>
+      </label>
+      <div className="km-form-grid">
+        <label className="dk-field">允许的访问域名
+          <textarea rows={5} value={hosts} disabled={!value.enabled} onChange={(event) => setHosts(event.target.value)} placeholder={"example.com\nlocalhost"} />
+          <small>按行填写；匹配浏览器实际访问的 Host，忽略端口。留空表示不检查域名。</small>
+        </label>
+        <label className="dk-field">允许的客户端 IP / 网段
+          <textarea rows={5} value={ips} disabled={!value.enabled} onChange={(event) => setIPs(event.target.value)} placeholder={"192.168.1.10\n192.168.1.0/24"} />
+          <small>支持 IP 和 CIDR；使用实际连接 IP，不盲目信任 X-Forwarded-For。留空表示不检查客户端 IP。</small>
+        </label>
+      </div>
+      <p className="km-muted">同时填写域名和 IP 时，两项必须都符合。启用前请包含你当前访问的域名和客户端 IP，避免把自己锁在后台之外。规则保存在数据目录 network-access.json。</p>
+      {error ? <div className="dk-message is-danger">{error}</div> : null}
+      {message ? <div className="dk-message">{message}</div> : null}
+      <div className="km-form-actions">
+        <span className="km-settings-dirty">{value.enabled ? "白名单已准备启用" : "白名单未启用，所有域名和 IP 均可访问"}</span>
+        <button type="button" className="dk-button dk-button-primary" disabled={saving} onClick={() => void savePolicy()}>{saving ? "保存中…" : "保存访问设置"}</button>
+      </div>
+    </section>
   );
 }
 
@@ -783,7 +865,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
           ["start", "Start"],
           ["theme", "主题"],
           ["content", "链接与项目"],
-          ["footer", "页脚"]
+          ["footer", "页脚"],
+          ["network", "网络访问"]
         ] as const).map(([value, label]) => (
           <button type="button" key={value} className={section === value ? "is-active" : ""} onClick={() => setSection(value)}>
             {label}
@@ -792,7 +875,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
         <span className={dirty ? "is-dirty" : ""}>{dirty ? "有未保存修改" : "已保存"}</span>
       </nav>
 
-      <form className="km-panel km-admin-form km-settings-form" onSubmit={save}>
+      {section === "network" ? <NetworkAccessSettings /> : <form className="km-panel km-admin-form km-settings-form" onSubmit={save}>
         {section === "profile" ? (
           <section className="km-settings-pane">
             <header><span className="km-eyebrow">PROFILE</span><h2>主页内容</h2><p>设置个人主页的名称、简介、头像和背景。</p></header>
@@ -995,7 +1078,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             <button className="dk-button dk-button-primary" disabled={busy || !dirty}>{busy ? "保存中…" : "保存设置"}</button>
           </div>
         </div>
-      </form>
+      </form>}
       {message ? <Toast message={messageTone === "error" ? errorText(message) : message} tone={messageTone} onClose={() => setMessage("")} /> : null}
     </>
   );
