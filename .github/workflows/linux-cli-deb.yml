@@ -57,8 +57,8 @@ jobs:
           test -x /usr/bin/know-me
           curl --fail --retry 20 --retry-delay 1 --retry-connrefused --silent --show-error http://127.0.0.1:3000/api/health
           sudo systemctl is-active --quiet know-me-cli.service
-          test -d /var/lib/know-me-cli/data
-          test -d /var/lib/know-me-cli/uploads
+          sudo test -d /var/lib/know-me-cli/data
+          sudo test -d /var/lib/know-me-cli/uploads
           sudo sh -c 'echo keep-me > /var/lib/know-me-cli/preservation-check.txt'
 
       - name: Upgrade/reinstall without destroying data
