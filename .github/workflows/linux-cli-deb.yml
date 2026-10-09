@@ -40,7 +40,7 @@ jobs:
           test "$(dpkg-deb --field "$pkg" Architecture)" = "amd64"
           dpkg-deb --contents "$pkg" | grep -F '/usr/bin/know-me'
           dpkg-deb --contents "$pkg" | grep -F '/lib/systemd/system/know-me-cli.service'
-          dpkg-deb --ctrl-tarfile "$pkg" | tar -tzf - | grep -E '(^|/)post(inst|rm)$'
+          dpkg-deb --ctrl-tarfile "$pkg" | tar -tf - | grep -E '(^|/)post(inst|rm)$'
           (cd dist && sha256sum --check know-me-v0.1.8-rc.1-linux-amd64.deb.sha256)
           command -v dpkg-deb
 
