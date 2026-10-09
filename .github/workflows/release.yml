@@ -103,6 +103,16 @@ jobs:
               shasum -a 256 "${file}" > "${file}.sha256"
             fi
           )
+      - name: Package Linux CLI Debian service
+        if: matrix.asset == 'linux-amd64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/package-linux-cli-deb.sh \
+            "dist/know-me-${GITHUB_REF_NAME}-linux-amd64" \
+            "${GITHUB_REF_NAME}" dist
+          dpkg-deb --info "dist/know-me-${GITHUB_REF_NAME}-linux-amd64.deb"
+          dpkg-deb --contents "dist/know-me-${GITHUB_REF_NAME}-linux-amd64.deb" | grep -F '/lib/systemd/system/know-me-cli.service'
       - uses: actions/upload-artifact@v4
         with:
           name: know-me-cli-${{ matrix.asset }}
@@ -194,6 +204,7 @@ jobs:
           required=(
             "know-me-${GITHUB_REF_NAME}-windows-amd64.exe"
             "know-me-${GITHUB_REF_NAME}-linux-amd64"
+            "know-me-${GITHUB_REF_NAME}-linux-amd64.deb"
             "know-me-${GITHUB_REF_NAME}-macos-amd64"
             "know-me-${GITHUB_REF_NAME}-macos-arm64"
             "know-me-desktop-${GITHUB_REF_NAME}-windows-amd64.exe"

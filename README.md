@@ -67,6 +67,8 @@ know-me-<version>-darwin-amd64
 know-me-<version>-darwin-arm64
 ~~~
 
+新版本 Linux CLI 将额外提供带独立 systemd 服务的 `.deb` 安装包：`know-me-cli.service`、`/var/lib/know-me-cli` 持久化目录、安装自启、升级重启及卸载保留数据。原有手动部署的 `know-me.service` 不会被接管。使用说明参见 [Linux CLI Debian 安装](docs/18-linux-cli-deb.md)。
+
 CLI 默认监听 **`0.0.0.0:3000`**，在端口可达的情况下可以通过服务器任意 IP 或指向它的域名访问；不会默认限制 Host 或客户端 IP。已存在的 `~/.config/know-me/settings.json` 如明确配置了 `127.0.0.1:3000`，仍会尊重该配置，可在其中将 `listen` 改为 `0.0.0.0:3000`。
 
 后台 **设置 → 网络访问** 提供可选的域名 / IP 白名单，**默认关闭**。启用后域名按访问时的 Host 匹配，IP 可填写单个地址或 CIDR 网段；两栏都填写时必须同时命中。客户端 IP 使用直接连接地址，反向代理部署需要考虑代理的实际连接来源；规则保存在持久化数据目录下的 `network-access.json`。桌面版本地 Core 为保护本地控制接口仍固定绑定 `127.0.0.1` 随机端口。
@@ -98,7 +100,8 @@ GitHub Actions 已配置四条主要流水线：
 - `.github/workflows/ci.yml`：master push / PR 自动执行原 Next.js 兼容链路、全部 smoke test、生产构建和 Docker 镜像发布。
 - `.github/workflows/native-cli.yml`：Go Native Core 的测试、vet 和 Windows / Linux / macOS CLI 构建。
 - `.github/workflows/desktop.yml`：调用 Desktop Kit v0.6.1 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
-- `.github/workflows/release.yml`：推送 `v*` Tag 时统一验证源码、构建 4 个 CLI、5 个 Desktop 资产、Docker 镜像，并汇总到同一个 GitHub Release。
+- `.github/workflows/release.yml`：推送 `v*` Tag 时统一验证源码、构建 4 个 CLI、Linux CLI systemd `.deb`、Desktop 资产、Docker 镜像，并汇总到同一个 GitHub Release。
+- `.github/workflows/linux-cli-deb.yml`：隔离 Ubuntu CI 验收 CLI `.deb` 安装、systemd 自启、升级和保留数据卸载。
 
 master 镜像：
 
@@ -129,6 +132,7 @@ Tag Release 核心资产：
 CLI
 know-me-vX.Y.Z-windows-amd64.exe
 know-me-vX.Y.Z-linux-amd64
+know-me-vX.Y.Z-linux-amd64.deb
 know-me-vX.Y.Z-macos-amd64
 know-me-vX.Y.Z-macos-arm64
 
@@ -140,7 +144,7 @@ know-me-desktop-vX.Y.Z-linux-amd64.tar.gz
 know-me-desktop-vX.Y.Z-macos-universal.app.zip
 ~~~
 
-每个资产都会同时发布对应的 `.sha256`。Linux `.deb` 会安装 `know-me-desktop` 可执行文件、桌面入口和应用图标。
+每个资产都会同时发布对应的 `.sha256`。**Linux CLI `.deb`** 安装 `/usr/bin/know-me` 及 `know-me-cli.service`；**Linux Desktop `.deb`** 安装 `know-me-desktop`、桌面入口和图标。
 
 设计文档位于 docs，静态原型位于 prototype/index.html。
 
