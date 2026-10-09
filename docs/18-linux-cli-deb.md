@@ -1,15 +1,14 @@
 # Linux CLI Debian 安装与 systemd
 
-从 **下一次包含此改动的 Release** 开始，Know Me Linux CLI 将额外发布 `know-me-vX.Y.Z-linux-amd64.deb` 和对应的 `.sha256`。此处不是 Wails Desktop 的 `know-me-desktop-...deb`。
+自 `v0.1.8-rc.1` 起，Know Me Linux CLI 已额外发布 `know-me-vX.Y.Z-linux-amd64.deb` 和对应的 `.sha256`。此处不是 Wails Desktop 的 `know-me-desktop-...deb`。
 
-使用 Kit v0.11.0 的 `desktopkit package linux --systemd` 生成包。目标平台为 systemd 系统上的 Debian / Ubuntu amd64，不依赖桌面图形库。
+使用 Kit v0.11.3 的 `desktopkit package linux --systemd` 生成包。目标平台为 systemd 系统上的 Debian / Ubuntu amd64，不依赖桌面图形库。
 
 ## 首次安装
 
 ```bash
 sudo apt install ./know-me-vX.Y.Z-linux-amd64.deb
-systemctl status know-me-cli --no-pager
-systemctl is-enabled know-me-cli
+know-me service status
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
@@ -38,19 +37,20 @@ Environment="KNOW_ME_LISTEN=0.0.0.0:8003"
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart know-me-cli
-systemctl status know-me-cli --no-pager
+know-me service restart
+know-me service status
 journalctl -u know-me-cli -n 100 --no-pager
 ```
 
 ## 管理与升级
 
 ```bash
-sudo systemctl start know-me-cli
-sudo systemctl stop know-me-cli
-sudo systemctl restart know-me-cli
-sudo systemctl enable know-me-cli
-sudo systemctl disable know-me-cli
+know-me service status
+know-me service start
+know-me service stop
+know-me service restart
+know-me service enable
+know-me service disable
 sudo apt install ./know-me-vNEXT-linux-amd64.deb
 sudo apt purge know-me-cli
 ```
@@ -69,4 +69,4 @@ sudo apt purge know-me-cli
 - `.github/workflows/release.yml`：Linux CLI 构建完毕后自动调用 Kit 打包，并将 `.deb` 与 `.sha256` 合并进 Release，强制校验文件存在及哈希。
 - `.github/workflows/linux-cli-deb.yml`：隔离的 Ubuntu runner 中真实验证 apt 安装、systemd 自启动、HTTP 健康检查、重新安装、purge 后数据留存。
 
-正式发布 `v0.1.7` 不包含此安装包；此功能先在独立开发分支中验收，不修改既有 Release。
+正式发布 `v0.1.7` 不包含此安装包，`v0.1.8-rc.1` 的 CLI 二进制也不支持 `know-me service` 命令。后续包含 Kit `v0.11.3` 的候选版本才支持这些命令。发布前必须经真实已安装 CLI 的 Linux E2E 验证。

@@ -73,7 +73,7 @@ CLI 默认监听 **`0.0.0.0:3000`**，在端口可达的情况下可以通过服
 
 后台 **设置 → 网络访问** 提供可选的域名 / IP 白名单，**默认关闭**。启用后域名按访问时的 Host 匹配，IP 可填写单个地址或 CIDR 网段；两栏都填写时必须同时命中。客户端 IP 使用直接连接地址，反向代理部署需要考虑代理的实际连接来源；规则保存在持久化数据目录下的 `network-access.json`。桌面版本地 Core 为保护本地控制接口仍固定绑定 `127.0.0.1` 随机端口。
 
-Native UI 已升级到 `wails-desktop-kit v0.6.1`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.6.1 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
+Native UI 已升级到 `wails-desktop-kit v0.11.3`。Phase 5.2～5.6 已完成：pure-Go SQLite、认证 / session、settings、导航与 iTab、博客 / revisions / taxonomy、FTS、媒体、完整备份、Vite + React 静态前端以及 Wails Desktop wrapper 都已经由 Go Native Runtime 提供，并保持现有数据库和备份格式兼容。Kit Runtime Theme 已直接接入 CLI HTTP Server，4 套离线 fallback + 运行时完整主题集继续可用；Desktop 使用 Kit 的单实例、托盘、登录自启和生命周期管理。发布侧接入 Kit v0.11.3 Packaging Pipeline：Linux Desktop 同时提供 raw / `.deb` / `.tar.gz`，后续可通过 post-package hook 增加 AppImage 等格式而无需改 Release 聚合逻辑。普通运行配置仍位于 `~/.config/know-me/settings.json`，数据库与上传文件继续由 `data/`、`uploads/` 持久化目录管理。完整计划见 `docs/14-native-runtime-refactor.md`。
 
 Native 配置与数据初始化：
 
@@ -99,7 +99,7 @@ GitHub Actions 已配置四条主要流水线：
 
 - `.github/workflows/ci.yml`：master push / PR 自动执行原 Next.js 兼容链路、全部 smoke test、生产构建和 Docker 镜像发布。
 - `.github/workflows/native-cli.yml`：Go Native Core 的测试、vet 和 Windows / Linux / macOS CLI 构建。
-- `.github/workflows/desktop.yml`：调用 Desktop Kit v0.6.1 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
+- `.github/workflows/desktop.yml`：调用 Desktop Kit v0.11.3 reusable workflow，构建 Windows / Linux / macOS Desktop；Linux 同时生成 raw / `.deb` / `.tar.gz`。
 - `.github/workflows/release.yml`：推送 `v*` Tag 时统一验证源码、构建 4 个 CLI、Linux CLI systemd `.deb`、Desktop 资产、Docker 镜像，并汇总到同一个 GitHub Release。
 - `.github/workflows/linux-cli-deb.yml`：隔离 Ubuntu CI 验收 CLI `.deb` 安装、systemd 自启、升级和保留数据卸载。
 

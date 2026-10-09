@@ -50,6 +50,8 @@ func run(args []string) error {
 		return configCommand(args[1:])
 	case "backup":
 		return backupCommand(args[1:])
+	case "service":
+		return serviceCommand(args[1:])
 	case "version", "--version", "-v":
 		fmt.Printf("know-me %s (%s) %s/%s built %s\n", version, commit, runtime.GOOS, runtime.GOARCH, buildTime)
 		return nil
@@ -411,6 +413,7 @@ func printHelp() {
 		"  know-me config path|show|init\n" +
 		"  know-me backup export [--output file.zip]\n" +
 		"  know-me backup restore --file file.zip\n" +
+		"  know-me service status|start|stop|restart|enable|disable\n" +
 		"  know-me version\n\n" +
 		"Serve options:\n" +
 		"  --listen       HTTP listen address (default 0.0.0.0:3000)\n" +
