@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getSessionUser } from "@/lib/auth/session";
 import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
 import { PublicFooter } from "@/components/public-footer";
@@ -26,12 +27,14 @@ function external(value: string) {
   return /^https?:\/\//i.test(value);
 }
 
-export default function HomePage() {
+export default async function HomePage() {
   const settings = getSiteSettings();
+  const authenticated = Boolean(await getSessionUser());
   const socials = settings.socialLinks
     .map((item) => ({ ...item, href: safeHref(item.url) }))
     .filter((item) => item.label && item.href);
   const entries = settings.homeEntries
+    .filter((item) => item.visibility === "authenticated" ? authenticated : item.visibility === "guest" ? !authenticated : true)
     .map((item) => ({ ...item, href: safeHref(item.url, false) }))
     .filter((item) => item.name && item.href);
   const projects = settings.projects
