@@ -48,16 +48,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'sudo systemctl status know-me-cli.service --no-pager || true; sudo journalctl -u know-me-cli.service -n 80 --no-pager || true' ERR
           sudo apt-get install -y ./dist/know-me-v0.1.8-rc.1-linux-amd64.deb
           sudo systemctl is-enabled --quiet know-me-cli.service
-          sudo systemctl is-active --quiet know-me-cli.service
           test "$(systemctl show -p User --value know-me-cli.service)" = "know-me-cli"
           test "$(systemctl show -p WorkingDirectory --value know-me-cli.service)" = "/var/lib/know-me-cli"
           id know-me-cli
           test -x /usr/bin/know-me
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused --silent --show-error http://127.0.0.1:3000/api/health
+          sudo systemctl is-active --quiet know-me-cli.service
           test -d /var/lib/know-me-cli/data
           test -d /var/lib/know-me-cli/uploads
-          curl --fail --retry 12 --retry-delay 1 --retry-connrefused --silent --show-error http://127.0.0.1:3000/api/health
           sudo sh -c 'echo keep-me > /var/lib/know-me-cli/preservation-check.txt'
 
       - name: Upgrade/reinstall without destroying data
