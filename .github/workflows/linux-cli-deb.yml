@@ -1,0 +1,93 @@
+name: Linux CLI Debian E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - adm-dev/feat/linux-cli-deb
+
+permissions:
+  contents: read
+
+jobs:
+  install-upgrade-purge:
+    name: Debian install / systemd / upgrade / uninstall
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Go-only Linux CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/know-me-v0.1.8-linux-amd64 ./cmd/know-me
+
+      - name: Package with Kit and inspect Debian metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/package-linux-cli-deb.sh dist/know-me-v0.1.8-linux-amd64 v0.1.8 dist
+          pkg=dist/know-me-v0.1.8-linux-amd64.deb
+          test "$(dpkg-deb --field "$pkg" Package)" = "know-me-cli"
+          test "$(dpkg-deb --field "$pkg" Version)" = "0.1.8"
+          test "$(dpkg-deb --field "$pkg" Architecture)" = "amd64"
+          dpkg-deb --contents "$pkg" | grep -F '/usr/bin/know-me'
+          dpkg-deb --contents "$pkg" | grep -F '/lib/systemd/system/know-me-cli.service'
+          dpkg-deb --ctrl-tarfile "$pkg" | tar -tf - | grep -E '(^|/)post(inst|rm)$'
+          (cd dist && sha256sum --check know-me-v0.1.8-linux-amd64.deb.sha256)
+          command -v dpkg-deb
+
+      - name: Install with apt and verify auto-start
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'sudo systemctl status know-me-cli.service --no-pager || true; sudo journalctl -u know-me-cli.service -n 80 --no-pager || true' ERR
+          sudo apt-get install -y ./dist/know-me-v0.1.8-linux-amd64.deb
+          sudo systemctl is-enabled --quiet know-me-cli.service
+          test "$(systemctl show -p User --value know-me-cli.service)" = "know-me-cli"
+          test "$(systemctl show -p WorkingDirectory --value know-me-cli.service)" = "/var/lib/know-me-cli"
+          id know-me-cli
+          test -x /usr/bin/know-me
+          # Exercise the installed product CLI, not only the Kit library or systemctl.
+          know-me service status | grep -F 'Running: active'
+          know-me service restart
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused --silent --show-error http://127.0.0.1:3000/api/health
+          sudo systemctl is-active --quiet know-me-cli.service
+          know-me service stop
+          know-me service status | grep -F 'Running: inactive'
+          know-me service start
+          know-me service disable
+          know-me service status | grep -F 'Boot:    disabled'
+          know-me service enable
+          know-me service status | grep -F 'Boot:    enabled'
+          sudo test -d /var/lib/know-me-cli/data
+          sudo test -d /var/lib/know-me-cli/uploads
+          sudo sh -c 'echo keep-me > /var/lib/know-me-cli/preservation-check.txt'
+
+      - name: Upgrade/reinstall without destroying data
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install --reinstall -y ./dist/know-me-v0.1.8-linux-amd64.deb
+          test "$(sudo cat /var/lib/know-me-cli/preservation-check.txt)" = "keep-me"
+          know-me service status | grep -F 'Running: active'
+          sudo systemctl is-active --quiet know-me-cli.service
+          curl --fail --retry 12 --retry-delay 1 --retry-connrefused --silent --show-error http://127.0.0.1:3000/api/health
+
+      - name: Remove package but preserve persistent data
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get purge -y know-me-cli
+          test "$(sudo cat /var/lib/know-me-cli/preservation-check.txt)" = "keep-me"
+          test ! -e /usr/bin/know-me
+          test ! -e /lib/systemd/system/know-me-cli.service
+          echo "PASS: install, boot enable, service start, HTTP health, reinstall, purge, data preserved"
