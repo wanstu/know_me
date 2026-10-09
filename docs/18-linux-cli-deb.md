@@ -69,4 +69,4 @@ sudo apt purge know-me-cli
 - `.github/workflows/release.yml`：Linux CLI 构建完毕后自动调用 Kit 打包，并将 `.deb` 与 `.sha256` 合并进 Release，强制校验文件存在及哈希。
 - `.github/workflows/linux-cli-deb.yml`：隔离的 Ubuntu runner 中真实验证 apt 安装、systemd 自启动、HTTP 健康检查、重新安装、purge 后数据留存。
 
-正式发布 `v0.1.7` 不包含此安装包，`v0.1.8-rc.1` 的 CLI 二进制也不支持 `know-me service` 命令。后续包含 Kit `v0.11.3` 的候选版本才支持这些命令。发布前必须经真实已安装 CLI 的 Linux E2E 验证。
+正式发布 `v0.1.7` 不包含此安装包。`v0.1.8-rc.1` 已支持 Debian 安装但缺少 `know-me service`；`v0.1.8-rc.2` 起已接入 Kit `v0.11.3` 的服务管理命令，并通过真实安装 E2E。`v0.1.8` 正式版增加中文 CLI 帮助。

@@ -69,9 +69,9 @@ func serve(args []string) error {
 		return err
 	}
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
-	flags.StringVar(&config.Listen, "listen", config.Listen, "HTTP listen address")
+	flags.StringVar(&config.Listen, "listen", config.Listen, "HTTP 监听地址")
 	addStorageFlags(flags, &config)
-	flags.StringVar(&config.SiteURL, "site-url", config.SiteURL, "public site URL")
+	flags.StringVar(&config.SiteURL, "site-url", config.SiteURL, "站点公开地址")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -166,9 +166,9 @@ func adminInit(args []string) error {
 	username := envOr("ADMIN_USERNAME", "admin")
 	password := strings.TrimSpace(os.Getenv("ADMIN_PASSWORD"))
 	displayName := strings.TrimSpace(os.Getenv("ADMIN_DISPLAY_NAME"))
-	flags.StringVar(&username, "username", username, "administrator username")
-	flags.StringVar(&password, "password", password, "administrator password; generated when omitted")
-	flags.StringVar(&displayName, "display-name", displayName, "administrator display name")
+	flags.StringVar(&username, "username", username, "管理员用户名")
+	flags.StringVar(&password, "password", password, "管理员密码；省略时随机生成")
+	flags.StringVar(&displayName, "display-name", displayName, "管理员显示名称")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -289,7 +289,7 @@ func backupExport(args []string) error {
 	flags := flag.NewFlagSet("backup export", flag.ContinueOnError)
 	addStorageFlags(flags, &config)
 	output := ""
-	flags.StringVar(&output, "output", output, "backup ZIP output path")
+	flags.StringVar(&output, "output", output, "备份 ZIP 输出路径")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -337,7 +337,7 @@ func backupRestore(args []string) error {
 	flags := flag.NewFlagSet("backup restore", flag.ContinueOnError)
 	addStorageFlags(flags, &config)
 	input := ""
-	flags.StringVar(&input, "file", input, "backup ZIP to restore")
+	flags.StringVar(&input, "file", input, "需要恢复的备份 ZIP 路径")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -381,9 +381,9 @@ func backupRestore(args []string) error {
 }
 
 func addStorageFlags(flags *flag.FlagSet, config *runtimeconfig.Config) {
-	flags.StringVar(&config.DataDir, "data-dir", config.DataDir, "persistent data directory")
-	flags.StringVar(&config.UploadsDir, "uploads-dir", config.UploadsDir, "media uploads directory")
-	flags.StringVar(&config.Database, "database", config.Database, "SQLite database path; defaults to <data-dir>/know-me.db")
+	flags.StringVar(&config.DataDir, "data-dir", config.DataDir, "持久化数据目录")
+	flags.StringVar(&config.UploadsDir, "uploads-dir", config.UploadsDir, "上传文件目录")
+	flags.StringVar(&config.Database, "database", config.Database, "SQLite 数据库路径；默认 <data-dir>/know-me.db")
 }
 
 func displayAddress(address string) string {
@@ -405,34 +405,54 @@ func envOr(key, fallback string) string {
 }
 
 func printHelp() {
-	fmt.Print("Know Me native runtime\n\n" +
-		"Usage:\n" +
-		"  know-me serve [options]\n" +
-		"  know-me db migrate [options]\n" +
-		"  know-me admin init [options]\n" +
-		"  know-me config path|show|init\n" +
-		"  know-me backup export [--output file.zip]\n" +
-		"  know-me backup restore --file file.zip\n" +
-		"  know-me service status|start|stop|restart|enable|disable\n" +
-		"  know-me version\n\n" +
-		"Serve options:\n" +
-		"  --listen       HTTP listen address (default 0.0.0.0:3000)\n" +
-		"  --data-dir     persistent data directory (default ./data)\n" +
-		"  --uploads-dir  media uploads directory (default ./uploads)\n" +
-		"  --database     SQLite path (default <data-dir>/know-me.db)\n" +
-		"  --site-url     public URL used by generated links\n\n" +
-		"Admin init:\n" +
-		"  --username      administrator username (default admin)\n" +
-		"  --password      password; generated when omitted\n" +
-		"  --display-name  display name\n\n" +
-		"Environment:\n" +
-		"  KNOW_ME_LISTEN\n" +
-		"  KNOW_ME_DATA_DIR\n" +
-		"  KNOW_ME_UPLOADS_DIR\n" +
-		"  KNOW_ME_DATABASE\n" +
-		"  DATABASE_URL\n" +
-		"  SITE_URL\n" +
-		"  ADMIN_USERNAME\n" +
-		"  ADMIN_PASSWORD\n" +
-		"  ADMIN_DISPLAY_NAME\n")
+	fmt.Print(`Know Me 原生服务端
+
+用法：
+  know-me <命令> [选项]
+
+命令：
+  serve                 启动 HTTP 服务（无参数时的默认操作）
+  db migrate            初始化或升级数据库
+  admin init            初始化或更新管理员
+  config path|show|init 查看配置文件路径、内容或创建默认配置
+  backup export         导出备份（--output 文件.zip）
+  backup restore        恢复备份（--file 文件.zip）
+  service               管理 .deb 安装的 Linux systemd 服务
+  version               查看版本信息
+  help                  显示本帮助
+
+服务管理：
+  know-me service status    查看运行状态和开机自启状态
+  know-me service start     启动服务
+  know-me service stop      停止服务
+  know-me service restart   重启服务
+  know-me service enable    启用开机自启
+  know-me service disable   关闭开机自启
+  know-me service --help    查看服务管理说明
+
+启动选项：
+  --listen       HTTP 监听地址（默认 0.0.0.0:3000）
+  --data-dir     持久化数据目录（默认 ./data）
+  --uploads-dir  上传文件目录（默认 ./uploads）
+  --database     SQLite 数据库路径（默认 <data-dir>/know-me.db）
+  --site-url     用于生成链接的站点公开地址
+
+管理员初始化选项：
+  --username      管理员用户名（默认 admin）
+  --password      管理员密码（省略则随机生成）
+  --display-name  管理员显示名称
+
+环境变量：
+  KNOW_ME_LISTEN
+  KNOW_ME_DATA_DIR
+  KNOW_ME_UPLOADS_DIR
+  KNOW_ME_DATABASE
+  DATABASE_URL
+  SITE_URL
+  ADMIN_USERNAME
+  ADMIN_PASSWORD
+  ADMIN_DISPLAY_NAME
+
+提示：可使用 know-me <命令> -h 查看各命令选项。
+`)
 }

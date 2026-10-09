@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - master
       - adm-dev/feat/linux-cli-deb
 
 permissions:
@@ -27,21 +28,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/know-me-v0.1.8-rc.2-linux-amd64 ./cmd/know-me
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/know-me-v0.1.8-linux-amd64 ./cmd/know-me
 
       - name: Package with Kit and inspect Debian metadata
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/package-linux-cli-deb.sh dist/know-me-v0.1.8-rc.2-linux-amd64 v0.1.8-rc.2 dist
-          pkg=dist/know-me-v0.1.8-rc.2-linux-amd64.deb
+          bash scripts/package-linux-cli-deb.sh dist/know-me-v0.1.8-linux-amd64 v0.1.8 dist
+          pkg=dist/know-me-v0.1.8-linux-amd64.deb
           test "$(dpkg-deb --field "$pkg" Package)" = "know-me-cli"
-          test "$(dpkg-deb --field "$pkg" Version)" = "0.1.8~rc.2"
+          test "$(dpkg-deb --field "$pkg" Version)" = "0.1.8"
           test "$(dpkg-deb --field "$pkg" Architecture)" = "amd64"
           dpkg-deb --contents "$pkg" | grep -F '/usr/bin/know-me'
           dpkg-deb --contents "$pkg" | grep -F '/lib/systemd/system/know-me-cli.service'
           dpkg-deb --ctrl-tarfile "$pkg" | tar -tf - | grep -E '(^|/)post(inst|rm)$'
-          (cd dist && sha256sum --check know-me-v0.1.8-rc.2-linux-amd64.deb.sha256)
+          (cd dist && sha256sum --check know-me-v0.1.8-linux-amd64.deb.sha256)
           command -v dpkg-deb
 
       - name: Install with apt and verify auto-start
@@ -49,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           trap 'sudo systemctl status know-me-cli.service --no-pager || true; sudo journalctl -u know-me-cli.service -n 80 --no-pager || true' ERR
-          sudo apt-get install -y ./dist/know-me-v0.1.8-rc.2-linux-amd64.deb
+          sudo apt-get install -y ./dist/know-me-v0.1.8-linux-amd64.deb
           sudo systemctl is-enabled --quiet know-me-cli.service
           test "$(systemctl show -p User --value know-me-cli.service)" = "know-me-cli"
           test "$(systemctl show -p WorkingDirectory --value know-me-cli.service)" = "/var/lib/know-me-cli"
@@ -75,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get install --reinstall -y ./dist/know-me-v0.1.8-rc.2-linux-amd64.deb
+          sudo apt-get install --reinstall -y ./dist/know-me-v0.1.8-linux-amd64.deb
           test "$(sudo cat /var/lib/know-me-cli/preservation-check.txt)" = "keep-me"
           know-me service status | grep -F 'Running: active'
           sudo systemctl is-active --quiet know-me-cli.service
