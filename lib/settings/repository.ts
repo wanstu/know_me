@@ -5,7 +5,8 @@ export type ThemeMode = "auto" | "dark" | "light";
 export type ThemePreset = string;
 export type StartDensity = "compact" | "comfortable" | "spacious";
 export type SocialLink = { id: string; label: string; url: string };
-export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean };
+export type HomeEntryVisibility = "all" | "authenticated" | "guest";
+export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean; visibility?: HomeEntryVisibility };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
 export type FriendLink = { id: string; name: string; url: string; visible: boolean };
 
@@ -127,7 +128,8 @@ function normalizeHomeEntries(value: unknown, fallback: HomeEntry[] = []) {
       name: text(row.name, 80),
       description: text(row.description, 160),
       url: text(row.url, 1000),
-      newTab: row.newTab === true
+      newTab: row.newTab === true,
+      visibility: (row.visibility === "authenticated" || row.visibility === "guest" ? row.visibility : "all") as HomeEntryVisibility
     };
   }).filter((entry) => entry.name && entry.url);
 }

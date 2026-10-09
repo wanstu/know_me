@@ -978,7 +978,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             </section>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false }] }))}>新增</button></header>
+              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">显示条件仅控制首页卡片是否出现，不会改变目标页面的访问权限。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
               <div className="km-settings-rows is-entry">
                 {draft.homeEntries.map((item, index) => (
                   <div
@@ -991,7 +991,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
                     <input value={item.name} onChange={(event) => updateHomeEntry(index, "name", event.target.value)} placeholder="名称" />
                     <input value={item.description} onChange={(event) => updateHomeEntry(index, "description", event.target.value)} placeholder="说明" />
                     <input value={item.url} onChange={(event) => updateHomeEntry(index, "url", event.target.value)} placeholder="/blog" />
-                    <label className="km-settings-checkbox"><input type="checkbox" checked={item.newTab} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, newTab: event.target.checked } : entry) }))} />新窗口</label>
+                    <label className="km-entry-visibility">显示条件<select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, visibility: event.target.value as "all" | "authenticated" | "guest" } : entry) }))}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option></select></label>
+                    <label className="km-settings-checkbox"><input type="checkbox" checked={item.newTab} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, newTab: event.target.checked } : entry) }))} />新标签页</label>
                     <div className="km-settings-row-actions">
                       <button type="button" title="上移" aria-label={"上移“" + (item.name || "主页入口") + "”"} disabled={index === 0} onClick={() => moveCollection("entry", index, -1)}>↑</button>
                       <button type="button" title="下移" aria-label={"下移“" + (item.name || "主页入口") + "”"} disabled={index === draft.homeEntries.length - 1} onClick={() => moveCollection("entry", index, 1)}>↓</button>
