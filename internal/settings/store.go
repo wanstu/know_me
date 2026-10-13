@@ -71,6 +71,45 @@ type SocialLink struct {
 	URL   string `json:"url"`
 }
 
+type QuoteEntry struct {
+	ID      string `json:"id"`
+	Text    string `json:"text"`
+	Author  string `json:"author"`
+	Enabled bool   `json:"enabled"`
+}
+
+var builtInQuoteTexts = []string{
+	"把常用的东西放近一点，把重要的事情做深一点。",
+	"先让今天变得清楚，再考虑更远的答案。",
+	"记录不是为了占满时间，而是为了留下路径。",
+	"好工具应该安静地工作，把注意力还给人。",
+	"慢一点整理，也比反复寻找更省时间。",
+	"把复杂留给系统，把简单留给使用的人。",
+	"持续做小而正确的改进，结果会自己累积。",
+	"真正顺手的工作流，不需要每天重新学习。",
+	"今天写下的一点东西，也许会帮到未来的自己。",
+	"页面可以很轻，内容应该足够真。",
+	"不是所有信息都值得保存，但值得保存的要容易找到。",
+	"把入口统一之后，注意力就少了一次切换。",
+}
+
+// LegacyQuoteEntries preserves the formerly single configurable quote and also
+// exposes the existing built-in short sentences for independent editing.
+func LegacyQuoteEntries(legacyText, legacyAuthor string) []QuoteEntry {
+	out := make([]QuoteEntry, 0, len(builtInQuoteTexts)+1)
+	text := trim(legacyText, 500)
+	if text != "" {
+		out = append(out, QuoteEntry{ID: "legacy", Text: text, Author: trim(legacyAuthor, 100), Enabled: true})
+	}
+	for i, text := range builtInQuoteTexts {
+		if text == trim(legacyText, 500) {
+			continue
+		}
+		out = append(out, QuoteEntry{ID: fmt.Sprintf("built-in-%d", i+1), Text: text, Enabled: true})
+	}
+	return out
+}
+
 type HomeEntry struct {
 	ID          string              `json:"id"`
 	Name        string              `json:"name"`
@@ -104,6 +143,7 @@ type SiteSettings struct {
 	QuoteAuthor         string           `json:"quoteAuthor"`
 	QuoteEnabled        bool             `json:"quoteEnabled"`
 	QuoteAuthorEnabled  bool             `json:"quoteAuthorEnabled"`
+	Quotes              []QuoteEntry     `json:"quotes"`
 	GitHubURL           string           `json:"githubUrl"`
 	EmailURL            string           `json:"emailUrl"`
 	AboutURL            string           `json:"aboutUrl"`
@@ -143,6 +183,7 @@ type SitePatch struct {
 	QuoteAuthor         *string           `json:"quoteAuthor"`
 	QuoteEnabled        *bool             `json:"quoteEnabled"`
 	QuoteAuthorEnabled  *bool             `json:"quoteAuthorEnabled"`
+	Quotes              *[]QuoteEntry     `json:"quotes"`
 	GitHubURL           *string           `json:"githubUrl"`
 	EmailURL            *string           `json:"emailUrl"`
 	AboutURL            *string           `json:"aboutUrl"`
@@ -190,6 +231,7 @@ func Defaults() SiteSettings {
 		QuoteAuthor:         "今日短句",
 		QuoteEnabled:        true,
 		QuoteAuthorEnabled:  true,
+		Quotes:              LegacyQuoteEntries("生命如意志永存，青春永远年轻。", "今日短句"),
 		DefaultSearchEngine: SearchBing,
 		SearchEngines:       DefaultSearchEngines(),
 		ThemeMode:           ThemeAuto,
@@ -233,6 +275,9 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 	_ = json.Unmarshal([]byte(raw), &keys)
 	if _, exists := keys["socialLinks"]; !exists {
 		value.SocialLinks = legacySocialLinks(value)
+	}
+	if _, exists := keys["quotes"]; !exists {
+		value.Quotes = LegacyQuoteEntries(value.Quote, value.QuoteAuthor)
 	}
 	return normalize(value), nil
 }
@@ -286,6 +331,9 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	}
 	if p.QuoteAuthorEnabled != nil {
 		v.QuoteAuthorEnabled = *p.QuoteAuthorEnabled
+	}
+	if p.Quotes != nil {
+		v.Quotes = *p.Quotes
 	}
 	if p.GitHubURL != nil {
 		v.GitHubURL = *p.GitHubURL
@@ -380,6 +428,7 @@ func normalize(v SiteSettings) SiteSettings {
 	v.AvatarURL = trim(v.AvatarURL, 1000)
 	v.Quote = trim(v.Quote, 500)
 	v.QuoteAuthor = trim(v.QuoteAuthor, 100)
+	v.Quotes = normalizeQuotes(v.Quotes)
 	v.ICPNumber = trim(v.ICPNumber, 120)
 	v.ICPURL = trim(v.ICPURL, 1000)
 	v.PoliceNumber = trim(v.PoliceNumber, 120)
@@ -501,6 +550,37 @@ func validSearchEngineID(value string) bool {
 		}
 	}
 	return true
+}
+
+func normalizeQuotes(values []QuoteEntry) []QuoteEntry {
+	if values == nil {
+		return []QuoteEntry{}
+	}
+	if len(values) > 300 {
+		values = values[:300]
+	}
+	out := make([]QuoteEntry, 0, len(values))
+	ids := map[string]bool{}
+	for i, item := range values {
+		item.ID = trim(item.ID, 80)
+		if item.ID == "" {
+			item.ID = fmt.Sprintf("quote-%d", i)
+		}
+		if ids[item.ID] {
+			item.ID = fmt.Sprintf("quote-%d", i)
+		}
+		if ids[item.ID] {
+			continue
+		}
+		item.Text = trim(item.Text, 500)
+		item.Author = trim(item.Author, 100)
+		if item.Text == "" {
+			continue
+		}
+		ids[item.ID] = true
+		out = append(out, item)
+	}
+	return out
 }
 
 func normalizeSocial(values []SocialLink) []SocialLink {

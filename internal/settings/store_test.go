@@ -212,3 +212,76 @@ func TestSearchEngineConfigurationPersistenceAndLegacy(t *testing.T) {
 		t.Fatalf("invalid default after filter: %+v", updated)
 	}
 }
+
+func TestQuoteLibraryLegacyAndDailySettingsPersistence(t *testing.T) {
+	t.Parallel()
+	db, err := database.Open(filepath.Join(t.TempDir(), "quotes.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db.SQL)
+	ctx := context.Background()
+
+	// Older versions persisted one quote and one author, without the collection.
+	_, err = db.SQL.ExecContext(ctx,
+		"INSERT INTO settings(key,value_json,updated_at) VALUES('site', ?, 1)",
+		`{"quote":"自己写的短句","quoteAuthor":"自定义署名","quoteEnabled":true}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(old.Quotes) != 13 || old.Quotes[0].Text != "自己写的短句" || old.Quotes[0].Author != "自定义署名" {
+		t.Fatalf("legacy quote not preserved: %+v", old.Quotes)
+	}
+	if !old.Quotes[1].Enabled {
+		t.Fatalf("builtin quotes not active: %+v", old.Quotes[1])
+	}
+
+	entries := []QuoteEntry{
+		{ID: "first", Text: " 每天更好一点 ", Author: "作者", Enabled: true},
+		{ID: "second", Text: "第二条", Enabled: false},
+	}
+	value, err := store.UpdateSite(ctx, SitePatch{Quotes: &entries})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(value.Quotes) != 2 || value.Quotes[0].Text != "每天更好一点" || value.Quotes[1].Enabled {
+		t.Fatalf("stored quotes are incorrect: %+v", value.Quotes)
+	}
+	reloaded, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Quotes) != 2 || reloaded.Quotes[0].Author != "作者" || reloaded.Quotes[1].Enabled {
+		t.Fatalf("quotes didn't reload correctly: %+v", reloaded.Quotes)
+	}
+	empty := []QuoteEntry{}
+	reloaded, err = store.UpdateSite(ctx, SitePatch{Quotes: &empty})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Quotes) != 0 {
+		t.Fatalf("explicitly deleted quote library restored unexpectedly: %+v", reloaded.Quotes)
+	}
+	again, err := store.GetSite(ctx)
+	if err != nil || len(again.Quotes) != 0 {
+		t.Fatalf("empty quote list wasn't preserved: %+v %v", again.Quotes, err)
+	}
+}
+
+func TestQuoteLibraryNormalizesDuplicateAndBlankEntries(t *testing.T) {
+	values := []QuoteEntry{
+		{ID: "x", Text: " A ", Enabled: true},
+		{ID: "x", Text: " B ", Enabled: true},
+		{ID: "blank", Text: "  ", Enabled: true},
+		{ID: "inactive", Text: "C", Enabled: false},
+	}
+	out := normalizeQuotes(values)
+	if len(out) != 3 || out[0].Text != "A" || out[1].Text != "B" || out[0].ID == out[1].ID || out[2].Enabled {
+		t.Fatalf("invalid normalized quote entries: %+v", out)
+	}
+}

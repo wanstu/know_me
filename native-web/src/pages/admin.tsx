@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { logout, requestAPI, requestJSON } from "../api";
 import { applyTheme, loadThemeCatalog, validGradientPacks, type ThemeCatalog } from "../kit";
 import { validateMediaFile } from "../media";
+import { dailyQuote, enabledQuoteCount } from "../daily-quotes";
 import { START_SEARCH_ENGINES, validSearchEngineURL } from "../start-search-engines";
 import type { MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
@@ -709,6 +710,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
+  const [quoteEditorOpen, setQuoteEditorOpen] = useState(false);
   const [catalog, setCatalog] = useState<ThemeCatalog | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [themePalette, setThemePalette] = useState<string[]>([]);
@@ -788,6 +790,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   function setGradientPacks(names: string[]) {
     update("themeGradientPacks", names);
   }
+  const todayQuote = dailyQuote(draft.quotes);
+  const quoteCount = enabledQuoteCount(draft.quotes);
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(settings), [draft, settings]);
 
   useEffect(() => {
@@ -920,25 +924,74 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="dk-field km-span-2">简介<textarea rows={4} value={draft.profileBio} onChange={(event) => update("profileBio", event.target.value)} /></label>
               <MediaField label="头像" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} />
               <MediaField label="主页背景" value={draft.homeBackgroundUrl} onChange={(value) => update("homeBackgroundUrl", value)} />
-              <p className="km-muted km-span-2">手动填写时固定显示；留空时每次打开主页随机选择一条内置短句，不使用 AI，也不是每天定时生成。</p>
-              <label className="dk-field">今日短句<input value={draft.quote} onChange={(event) => update("quote", event.target.value)} /></label>
-              <label className="dk-field">短句署名<input value={draft.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
               <label className="km-check"><input type="checkbox" checked={draft.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} /><span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span></label>
-              <label className="km-check"><input type="checkbox" checked={draft.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} /><span><strong>显示短句署名</strong><small>仅控制署名，不影响短句正文。</small></span></label>
+              <label className="km-check"><input type="checkbox" checked={draft.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} /><span><strong>显示短句署名</strong><small>仅控制每条短句的署名显示。</small></span></label>
             </div>
-            <div className={"km-settings-quote-preview" + (!draft.quoteEnabled ? " is-disabled" : "")} aria-live="polite">
+            <section className="km-settings-collection km-quote-library">
+              <header>
+                <div><span className="km-eyebrow">QUOTE LIBRARY</span><h3>短句库</h3>
+                  <p className="km-muted">已有短句可单独编辑、停用或排序。主页按访客当地日期依次轮换启用的短句，每天一条、当天刷新不变；不使用 AI。</p>
+                  <p className="km-muted">{(draft.quotes ?? []).length} 条短句 · {quoteCount} 条启用</p>
+                </div>
+                <div className="km-quote-library-top-actions">
+                  <button type="button" className="dk-button" aria-expanded={quoteEditorOpen} onClick={() => setQuoteEditorOpen((open) => !open)}>{quoteEditorOpen ? "收起列表" : "管理短句库"}</button>
+                  <button type="button" className="dk-button" disabled={(draft.quotes?.length ?? 0) >= 300} onClick={() => {
+                    setQuoteEditorOpen(true);
+                    setDraft((current) => ({
+                      ...current,
+                      quotes: [...(current.quotes ?? []), { id: "quote-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6), text: "", author: "", enabled: true }]
+                    }));
+                  }}>新增短句</button>
+                </div>
+              </header>
+              {quoteEditorOpen ? <div className="km-quote-library-list">
+                {(draft.quotes ?? []).map((item, index) => (
+                  <div key={item.id} className={"km-quote-library-item" + (!item.enabled ? " is-disabled" : "")}>
+                    <div className="km-quote-library-number">{String(index + 1).padStart(2, "0")}</div>
+                    <div className="km-quote-library-fields">
+                      <label>短句内容
+                        <textarea rows={2} maxLength={500} value={item.text} placeholder="输入一句值得记住的话…" onChange={(event) => setDraft((current) => ({
+                          ...current, quotes: current.quotes.map((entry, i) => i === index ? { ...entry, text: event.target.value } : entry)
+                        }))} />
+                      </label>
+                      <label>来源 / 署名（可选）
+                        <input maxLength={100} value={item.author} placeholder="可留空" onChange={(event) => setDraft((current) => ({
+                          ...current, quotes: current.quotes.map((entry, i) => i === index ? { ...entry, author: event.target.value } : entry)
+                        }))} />
+                      </label>
+                    </div>
+                    <div className="km-quote-library-actions">
+                      <label><input type="checkbox" checked={item.enabled} onChange={(event) => setDraft((current) => ({
+                        ...current, quotes: current.quotes.map((entry, i) => i === index ? { ...entry, enabled: event.target.checked } : entry)
+                      }))} />启用</label>
+                      <button type="button" disabled={index === 0} aria-label={"上移第 " + (index + 1) + " 条短句"} onClick={() => setDraft((current) => {
+                        const next = [...current.quotes]; [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        return { ...current, quotes: next };
+                      })}>↑</button>
+                      <button type="button" disabled={index === draft.quotes.length - 1} aria-label={"下移第 " + (index + 1) + " 条短句"} onClick={() => setDraft((current) => {
+                        const next = [...current.quotes]; [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                        return { ...current, quotes: next };
+                      })}>↓</button>
+                      <button type="button" className="is-danger" aria-label={"删除第 " + (index + 1) + " 条短句"} onClick={() => setDraft((current) => ({
+                        ...current, quotes: current.quotes.filter((entry) => entry.id !== item.id)
+                      }))}>删除</button>
+                    </div>
+                  </div>
+                ))}
+                {!(draft.quotes ?? []).length ? <p className="km-muted">短句库为空。新增短句并保存后，主页才会显示今日短句。</p> : null}
+              </div> : null}
+            </section>
+            <div className={"km-settings-quote-preview" + (!(draft.quoteEnabled && todayQuote) ? " is-disabled" : "")} aria-live="polite">
               <div>
-                <span className="km-eyebrow">主页即时预览</span>
-                <small>{draft.quoteEnabled ? "保存前即可确认短句卡片效果" : "短句卡片已关闭"}</small>
+                <span className="km-eyebrow">今日短句预览</span>
+                <small>{draft.quoteEnabled && todayQuote ? "根据启用列表和当地日期计算，今天保持不变" : "没有可显示的启用短句"}</small>
               </div>
-              {draft.quoteEnabled ? (
+              {draft.quoteEnabled && todayQuote ? (
                 <blockquote>
-                  <p>{draft.quote.trim() || "留空后，主页会从内置短句中选择一条显示。"}</p>
-                  {draft.quoteAuthorEnabled ? <cite>— {draft.quoteAuthor.trim() || "默认署名"}</cite> : null}
+                  <p>{todayQuote.text}</p>
+                  {draft.quoteAuthorEnabled && todayQuote.author ? <cite>— {todayQuote.author}</cite> : null}
                 </blockquote>
-              ) : (
-                <p className="km-muted">主页将隐藏今日短句卡片。</p>
-              )}
+              ) : <p className="km-muted">主页不会显示短句卡片。</p>}
             </div>
           </section>
         ) : null}

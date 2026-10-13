@@ -1,22 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { dailyQuote } from "../daily-quotes";
 import { requestJSON } from "../api";
 import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { PageFrame, isExternal, safeHref } from "../ui";
 
-const fallbackQuotes = [
-  "把常用的东西放近一点，把重要的事情做深一点。",
-  "先让今天变得清楚，再考虑更远的答案。",
-  "记录不是为了占满时间，而是为了留下路径。",
-  "好工具应该安静地工作，把注意力还给人。",
-  "慢一点整理，也比反复寻找更省时间。",
-  "把复杂留给系统，把简单留给使用的人。",
-  "持续做小而正确的改进，结果会自己累积。",
-  "真正顺手的工作流，不需要每天重新学习。",
-  "今天写下的一点东西，也许会帮到未来的自己。",
-  "页面可以很轻，内容应该足够真。",
-  "不是所有信息都值得保存，但值得保存的要容易找到。",
-  "把入口统一之后，注意力就少了一次切换。"
-];
 
 function backgroundStyle(url: string) {
   const href = safeHref(url);
@@ -26,6 +13,14 @@ function backgroundStyle(url: string) {
 
 export function HomePage({ settings, user }: { settings: SiteSettings; user: SessionUser | null }) {
   const [recentPosts, setRecentPosts] = useState<PostRecord[]>([]);
+  const [quoteDay, setQuoteDay] = useState(() => new Date());
+  useEffect(() => {
+    const interval = window.setInterval(() => setQuoteDay((current) => {
+      const now = new Date();
+      return current.toDateString() === now.toDateString() ? current : now;
+    }), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const [avatarFailed, setAvatarFailed] = useState(false);
   useEffect(() => setAvatarFailed(false), [settings.avatarUrl]);
 
@@ -37,11 +32,8 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
 
   const avatarHref = safeHref(settings.avatarUrl);
 
-  const quote = useMemo(() => {
-    const configured = settings.quote?.trim();
-    if (configured) return configured;
-    return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)] ?? fallbackQuotes[0];
-  }, [settings.quote]);
+  const quote = dailyQuote(settings.quotes, quoteDay);
+  const showQuote = settings.quoteEnabled && Boolean(quote);
 
   const entries = (settings.homeEntries ?? []).filter((entry) =>
     entry.visibility === "authenticated" ? Boolean(user) : entry.visibility === "guest" ? !user : true
@@ -69,11 +61,11 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
         </div>
       </section>
 
-      <section className={"km-home-grid" + (!settings.quoteEnabled ? " is-single" : "")}>
-        {settings.quoteEnabled ? <article className="km-panel km-quote-card">
+      <section className={"km-home-grid" + (!showQuote ? " is-single" : "")}>
+        {showQuote && quote ? <article className="km-panel km-quote-card">
           <span className="km-eyebrow">今日短句</span>
-          <blockquote>“{quote}”</blockquote>
-          {settings.quoteAuthorEnabled ? <small>{settings.quoteAuthor || "Know Me"}</small> : null}
+          <blockquote>“{quote.text}”</blockquote>
+          {settings.quoteAuthorEnabled && quote.author ? <small>{quote.author}</small> : null}
         </article> : null}
         <article className="km-panel km-now-card">
           <span className="km-eyebrow">NOW</span>
