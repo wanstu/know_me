@@ -54,11 +54,23 @@ function groupMark(group: NavGroup) {
   return marks[key] ?? (group.icon && group.icon.length <= 2 ? group.icon : group.name.slice(0, 1));
 }
 
+function iconTextColor(value: string) {
+  const hex = value.trim().replace(/^#/, "");
+  if (!/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return undefined;
+  const full = hex.length === 3 ? hex.split("").map((ch) => ch + ch).join("") : hex;
+  const rgb = [0, 2, 4].map((index) => parseInt(full.slice(index, index + 2), 16) / 255);
+  const brightness = rgb.map((c) => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+  return brightness[0] * .2126 + brightness[1] * .7152 + brightness[2] * .0722 > .28 ? "#152033" : "#fff";
+}
+
 function icon(item: NavItem) {
+  if (item.type === "folder") {
+    return <svg className="km-start-folder-mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h4.2l2.1 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
+  }
   if (item.iconUrl && (/^https?:\/\//i.test(item.iconUrl) || item.iconUrl.startsWith("/media/"))) {
     return <img src={item.iconUrl} alt="" loading="lazy" />;
   }
-  return <span>{item.iconText || item.name.slice(0, 1).toUpperCase()}</span>;
+  return <span style={item.backgroundColor ? { color: iconTextColor(item.backgroundColor) } : undefined}>{item.iconText || item.name.slice(0, 1).toUpperCase()}</span>;
 }
 
 export function StartPage({ settings, user }: { settings: SiteSettings; user: SessionUser | null }) {
@@ -322,6 +334,58 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           </section>
         ) : (
           <div className="km-start-sections">
+            {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
+              const children = item.children ?? [];
+              // Reserve the last tile for "view all" so a single overflow entry never creates an orphan row.
+              const preview = children.slice(0, children.length > 12 ? 11 : 12);
+              const remaining = children.length - preview.length;
+              return (
+                <section className="km-start-folder-section" key={item.id} aria-label={item.name}>
+                  <header className="km-start-folder-section-head">
+                    <button type="button" className="km-start-folder-title" onClick={() => void openItem(item)} title={"打开 " + item.name}>
+                      <span className="km-start-folder-symbol" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6.5a2 2 0 0 1 2-2h4.2l2.1 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        </svg>
+                      </span>
+                      <span className="km-start-folder-label">
+                        <strong>{item.name}</strong>
+                        <small>{children.length} 个项目 · 点击标题打开文件夹</small>
+                      </span>
+                    </button>
+                    <button type="button" className="km-start-folder-open" onClick={() => void openItem(item)}>
+                      打开文件夹 <span aria-hidden="true">↗</span>
+                    </button>
+                  </header>
+                  {children.length ? (
+                    <div className="km-start-folder-links">
+                      {preview.map((child) => (
+                        <button
+                          type="button"
+                          key={child.id}
+                          className={"km-start-folder-link" + (child.type === "folder" ? " is-folder" : "")}
+                          onClick={() => void openItem(child)}
+                          style={child.backgroundColor ? { "--km-card-accent": child.backgroundColor } as CSSProperties : undefined}
+                          title={child.type === "folder" ? "打开文件夹：" + child.name : child.name}
+                        >
+                          <span className="km-start-icon">{icon(child)}</span>
+                          <span className="km-start-folder-link-name">{child.name}</span>
+                          {child.type === "folder" ? <span className="km-start-folder-nested" aria-label="子文件夹">›</span> : null}
+                        </button>
+                      ))}
+                      {remaining > 0 ? (
+                        <button type="button" className="km-start-folder-more" onClick={() => void openItem(item)}>
+                          <span>+{remaining}</span>
+                          <small>查看全部</small>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <button type="button" className="km-start-folder-empty" onClick={() => void openItem(item)}>文件夹暂无内容 · 打开查看</button>
+                  )}
+                </section>
+              );
+            })}
             {(group?.items ?? []).some((item) => item.type !== "folder") ? (
               <section className="km-start-quick-section" aria-labelledby="km-start-quick-title">
                 <header className="km-start-section-head">
@@ -353,57 +417,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               </section>
             ) : null}
 
-            {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
-              const children = item.children ?? [];
-              const preview = children.slice(0, 12);
-              const remaining = children.length - preview.length;
-              return (
-                <section className="km-start-folder-section" key={item.id} aria-label={item.name}>
-                  <header className="km-start-folder-section-head">
-                    <button type="button" className="km-start-folder-title" onClick={() => void openItem(item)} title={"打开 " + item.name}>
-                      <span className="km-start-folder-symbol" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6.5a2 2 0 0 1 2-2h4.2l2.1 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                        </svg>
-                      </span>
-                      <span className="km-start-folder-label">
-                        <strong>{item.name}</strong>
-                        <small>{children.length} 个项目 · 点击标题打开文件夹</small>
-                      </span>
-                    </button>
-                    <button type="button" className="km-start-folder-open" onClick={() => void openItem(item)}>
-                      打开文件夹 <span aria-hidden="true">↗</span>
-                    </button>
-                  </header>
-                  {children.length ? (
-                    <div className="km-start-folder-links">
-                      {preview.map((child) => (
-                        <button
-                          type="button"
-                          key={child.id}
-                          className="km-start-folder-link"
-                          onClick={() => void openItem(child)}
-                          style={child.backgroundColor ? { "--km-card-accent": child.backgroundColor } as CSSProperties : undefined}
-                          title={child.type === "folder" ? "打开文件夹：" + child.name : child.name}
-                        >
-                          <span className="km-start-icon">{icon(child)}</span>
-                          <span className="km-start-folder-link-name">{child.name}</span>
-                          {child.type === "folder" ? <span className="km-start-folder-nested" aria-label="子文件夹">›</span> : null}
-                        </button>
-                      ))}
-                      {remaining > 0 ? (
-                        <button type="button" className="km-start-folder-more" onClick={() => void openItem(item)}>
-                          <span>+{remaining}</span>
-                          <small>查看全部</small>
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <button type="button" className="km-start-folder-empty" onClick={() => void openItem(item)}>文件夹暂无内容 · 打开查看</button>
-                  )}
-                </section>
-              );
-            })}
           </div>
         )}
 
@@ -436,8 +449,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 <button
                   key={item.id}
                   autoFocus={index === 0}
-                  className={index === folderSelectedIndex ? "is-selected" : ""}
+                  className={(index === folderSelectedIndex ? "is-selected" : "") + (item.type === "folder" ? " is-folder" : "")}
                   aria-current={index === folderSelectedIndex ? "true" : undefined}
+                  style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
                   onFocus={() => setFolderSelectedIndex(index)}
                   onMouseEnter={() => setFolderSelectedIndex(index)}
                   onClick={() => void openItem(item)}
