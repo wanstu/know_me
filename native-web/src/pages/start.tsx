@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, ty
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
+import { START_SEARCH_ENGINES, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 
@@ -52,13 +53,6 @@ function looksLikeURL(value: string) {
   return /^(https?:\/\/|about:|chrome:|edge:|file:|moz-extension:|chrome-extension:)/i.test(value);
 }
 
-function searchURL(engine: SiteSettings["defaultSearchEngine"], query: string) {
-  const q = encodeURIComponent(query);
-  if (engine === "Google") return "https://www.google.com/search?q=" + q;
-  if (engine === "DuckDuckGo") return "https://duckduckgo.com/?q=" + q;
-  return "https://www.bing.com/search?q=" + q;
-}
-
 function groupMark(group: NavGroup) {
   const marks: Record<string, string> = {
     home: "⌂", code: "⌘", read: "▤", app: "▦",
@@ -104,7 +98,18 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const lastDragAt = useRef(0);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [engineMenuOpen, setEngineMenuOpen] = useState(false);
+  const searchShellRef = useRef<HTMLDivElement | null>(null);
+  const [activeEngine, setActiveEngine] = useState<StartSearchEngine>(() => {
+    try {
+      const stored = window.localStorage.getItem("knowme:start:search-engine");
+      return isStartSearchEngine(stored) ? stored : settings.defaultSearchEngine;
+    } catch {
+      return settings.defaultSearchEngine;
+    }
+  });
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -165,10 +170,21 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       .sort((a, b) => b.item.visitCount - a.item.visitCount)
       .slice(0, 30);
   }, [flat, query]);
+  const searchMatches = matches.slice(0, 6);
 
   useEffect(() => {
-    setSelectedIndex(0);
+    setSelectedIndex(-1);
   }, [query]);
+
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && searchShellRef.current?.contains(event.target)) return;
+      setEngineMenuOpen(false);
+      setSearchFocused(false);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -177,6 +193,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         || target instanceof HTMLTextAreaElement
         || target instanceof HTMLSelectElement
         || (target instanceof HTMLElement && target.isContentEditable);
+
+      if (event.key === "Escape" && event.target === searchRef.current) return;
 
       if (event.key === "Escape" && contextMenu) {
         event.preventDefault();
@@ -187,6 +205,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       if (event.key === "/" && !typing) {
         event.preventDefault();
         searchRef.current?.focus();
+        setSearchFocused(true);
         return;
       }
 
@@ -357,7 +376,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   function searchWeb() {
     const value = query.trim();
     if (!value) return;
-    const target = looksLikeURL(value) ? value : searchURL(settings.defaultSearchEngine, value);
+    setSearchFocused(false);
+    const target = looksLikeURL(value) ? value : startSearchURL(activeEngine, value);
     if (openExternalBrowser(target)) return;
     window.location.href = target;
   }
@@ -366,13 +386,23 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     event.preventDefault();
     const value = query.trim();
     if (!value) return;
-    if (matches.length) {
-      const match = matches[Math.max(0, Math.min(selectedIndex, matches.length - 1))];
-      if (match) void openItem(match.item);
+    if (selectedIndex >= 0 && searchMatches[selectedIndex]) {
+      void openItem(searchMatches[selectedIndex].item);
       return;
     }
     searchWeb();
   }
+
+  function chooseEngine(next: StartSearchEngine) {
+    setActiveEngine(next);
+    setEngineMenuOpen(false);
+    setSelectedIndex(-1);
+    try { window.localStorage.setItem("knowme:start:search-engine", next); } catch { /* Private mode remains usable. */ }
+    searchRef.current?.focus();
+    setSearchFocused(true);
+  }
+
+  const selectedEngine = START_SEARCH_ENGINES.find((engine) => engine.id === activeEngine) ?? START_SEARCH_ENGINES[0];
 
   const startBackground = safeHref(settings.startBackgroundUrl);
   const style = {
@@ -401,10 +431,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     );
   }
 
-  const visibleEntries: Array<{ item: NavItem; meta?: FlatItem; selected?: boolean }> = query.trim()
-    ? matches.map((match, index) => ({ item: match.item, meta: match, selected: index === selectedIndex }))
-    : (group?.items ?? []).map((item) => ({ item }));
-
   return (
     <div className={"km-start-page is-" + settings.startDensity} style={style} onContextMenu={(event) => showContextMenu(event)}>
       <aside className="km-start-rail">
@@ -422,72 +448,125 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       <main className="km-start-main">
         <header className="km-start-top">
           <div>
-            <span className="km-eyebrow">{query ? "搜索导航" : "我的工作台"}</span>
-            <h1>{query ? "全局搜索" : group?.name || "我的导航"}</h1>
+            <span className="km-eyebrow">我的工作台</span>
+            <h1>{group?.name || "我的导航"}</h1>
           </div>
           <a href="/">返回个人主页 <span aria-hidden="true">↗</span></a>
         </header>
 
-        <form className="km-start-search" onSubmit={submitSearch}>
-          <span>⌕</span>
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown" && matches.length) {
-                event.preventDefault();
-                setSelectedIndex((value) => (value + 1) % matches.length);
-              } else if (event.key === "ArrowUp" && matches.length) {
-                event.preventDefault();
-                setSelectedIndex((value) => (value - 1 + matches.length) % matches.length);
-              } else if (event.key === "Enter" && (event.ctrlKey || event.altKey)) {
-                event.preventDefault();
-                searchWeb();
-              }
-            }}
-            placeholder={"搜索所有导航，或使用 " + settings.defaultSearchEngine}
-            autoComplete="off"
-          />
-          {query ? (
-            <div className="km-start-search-actions">
-              <button type="button" onClick={searchWeb}>{settings.defaultSearchEngine}</button>
-              <button type="button" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>清除</button>
+        <div className="km-start-search-shell" ref={searchShellRef}>
+          <form className="km-start-search" onSubmit={submitSearch} role="search">
+            <div className="km-start-engine-anchor">
+              <button
+                type="button"
+                className="km-start-engine-trigger"
+                aria-label={"选择搜索引擎，当前：" + selectedEngine.name}
+                aria-haspopup="menu"
+                aria-expanded={engineMenuOpen}
+                onClick={() => { setEngineMenuOpen((value) => !value); setSearchFocused(false); }}
+              >
+                <span className={"km-start-engine-mark is-" + activeEngine.toLowerCase()} aria-hidden="true">{selectedEngine.mark}</span>
+                <span className="km-start-engine-name">{selectedEngine.short}</span>
+                <span className="km-start-engine-chevron" aria-hidden="true">⌄</span>
+              </button>
+              {engineMenuOpen ? (
+                <div className="km-start-engine-menu" role="menu" aria-label="搜索引擎">
+                  <p>选择搜索引擎</p>
+                  {START_SEARCH_ENGINES.map((engine) => (
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={engine.id === activeEngine}
+                      key={engine.id}
+                      className={engine.id === activeEngine ? "is-current" : ""}
+                      onClick={() => chooseEngine(engine.id)}
+                    >
+                      <span className={"km-start-engine-mark is-" + engine.id.toLowerCase()} aria-hidden="true">{engine.mark}</span>
+                      <span>{engine.name}</span>
+                      {engine.id === activeEngine ? <b aria-hidden="true">✓</b> : null}
+                    </button>
+                  ))}
+                  <small>输入搜索内容后，按 Tab 快速切换</small>
+                </div>
+              ) : null}
             </div>
-          ) : <kbd>/</kbd>}
-        </form>
-
-        {query ? (
-          <p className="km-start-result-hint">
-            {matches.length
-              ? `找到 ${matches.length} 个导航项 · ↑↓ 选择 · Enter 打开 · Ctrl/Alt+Enter 使用 ${settings.defaultSearchEngine}`
-              : `没有导航匹配 · Enter 使用 ${settings.defaultSearchEngine}`}
-          </p>
-        ) : null}
+            <span className="km-start-search-divider" aria-hidden="true" />
+            <input
+              ref={searchRef}
+              value={query}
+              aria-label="搜索网站和导航"
+              aria-autocomplete="list"
+              aria-controls="km-start-search-suggestions"
+              aria-expanded={searchFocused && Boolean(query.trim()) && !engineMenuOpen}
+              onFocus={() => { setSearchFocused(true); setEngineMenuOpen(false); }}
+              onChange={(event) => { setQuery(event.target.value); setSearchFocused(true); }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.key === "Process") return;
+                if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                  event.preventDefault();
+                  chooseEngine(nextStartSearchEngine(activeEngine, event.shiftKey ? -1 : 1));
+                } else if (event.key === "ArrowDown" && searchMatches.length) {
+                  event.preventDefault();
+                  setSelectedIndex((index) => (index + 1) % searchMatches.length);
+                } else if (event.key === "ArrowUp" && searchMatches.length) {
+                  event.preventDefault();
+                  setSelectedIndex((index) => index <= 0 ? searchMatches.length - 1 : index - 1);
+                } else if (event.key === "Enter" && (event.ctrlKey || event.altKey)) {
+                  event.preventDefault();
+                  searchWeb();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setEngineMenuOpen(false);
+                  if (searchFocused) setSearchFocused(false);
+                  else { setQuery(""); setSelectedIndex(-1); }
+                }
+              }}
+              placeholder="搜索网址、导航或输入关键词…"
+              autoComplete="off"
+            />
+            <div className="km-start-search-actions">
+              {query ? (
+                <button className="km-start-search-clear" type="button" title="清除搜索内容" aria-label="清除搜索内容" onClick={() => { setQuery(""); setSelectedIndex(-1); searchRef.current?.focus(); }}>×</button>
+              ) : <kbd>/</kbd>}
+              <button type="submit" className="km-start-search-submit" title={"使用 " + selectedEngine.name + " 搜索"} aria-label={"使用 " + selectedEngine.name + " 搜索"} onClick={(event) => { if (event.detail > 0) { event.preventDefault(); searchWeb(); } }}>搜索 <span aria-hidden="true">↗</span></button>
+            </div>
+          </form>
+          {searchFocused && query.trim() && !engineMenuOpen ? (
+            <div id="km-start-search-suggestions" className="km-start-search-suggestions" role="listbox" aria-label="搜索建议">
+              <button type="button" className="km-start-suggestion-web" onClick={searchWeb}>
+                <span className={"km-start-engine-mark is-" + activeEngine.toLowerCase()} aria-hidden="true">{selectedEngine.mark}</span>
+                <span className="km-start-suggestion-copy"><strong>使用 {selectedEngine.name} 搜索</strong><small>{query.trim()}</small></span>
+                <span aria-hidden="true">↗</span>
+              </button>
+              {matches.length ? (
+                <>
+                  <div className="km-start-suggestion-heading"><span>站内导航</span><small>{matches.length} 个匹配 · ↑↓ 选择</small></div>
+                  {searchMatches.map(({ item, group: groupName, folder: parent }, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={index === selectedIndex}
+                      className={"km-start-suggestion-item" + (index === selectedIndex ? " is-selected" : "")}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      onClick={() => { setSearchFocused(false); void openItem(item); }}
+                    >
+                      <span className="km-start-suggestion-icon">{icon(item)}</span>
+                      <span className="km-start-suggestion-copy"><strong>{item.name}</strong><small>{[groupName, parent].filter(Boolean).join(" / ")}{item.url ? " · " + item.url : ""}</small></span>
+                      <span aria-hidden="true">{item.type === "folder" ? "›" : "↗"}</span>
+                    </button>
+                  ))}
+                </>
+              ) : <p className="km-start-suggestion-empty">没有匹配的站内导航，可以直接搜索网页</p>}
+              <footer><span><kbd>Tab</kbd> 切换引擎</span><span><kbd>Enter</kbd> 搜索 · <kbd>Esc</kbd> 收起</span></footer>
+            </div>
+          ) : null}
+          <p className="km-start-search-tip">按 <kbd>Tab</kbd> 切换引擎 · <kbd>Shift</kbd> + <kbd>Tab</kbd> 反向 · <kbd>Enter</kbd> 搜索</p>
+        </div>
 
         {contextError ? <div className="dk-message is-danger km-start-context-error" role="alert">{contextError}</div> : null}
-        {query.trim() ? (
-          <section className="km-start-grid km-start-search-grid" aria-label="搜索结果">
-            {visibleEntries.map(({ item, meta, selected }) => (
-              <button
-                key={item.id}
-                className={"km-start-card size-" + item.size + (selected ? " is-selected" : "")}
-                type="button"
-                onClick={() => void openItem(item)}
-                onContextMenu={(event) => showContextMenu(event, item)}
-                style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
-              >
-                <span className="km-start-icon">{icon(item)}</span>
-                <span className="km-start-card-copy">
-                  <strong>{item.name}</strong>
-                  <small>{[meta?.group, meta?.folder].filter(Boolean).join(" / ") + (item.url ? " · " + item.url : "")}</small>
-                </span>
-                <b aria-hidden="true">{item.type === "folder" ? "›" : "↗"}</b>
-              </button>
-            ))}
-          </section>
-        ) : (
-          <div className="km-start-sections">
+        <div className="km-start-sections">
             {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
               const children = item.children ?? [];
               const size = folderSize(item);
@@ -605,9 +684,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
             ) : null}
 
           </div>
-        )}
 
-        {!visibleEntries.length && !query ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
+        {!(group?.items ?? []).length ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
       </main>
 
       {folder ? (
