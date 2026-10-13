@@ -22,6 +22,8 @@ export type SiteSettings = {
   defaultSearchEngine: "Bing" | "Google" | "DuckDuckGo";
   themeMode: "auto" | "dark" | "light";
   themePreset: string;
+  themeStyle: "solid" | "gradient";
+  themeGradientPacks: string[];
   startDensity: "compact" | "comfortable" | "spacious";
   startCardOpacity: number;
   startCardRadius: number;

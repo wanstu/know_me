@@ -121,7 +121,7 @@ export function App() {
       .then(([site, session]) => {
         setSettings(site);
         setUser(session);
-        void applyTheme(site.themeMode, site.themePreset);
+        void applyTheme(site.themeMode, site.themePreset, site.themeStyle, site.themeGradientPacks);
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "site_failed"));
   }, []);
@@ -144,7 +144,7 @@ export function App() {
   } else if (path === "/admin" || path.startsWith("/admin/")) {
     page = <AdminPage settings={settings} user={user} path={path} onSettingsChange={(next) => {
       setSettings(next);
-      void applyTheme(next.themeMode, next.themePreset);
+      void applyTheme(next.themeMode, next.themePreset, next.themeStyle, next.themeGradientPacks);
     }} />;
   } else {
     page = (

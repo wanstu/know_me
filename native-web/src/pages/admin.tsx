@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { logout, requestAPI, requestJSON } from "../api";
-import { applyTheme, loadThemeCatalog, type ThemeCatalog } from "../kit";
+import { applyTheme, loadThemeCatalog, validGradientPacks, type ThemeCatalog } from "../kit";
 import { validateMediaFile } from "../media";
 import type { MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
@@ -709,6 +709,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   const [catalog, setCatalog] = useState<ThemeCatalog | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [themePalette, setThemePalette] = useState<string[]>([]);
+  const [previewWarning, setPreviewWarning] = useState("");
   const [collectionDrag, setCollectionDrag] = useState<{ kind: "social" | "entry" | "project"; index: number } | null>(null);
 
   useEffect(() => {
@@ -730,7 +731,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 
   useEffect(() => {
     let cancelled = false;
-    void applyTheme(draft.themeMode, draft.themePreset).then(() => {
+    void applyTheme(draft.themeMode, draft.themePreset, draft.themeStyle, draft.themeGradientPacks).then((result) => {
+      if (!cancelled) setPreviewWarning(result.warning ?? "");
       window.requestAnimationFrame(() => {
         if (cancelled) return;
         const style = window.getComputedStyle(document.documentElement);
@@ -743,7 +745,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
       });
     });
     return () => { cancelled = true; };
-  }, [draft.themeMode, draft.themePreset]);
+  }, [draft.themeMode, draft.themePreset, draft.themeStyle, draft.themeGradientPacks]);
 
   async function refreshThemes() {
     setCatalogError("");
@@ -761,13 +763,28 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   }
 
   const fallbackThemePacks = [
-    { name: "aurora", display_name: "极光", description: "离线默认主题" },
-    { name: "ocean", display_name: "海洋", description: "离线默认主题" },
-    { name: "forest", display_name: "森林", description: "离线默认主题" },
-    { name: "sunset", display_name: "落日", description: "离线默认主题" }
+    { name: "aurora", display_name: "极光", description: "离线默认主题", gradient_light: "#6c73d8", gradient_dark: "#8b8df2" },
+    { name: "ocean", display_name: "海洋", description: "离线默认主题", gradient_light: "#3279b0", gradient_dark: "#5ba8d2" },
+    { name: "forest", display_name: "森林", description: "离线默认主题", gradient_light: "#4e9879", gradient_dark: "#70b890" },
+    { name: "sunset", display_name: "落日", description: "离线默认主题", gradient_light: "#e07a67", gradient_dark: "#efa488" }
   ];
   const themePacks = catalog?.packs?.length ? catalog.packs : fallbackThemePacks;
   const selectedTheme = themePacks.find((pack) => pack.name === draft.themePreset);
+  const gradientChoices = themePacks.filter((pack) => pack.gradient_light && pack.gradient_dark);
+  const gradientNames = draft.themeGradientPacks ?? ["aurora", "ocean"];
+  const themeChoices = [
+    { label: "极光 · 樱花 · 海洋", packs: ["aurora", "sakura", "ocean"] },
+    { label: "森林 · 落日", packs: ["forest", "sunset"] },
+    { label: "黑客 · 霓虹", packs: ["terminal", "neon"] }
+  ].filter((item) => item.packs.every((name) => gradientChoices.some((pack) => pack.name === name)));
+  const gradientStops = gradientNames
+    .map((name) => gradientChoices.find((pack) => pack.name === name))
+    .map((pack) => draft.themeMode === "dark" ? pack?.gradient_dark : pack?.gradient_light)
+    .filter((color): color is string => Boolean(color));
+  const gradientSample = gradientStops.length >= 2 ? `linear-gradient(120deg, ${gradientStops.join(", ")})` : undefined;
+  function setGradientPacks(names: string[]) {
+    update("themeGradientPacks", names);
+  }
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(settings), [draft, settings]);
 
   useEffect(() => {
@@ -783,7 +800,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
   function discardChanges() {
     setDraft(settings);
     setMessage("");
-    void applyTheme(settings.themeMode, settings.themePreset);
+    void applyTheme(settings.themeMode, settings.themePreset, settings.themeStyle, settings.themeGradientPacks);
   }
 
   function reorderCollection(kind: "social" | "entry" | "project", targetIndex: number) {
@@ -836,6 +853,11 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (draft.themeStyle === "gradient" && !validGradientPacks(gradientNames)) {
+      setMessageTone("error");
+      setMessage("渐变模式需要选择 2～4 个不同的基础主题");
+      return;
+    }
     setBusy(true);
     setMessage("");
     setMessageTone("success");
@@ -928,18 +950,75 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             <div className="km-form-grid">
               <label className="dk-field">主题模式<select value={draft.themeMode} onChange={(event) => update("themeMode", event.target.value as SiteSettings["themeMode"])}><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
               <div className="dk-field km-theme-picker">
-                <span>主题包</span>
+                <span>主题风格</span>
+                <div className="km-theme-style-switch" role="group" aria-label="选择主题风格">
+                  <button type="button" className={draft.themeStyle !== "gradient" ? "is-active" : ""} aria-pressed={draft.themeStyle !== "gradient"}
+                    onClick={() => update("themeStyle", "solid")}>普通主题</button>
+                  <button type="button" className={draft.themeStyle === "gradient" ? "is-active" : ""} aria-pressed={draft.themeStyle === "gradient"}
+                    onClick={() => update("themeStyle", "gradient")}>渐变主题</button>
+                </div>
                 <div className="km-theme-picker-row">
-                  <select value={draft.themePreset} onChange={(event) => update("themePreset", event.target.value)}>
-                    {!themePacks.some((pack) => pack.name === draft.themePreset) ? <option value={draft.themePreset}>{draft.themePreset}</option> : null}
-                    {themePacks.map((pack) => <option key={pack.name} value={pack.name}>{pack.display_name} · {pack.name}</option>)}
-                  </select>
+                  {draft.themeStyle !== "gradient" ? (
+                    <select aria-label="选择普通主题" value={draft.themePreset} onChange={(event) => update("themePreset", event.target.value)}>
+                      {!themePacks.some((pack) => pack.name === draft.themePreset) ? <option value={draft.themePreset}>{draft.themePreset}</option> : null}
+                      {themePacks.map((pack) => <option key={pack.name} value={pack.name}>{pack.display_name} · {pack.name}</option>)}
+                    </select>
+                  ) : <span className="km-theme-mode-hint">组合 2～4 个主题，按选择顺序渐变</span>}
                   <button type="button" className="dk-button" onClick={() => void refreshThemes()}>刷新主题</button>
                 </div>
-                <div className="km-theme-preview" aria-label="当前主题配色预览">
-                  {themePalette.map((color, index) => <span key={index} style={{ background: color }} title={color} />)}
-                </div>
-                <small>{selectedTheme?.description ?? "由主题系统提供"}</small>
+                {draft.themeStyle === "gradient" ? (
+                  <div className="km-theme-gradient-editor">
+                    {themeChoices.length ? (
+                      <div className="km-theme-gradient-presets" role="group" aria-label="推荐渐变组合">
+                        {themeChoices.map((preset) => (
+                          <button type="button" key={preset.label} className="km-theme-preset"
+                            aria-pressed={preset.packs.join(",") === gradientNames.join(",")}
+                            onClick={() => setGradientPacks([...preset.packs])}>{preset.label}</button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="km-theme-gradient-list" aria-label="渐变主题顺序">
+                      {gradientNames.map((name, index) => (
+                        <div className="km-theme-gradient-item" key={name + "-" + index}>
+                          <span className="km-theme-gradient-index">{index + 1}</span>
+                          <select aria-label={`第 ${index + 1} 个基础主题`} value={name}
+                            onChange={(event) => setGradientPacks(gradientNames.map((pack, i) => i === index ? event.target.value : pack))}
+                          >
+                            {!gradientChoices.some((pack) => pack.name === name) ? <option value={name}>{name}（不可用）</option> : null}
+                            {gradientChoices.map((pack) => (
+                              <option key={pack.name} value={pack.name} disabled={gradientNames.includes(pack.name) && pack.name !== name}>
+                                {pack.display_name} · {pack.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="button" title="上移" aria-label={`上移 ${name}`} disabled={index === 0} onClick={() => setGradientPacks(gradientNames.map((pack, i) => i === index ? gradientNames[i - 1] : i === index - 1 ? name : pack))}>↑</button>
+                          <button type="button" title="下移" aria-label={`下移 ${name}`} disabled={index === gradientNames.length - 1} onClick={() => setGradientPacks(gradientNames.map((pack, i) => i === index ? gradientNames[i + 1] : i === index + 1 ? name : pack))}>↓</button>
+                          <button type="button" title="移除" aria-label={`移除 ${name}`} disabled={gradientNames.length <= 2} onClick={() => setGradientPacks(gradientNames.filter((_, i) => i !== index))}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                    {gradientNames.length < 4 ? (
+                      <select aria-label="添加基础主题" value="" onChange={(event) => { if (event.target.value) setGradientPacks([...gradientNames, event.target.value]); }}>
+                        <option value="">＋ 添加基础主题</option>
+                        {gradientChoices.filter((pack) => !gradientNames.includes(pack.name)).map((pack) => (
+                          <option key={pack.name} value={pack.name}>{pack.display_name} · {pack.name}</option>
+                        ))}
+                      </select>
+                    ) : null}
+                    <div className="km-theme-gradient-demo" style={gradientSample ? { background: gradientSample } : undefined} aria-label="渐变配色预览">
+                      <span>背景 · 卡片 · 导航</span><strong>渐变效果预览</strong>
+                    </div>
+                    <small>页面可组合全部颜色；主按钮由 Kit 仅使用首尾双色，其他按钮保持原样。</small>
+                    {previewWarning ? <small role="status" className="km-theme-preview-warning">预览已回退：{previewWarning}</small> : null}
+                  </div>
+                ) : (
+                  <>
+                    <div className="km-theme-preview" aria-label="当前主题配色预览">
+                      {themePalette.map((color, index) => <span key={index} style={{ background: color }} title={color} />)}
+                    </div>
+                    <small>{selectedTheme?.description ?? "由主题系统提供"}</small>
+                  </>
+                )}
                 <small>
                   {catalog ? `来源：${catalog.source} · ${catalog.packs.length} 套${catalog.stale ? " · 缓存待刷新" : ""}` : "正在使用 Kit 内置离线主题"}
                   {catalogError ? " · " + catalogError : ""}

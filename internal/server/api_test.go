@@ -131,7 +131,7 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	patch := bytes.NewBufferString(`{"themePreset":"midnight","themeMode":"light","profileName":"Native"}`)
+	patch := bytes.NewBufferString(`{"themePreset":"midnight","themeMode":"light","themeStyle":"gradient","themeGradientPacks":["aurora","ocean","forest"],"profileName":"Native"}`)
 	req, _ = http.NewRequest(http.MethodPatch, base+"/api/settings", patch)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", base)
@@ -144,16 +144,18 @@ func TestNativeAuthAndSettingsAPI(t *testing.T) {
 	}
 	var payload struct {
 		Settings struct {
-			ThemePreset string `json:"themePreset"`
-			ThemeMode   string `json:"themeMode"`
-			ProfileName string `json:"profileName"`
+			ThemePreset        string   `json:"themePreset"`
+			ThemeMode          string   `json:"themeMode"`
+			ThemeStyle         string   `json:"themeStyle"`
+			ThemeGradientPacks []string `json:"themeGradientPacks"`
+			ProfileName        string   `json:"profileName"`
 		} `json:"settings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if payload.Settings.ThemePreset != "midnight" || payload.Settings.ThemeMode != "light" || payload.Settings.ProfileName != "Native" {
+	if payload.Settings.ThemePreset != "midnight" || payload.Settings.ThemeMode != "light" || payload.Settings.ProfileName != "Native" || payload.Settings.ThemeStyle != "gradient" || len(payload.Settings.ThemeGradientPacks) != 3 {
 		t.Fatalf("settings payload = %#v", payload.Settings)
 	}
 
