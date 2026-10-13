@@ -3003,3 +3003,146 @@ select:focus-visible {
   .km-theme-gradient-item { grid-template-columns: 22px minmax(0,1fr) repeat(3, 27px); gap: 4px; }
   .km-theme-gradient-item button { height: 29px; }
 }
+
+
+/* Start search: inline engine picker, stable layout, lightweight suggestions */
+.km-start-search-shell { position: relative; isolation: isolate; z-index: 20; min-width: 0; }
+.km-start-search-shell .km-start-search {
+  display: grid; grid-template-columns: auto 1px minmax(0, 1fr) auto;
+  gap: 11px; min-width: 0; min-height: 62px; padding: 7px 10px 7px 9px;
+  background: color-mix(in srgb, var(--dk-bg-elevated, #fff) 96%, transparent);
+}
+.km-start-engine-anchor { position: relative; min-width: 0; }
+.km-start-search .km-start-engine-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  max-width: 188px; min-height: 42px; border: 0; border-radius: 12px;
+  padding: 5px 8px; gap: 8px; cursor: pointer; white-space: nowrap;
+  color: var(--dk-text-secondary, #556078); font-size: 13px; font-weight: 650;
+}
+.km-start-search .km-start-engine-trigger:hover,
+.km-start-search .km-start-engine-trigger[aria-expanded="true"] {
+  background: var(--dk-nav-active-bg, rgba(99,102,241,.1));
+  color: var(--dk-text, #172033);
+}
+.km-start-engine-mark {
+  flex: 0 0 29px; width: 29px; height: 29px; border-radius: 9px;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  background: #e5eaff; color: #3453ad;
+}
+.km-start-engine-mark.is-google { background: #fff1e9; color: #db4437; }
+.km-start-engine-mark.is-duckduckgo { background: #fff0e5; color: #de5f1e; }
+.km-start-engine-mark.is-baidu { background: #fce7ec; color: #d32139; }
+.km-start-engine-mark.is-sogou { background: #fff0de; color: #cf6719; }
+.km-start-engine-chevron { font-size: 14px; opacity: .65; }
+.km-start-search .km-start-search-divider {
+  width: 1px; height: 23px; background: var(--dk-border, #dde2ea); font-size: 0;
+}
+.km-start-search-shell .km-start-search input {
+  width: 100%; min-width: 0; height: 43px; padding: 0 3px;
+  font-size: 15px; letter-spacing: 0;
+}
+.km-start-search-shell .km-start-search input:focus-visible { outline: none; }
+.km-start-search-shell .km-start-search input::placeholder { color: var(--dk-text-muted, #8b93a5); opacity: .9; }
+.km-start-search-shell .km-start-search-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.km-start-search-shell .km-start-search-actions .km-start-search-clear {
+  width: 30px; height: 30px; border-radius: 9px; font-size: 20px; font-weight: 400;
+}
+.km-start-search-shell .km-start-search-actions .km-start-search-clear:hover { background: var(--dk-bg-subtle, #eef1f6); }
+.km-start-search-shell .km-start-search-actions .km-start-search-submit {
+  min-width: 73px; height: 39px; border-radius: 11px;
+  padding: 0 13px; font-weight: 650; font-size: 13px; white-space: nowrap;
+  background: var(--dk-primary, #6366f1); color: #fff;
+}
+.km-start-search-shell .km-start-search-actions .km-start-search-submit:hover { filter: brightness(1.06); }
+.km-start-search-shell .km-start-search-actions .km-start-search-submit span { margin-left: 3px; }
+.km-start-search-shell .km-start-search-actions kbd { font-size: 11px; }
+.km-start-search-tip {
+  margin: 10px 8px 0; font-size: 11px; color: var(--dk-text-muted, #7a849a);
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.km-start-search-tip kbd,
+.km-start-search-suggestions kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 1px 5px; border-radius: 5px;
+  border: 1px solid var(--dk-border, #dde2ea);
+  background: var(--dk-bg-subtle, #eef1f6);
+  font-size: 10px; line-height: 1.5; font-family: inherit; color: var(--dk-text-secondary, #556078);
+}
+.km-start-engine-menu, .km-start-search-suggestions {
+  position: absolute; z-index: 100;
+  border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 15px; padding: 7px;
+  background: var(--dk-bg-elevated, #fff);
+  box-shadow: 0 15px 42px rgba(17,24,39,.16);
+  backdrop-filter: blur(20px);
+}
+.km-start-engine-menu { top: calc(100% + 13px); left: 0; width: 230px; display: grid; gap: 2px; }
+.km-start-engine-menu > p {
+  padding: 7px 10px 6px; margin: 0; font-size: 11px; font-weight: 700;
+  color: var(--dk-text-muted, #7a849a);
+}
+.km-start-engine-menu button {
+  border: 0; border-radius: 9px; width: 100%; min-height: 41px;
+  padding: 6px 8px; display: flex; align-items: center;
+  gap: 11px; text-align: left; font-size: 13px;
+  background: transparent; color: var(--dk-text, #172033); cursor: pointer;
+}
+.km-start-engine-menu button:hover, .km-start-engine-menu button.is-current {
+  background: var(--dk-nav-active-bg, rgba(99,102,241,.1));
+}
+.km-start-engine-menu button > b { color: var(--dk-primary, #6366f1); margin-left: auto; }
+.km-start-engine-menu > small {
+  margin-top: 3px; padding: 9px 10px 7px; border-top: 1px solid var(--dk-border, #dde2ea);
+  color: var(--dk-text-muted, #7a849a); font-size: 11px;
+}
+.km-start-search-suggestions {
+  top: 68px; left: 0; width: min(760px, 100%); overflow: auto;
+  max-height: min(480px, calc(100vh - 180px)); display: grid; gap: 2px;
+}
+.km-start-search-suggestions button { cursor: pointer; font-family: inherit; }
+.km-start-suggestion-web, .km-start-suggestion-item {
+  min-width: 0; width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) 20px;
+  align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 10px;
+  text-align: left; background: transparent; color: var(--dk-text, #172033);
+}
+.km-start-suggestion-web {
+  background: color-mix(in srgb, var(--dk-primary, #6366f1) 8%, var(--dk-bg-elevated, #fff));
+}
+.km-start-suggestion-web:hover, .km-start-suggestion-item:hover,
+.km-start-suggestion-item.is-selected { background: var(--dk-nav-active-bg, rgba(99,102,241,.1)); }
+.km-start-suggestion-copy { min-width: 0; display: grid; gap: 2px; }
+.km-start-suggestion-copy strong { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.km-start-suggestion-copy small { font-size: 11px; color: var(--dk-text-muted, #7a849a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.km-start-suggestion-heading {
+  margin: 5px 10px 3px; display: flex; justify-content: space-between; gap: 12px;
+  color: var(--dk-text-secondary, #556078); font-size: 11px; font-weight: 650;
+}
+.km-start-suggestion-heading small { font-size: 11px; font-weight: 400; color: var(--dk-text-muted, #7a849a); }
+.km-start-suggestion-icon {
+  width: 32px; height: 32px; display: grid; place-items: center; overflow: hidden;
+  border-radius: 9px; background: var(--dk-bg-subtle, #eef1f6); font-weight: 750; font-size: 14px;
+}
+.km-start-suggestion-icon img { max-width: 21px; max-height: 21px; object-fit: contain; }
+.km-start-suggestion-empty { margin: 0; padding: 12px; font-size: 12px; color: var(--dk-text-muted, #7a849a); }
+.km-start-search-suggestions footer {
+  border-top: 1px solid var(--dk-border, #dde2ea);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 11px 12px 5px;
+  color: var(--dk-text-muted, #7a849a); font-size: 11px;
+}
+@media(max-width: 650px) {
+  .km-start-search-shell .km-start-search { gap: 8px; padding: 6px 8px; }
+  .km-start-search-shell .km-start-engine-trigger { gap: 5px; padding: 3px 4px; }
+  .km-start-engine-name { display: none; }
+  .km-start-search-shell .km-start-search-actions .km-start-search-submit { min-width: 38px; padding: 0 10px; font-size: 0; }
+  .km-start-search-shell .km-start-search-actions .km-start-search-submit span { font-size: 16px; margin: 0; }
+  .km-start-search-tip { line-height: 1.9; }
+  .km-start-search-suggestions { top: 65px; }
+}
+@media(max-width: 420px) {
+  .km-start-search-shell .km-start-search { gap: 6px; }
+  .km-start-search-shell .km-start-engine-trigger { padding: 3px; }
+  .km-start-search-shell .km-start-engine-mark { flex-basis: 26px; width: 26px; height: 26px; }
+  .km-start-search-shell .km-start-search-actions { gap: 0; }
+  .km-start-search-shell .km-start-search-actions .km-start-search-clear { width: 24px; }
+  .km-start-search-shell .km-start-search input { font-size: 13px; }
+}
