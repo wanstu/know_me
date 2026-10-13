@@ -2912,3 +2912,94 @@ select:focus-visible {
   .km-start-quick-grid .km-start-card.size-2x2 { min-height: 146px; }
   .km-start-quick-grid .km-start-card.size-1x1 { min-height: 102px; }
 }
+
+
+
+/* Kit v0.12 gradient integration. Kit computes the palette and readable button stops;
+   Know Me only paints its own app surfaces with Kit tokens. */
+:root[data-dk-theme-style="gradient"] body,
+:root[data-dk-theme-style="gradient"] .km-page,
+:root[data-dk-theme-style="gradient"] .km-start-page {
+  background: var(--dk-app-gradient), var(--dk-bg-app, #f5f7fb);
+}
+:root[data-dk-theme-style="gradient"] .km-start-rail {
+  background: var(--dk-sidebar-gradient), var(--dk-bg-elevated, #fff);
+}
+:root[data-dk-theme-style="gradient"] .km-panel,
+:root[data-dk-theme-style="gradient"] .km-start-quick-section,
+:root[data-dk-theme-style="gradient"] .km-start-folder-section,
+:root[data-dk-theme-style="gradient"] .km-start-card {
+  background: var(--dk-panel-gradient), var(--dk-bg-elevated, #fff);
+}
+:root[data-dk-theme-style="gradient"] .km-start-rail nav button.is-active {
+  background: var(--dk-nav-gradient), var(--dk-nav-active-bg, #eef1f6);
+}
+.km-theme-style-switch {
+  width: 100%; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 5px; border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 12px; background: var(--dk-bg-subtle, #f1f5f9);
+}
+.km-theme-style-switch button {
+  cursor: pointer; padding: 10px 12px; min-width: 0; border: 0;
+  border-radius: 9px; background: transparent; color: var(--dk-text-secondary, #5b667b);
+  font-size: 12px; font-weight: 650;
+}
+.km-theme-style-switch button.is-active {
+  color: var(--dk-text, #172033);
+  background: var(--dk-bg-elevated, #fff);
+  box-shadow: 0 2px 10px rgba(15,23,42,.08);
+}
+.km-theme-style-switch button:focus-visible, .km-theme-preset:focus-visible,
+.km-theme-gradient-item button:focus-visible {
+  outline: 2px solid var(--dk-primary, #6366f1); outline-offset: 2px;
+}
+.km-theme-mode-hint {
+  color: var(--dk-text-secondary, #556078); font-size: 11px;
+  display: flex; align-items: center; line-height: 1.5;
+}
+.km-theme-gradient-editor {
+  padding: 13px; border-radius: 13px; border: 1px solid var(--dk-border, #dde2ea);
+  display: grid; gap: 13px; background: color-mix(in srgb, var(--dk-bg-subtle, #eef1f6) 50%, transparent);
+}
+.km-theme-gradient-presets { display: flex; gap: 7px; flex-wrap: wrap; }
+.km-theme-preset {
+  padding: 9px 11px; border-radius: 9px; border: 1px solid var(--dk-border, #dde2ea);
+  background: var(--dk-bg-elevated, #fff); color: var(--dk-text-secondary, #556078);
+  cursor: pointer; font-size: 11px; text-align: left;
+}
+.km-theme-preset:hover, .km-theme-preset[aria-pressed="true"] {
+  color: var(--dk-primary, #6366f1);
+  border-color: var(--dk-primary, #6366f1);
+}
+.km-theme-gradient-list { display: grid; gap: 7px; }
+.km-theme-gradient-item {
+  min-width: 0; display: grid; align-items: center;
+  grid-template-columns: 25px minmax(0,1fr) repeat(3, 31px); gap: 7px;
+}
+.km-theme-gradient-index {
+  background: var(--dk-bg-elevated, #fff); border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 8px; font-weight: 700; font-size: 11px; display: grid; place-items: center; height: 31px;
+}
+.km-theme-gradient-item select { width: 100%; min-width: 0; }
+.km-theme-gradient-item button {
+  height: 31px; min-width: 0; cursor: pointer; border: 1px solid var(--dk-border, #dde2ea);
+  border-radius: 8px; background: var(--dk-bg-elevated, #fff);
+  color: var(--dk-text-secondary, #556078); font-weight: 750; font-size: 13px;
+}
+.km-theme-gradient-item button:not(:disabled):hover { color: var(--dk-primary, #6366f1); }
+.km-theme-gradient-item button:disabled { opacity: .35; cursor: not-allowed; }
+.km-theme-gradient-demo {
+  min-height: 94px; border: 1px solid color-mix(in srgb, var(--dk-border, #dde2ea) 45%, transparent);
+  padding: 15px; display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: center; gap: 5px; border-radius: 13px; background: var(--dk-primary, #6366f1);
+  color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,.5);
+}
+.km-theme-gradient-demo span { font-size: 11px; }
+.km-theme-gradient-demo strong { font-size: 16px; }
+.km-theme-gradient-editor > small { color: var(--dk-text-secondary, #556078); line-height: 1.55; font-size: 11px; }
+.km-theme-gradient-editor > small.km-theme-preview-warning { color: var(--dk-danger, #bd4141); }
+@media (max-width: 600px) {
+  .km-theme-gradient-editor { padding: 9px; }
+  .km-theme-gradient-item { grid-template-columns: 22px minmax(0,1fr) repeat(3, 27px); gap: 4px; }
+  .km-theme-gradient-item button { height: 29px; }
+}

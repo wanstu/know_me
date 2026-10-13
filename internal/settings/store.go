@@ -14,6 +14,7 @@ import (
 type SearchEngineName string
 type ThemeMode string
 type ThemePreset string
+type ThemeStyle string
 type StartDensity string
 
 const (
@@ -24,6 +25,9 @@ const (
 	ThemeAuto  ThemeMode = "auto"
 	ThemeDark  ThemeMode = "dark"
 	ThemeLight ThemeMode = "light"
+
+	StyleSolid    ThemeStyle = "solid"
+	StyleGradient ThemeStyle = "gradient"
 
 	PresetAurora ThemePreset = "aurora"
 	PresetOcean  ThemePreset = "ocean"
@@ -91,6 +95,8 @@ type SiteSettings struct {
 	DefaultSearchEngine SearchEngineName `json:"defaultSearchEngine"`
 	ThemeMode           ThemeMode        `json:"themeMode"`
 	ThemePreset         ThemePreset      `json:"themePreset"`
+	ThemeStyle          ThemeStyle       `json:"themeStyle"`
+	ThemeGradientPacks  []string         `json:"themeGradientPacks"`
 	StartDensity        StartDensity     `json:"startDensity"`
 	StartCardOpacity    int              `json:"startCardOpacity"`
 	StartCardRadius     int              `json:"startCardRadius"`
@@ -127,6 +133,8 @@ type SitePatch struct {
 	DefaultSearchEngine *SearchEngineName `json:"defaultSearchEngine"`
 	ThemeMode           *ThemeMode        `json:"themeMode"`
 	ThemePreset         *ThemePreset      `json:"themePreset"`
+	ThemeStyle          *ThemeStyle       `json:"themeStyle"`
+	ThemeGradientPacks  *[]string         `json:"themeGradientPacks"`
 	StartDensity        *StartDensity     `json:"startDensity"`
 	StartCardOpacity    *int              `json:"startCardOpacity"`
 	StartCardRadius     *int              `json:"startCardRadius"`
@@ -165,6 +173,8 @@ func Defaults() SiteSettings {
 		DefaultSearchEngine: SearchBing,
 		ThemeMode:           ThemeAuto,
 		ThemePreset:         PresetAurora,
+		ThemeStyle:          StyleSolid,
+		ThemeGradientPacks:  []string{"aurora", "ocean"},
 		StartDensity:        DensityComfortable,
 		StartCardOpacity:    64,
 		StartCardRadius:     22,
@@ -283,6 +293,12 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.ThemePreset != nil {
 		v.ThemePreset = *p.ThemePreset
 	}
+	if p.ThemeStyle != nil {
+		v.ThemeStyle = *p.ThemeStyle
+	}
+	if p.ThemeGradientPacks != nil {
+		v.ThemeGradientPacks = *p.ThemeGradientPacks
+	}
 	if p.StartDensity != nil {
 		v.StartDensity = *p.StartDensity
 	}
@@ -364,6 +380,13 @@ func normalize(v SiteSettings) SiteSettings {
 	if err := kittheme.ValidatePackName(string(v.ThemePreset)); err != nil {
 		v.ThemePreset = PresetAurora
 	}
+	if v.ThemeStyle != StyleGradient {
+		v.ThemeStyle = StyleSolid
+	}
+	v.ThemeGradientPacks = normalizeThemeGradientPacks(v.ThemeGradientPacks)
+	if v.ThemeStyle == StyleGradient && len(v.ThemeGradientPacks) < 2 {
+		v.ThemeStyle = StyleSolid
+	}
 	switch v.StartDensity {
 	case DensityCompact, DensityComfortable, DensitySpacious:
 	default:
@@ -377,6 +400,28 @@ func normalize(v SiteSettings) SiteSettings {
 	v.Projects = normalizeProjects(v.Projects)
 	v.FriendLinks = normalizeFriendLinks(v.FriendLinks)
 	return v
+}
+
+// Existing solid themes remain intact. Gradient packs must be distinct, Kit-valid
+// IDs, and between two and four entries when actively selected.
+func normalizeThemeGradientPacks(packs []string) []string {
+	if len(packs) == 0 {
+		return []string{"aurora", "ocean"}
+	}
+	if len(packs) < 2 || len(packs) > 4 {
+		return []string{}
+	}
+	out := make([]string, 0, len(packs))
+	seen := make(map[string]bool, len(packs))
+	for _, p := range packs {
+		p = strings.TrimSpace(p)
+		if kittheme.ValidatePackName(p) != nil || seen[p] {
+			return []string{}
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
 }
 
 func normalizeSocial(values []SocialLink) []SocialLink {
