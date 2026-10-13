@@ -6,6 +6,7 @@ import type { SessionUser, SiteSettings } from "./types";
 import { ErrorCard, LoadingCard } from "./ui";
 import { HomePage } from "./pages/home";
 import { LoginPage } from "./pages/login";
+import { SiteContextMenu } from "./site-context-menu";
 
 const StartPage = lazy(async () => ({ default: (await import("./pages/start")).StartPage }));
 const BlogIndexPage = lazy(async () => ({ default: (await import("./pages/blog")).BlogIndexPage }));
@@ -160,5 +161,5 @@ export function App() {
     );
   }
 
-  return <Suspense fallback={<PageLoading />}>{page}</Suspense>;
+  return <><Suspense fallback={<PageLoading />}>{page}</Suspense><SiteContextMenu user={user} /></>;
 }

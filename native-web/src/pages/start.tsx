@@ -5,6 +5,19 @@ import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 
 type FlatItem = { item: NavItem; group: string; folder?: string };
+type FolderSize = "small" | "medium" | "large";
+type StartContextMenu = { item: NavItem | null; x: number; y: number };
+
+function folderSize(item: NavItem): FolderSize {
+  return item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large"
+    ? item.extra.startFolderSize : "medium";
+}
+
+function previewCapacity(size: FolderSize, width: number) {
+  if (width <= 560) return size === "small" ? 3 : size === "large" ? 12 : 6;
+  if (width <= 1190) return size === "small" ? 4 : size === "large" ? 12 : 6;
+  return size === "small" ? 5 : size === "large" ? 16 : 8;
+}
 
 function flattenItems(groups: NavGroup[]) {
   const result: FlatItem[] = [];
@@ -79,7 +92,11 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [folder, setFolder] = useState<NavItem | null>(null);
   const [folderHistory, setFolderHistory] = useState<NavItem[]>([]);
   const [folderSelectedIndex, setFolderSelectedIndex] = useState(0);
-  const [folderPreviewLimit, setFolderPreviewLimit] = useState(7);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const [contextMenu, setContextMenu] = useState<StartContextMenu | null>(null);
+  const [contextError, setContextError] = useState("");
+  const [savingFolder, setSavingFolder] = useState<number | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -87,13 +104,27 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const resize = () => setFolderPreviewLimit(
-      window.innerWidth <= 1190 ? 5 : 7
-    );
-    resize();
+    const resize = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !contextMenuRef.current?.contains(event.target)) setContextMenu(null);
+    };
+    const close = () => setContextMenu(null);
+    document.addEventListener("pointerdown", dismiss, true);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    contextMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    return () => {
+      document.removeEventListener("pointerdown", dismiss, true);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [contextMenu]);
 
 
   useEffect(() => {
@@ -141,6 +172,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         || target instanceof HTMLSelectElement
         || (target instanceof HTMLElement && target.isContentEditable);
 
+      if (event.key === "Escape" && contextMenu) {
+        event.preventDefault();
+        setContextMenu(null);
+        return;
+      }
+
       if (event.key === "/" && !typing) {
         event.preventDefault();
         searchRef.current?.focus();
@@ -186,7 +223,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [folder, folderSelectedIndex, query]);
+  }, [folder, folderSelectedIndex, query, contextMenu]);
 
   const group = groups.find((item) => item.id === activeGroup) ?? groups[0];
 
@@ -211,6 +248,49 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       return;
     }
     window.open(item.url, "_blank", "noopener,noreferrer");
+  }
+
+  function showContextMenu(event: React.MouseEvent<HTMLElement>, item: NavItem | null = null) {
+    const target = event.target;
+    if (target instanceof Element && target.closest("input,textarea,select,[contenteditable=true]")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextError("");
+    setContextMenu({
+      item,
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 256)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - (item?.type === "folder" ? 310 : 220)))
+    });
+  }
+
+  async function changeFolderSize(item: NavItem, size: FolderSize) {
+    if (!user || savingFolder !== null) return;
+    setContextMenu(null);
+    setSavingFolder(item.id);
+    setContextError("");
+    try {
+      const result = await requestJSON<{ tree: { groups: NavGroup[] } }>("/api/navigation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "update_item", data: { id: item.id, startFolderSize: size } })
+      });
+      const nextGroups = result.tree.groups;
+      setGroups(nextGroups);
+      if (folder) {
+        const nextFolder = flattenItems(nextGroups).find(({ item: entry }) => entry.id === folder.id)?.item;
+        if (nextFolder) setFolder(nextFolder);
+      }
+    } catch (reason) {
+      setContextError("文件夹大小保存失败：" + (reason instanceof Error ? reason.message : "请求失败"));
+    } finally {
+      setSavingFolder(null);
+    }
+  }
+
+  function copyLink(item: NavItem) {
+    setContextMenu(null);
+    void navigator.clipboard.writeText(item.url)
+      .catch(() => setContextError("无法复制链接，请检查浏览器剪贴板权限"));
   }
 
   function searchWeb() {
@@ -265,7 +345,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     : (group?.items ?? []).map((item) => ({ item }));
 
   return (
-    <div className={"km-start-page is-" + settings.startDensity} style={style}>
+    <div className={"km-start-page is-" + settings.startDensity} style={style} onContextMenu={(event) => showContextMenu(event)}>
       <aside className="km-start-rail">
         <a className="km-start-logo" href="/">K</a>
         <nav>
@@ -324,6 +404,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           </p>
         ) : null}
 
+        {contextError ? <div className="dk-message is-danger km-start-context-error" role="alert">{contextError}</div> : null}
         {query.trim() ? (
           <section className="km-start-grid km-start-search-grid" aria-label="搜索结果">
             {visibleEntries.map(({ item, meta, selected }) => (
@@ -332,6 +413,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 className={"km-start-card size-" + item.size + (selected ? " is-selected" : "")}
                 type="button"
                 onClick={() => void openItem(item)}
+                onContextMenu={(event) => showContextMenu(event, item)}
                 style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
               >
                 <span className="km-start-icon">{icon(item)}</span>
@@ -347,11 +429,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           <div className="km-start-sections">
             {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
               const children = item.children ?? [];
-              // One compact row; the final tile opens the complete folder when needed.
-              const preview = children.slice(0, folderPreviewLimit);
+              const size = folderSize(item);
+              const capacity = previewCapacity(size, viewportWidth);
+              const preview = children.slice(0, children.length > capacity ? capacity - 1 : capacity);
               const remaining = children.length - preview.length;
               return (
-                <section className="km-start-folder-section" key={item.id} aria-label={item.name}>
+                <section className={"km-start-folder-section is-" + size} key={item.id} aria-label={item.name} onContextMenu={(event) => showContextMenu(event, item)}>
                   <header className="km-start-folder-section-head">
                     <button type="button" className="km-start-folder-title" onClick={() => void openItem(item)} title={"打开 " + item.name}>
                       <span className="km-start-folder-symbol" aria-hidden="true">
@@ -376,6 +459,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                           key={child.id}
                           className={"km-start-folder-link" + (child.type === "folder" ? " is-folder" : "")}
                           onClick={() => void openItem(child)}
+                          onContextMenu={(event) => showContextMenu(event, child)}
                           style={child.backgroundColor ? { "--km-card-accent": child.backgroundColor } as CSSProperties : undefined}
                           title={child.type === "folder" ? "打开文件夹：" + child.name : child.name}
                         >
@@ -413,6 +497,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                       className={"km-start-card size-" + item.size}
                       type="button"
                       onClick={() => void openItem(item)}
+                      onContextMenu={(event) => showContextMenu(event, item)}
                       style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
                       title={item.name}
                     >
@@ -466,6 +551,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                   onFocus={() => setFolderSelectedIndex(index)}
                   onMouseEnter={() => setFolderSelectedIndex(index)}
                   onClick={() => void openItem(item)}
+                  onContextMenu={(event) => showContextMenu(event, item)}
                 >
                   <span className="km-start-icon">{icon(item)}</span>
                   <strong>{item.name}</strong>
@@ -473,6 +559,70 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               ))}
             </div>
           </section>
+        </div>
+      ) : null}
+      {contextMenu ? (
+        <div
+          className="km-start-context-menu"
+          role="menu"
+          aria-label={contextMenu.item ? contextMenu.item.name + " 的快捷菜单" : "Start 快捷菜单"}
+          ref={contextMenuRef}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onContextMenu={(event) => event.preventDefault()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") { event.preventDefault(); setContextMenu(null); return; }
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+            const enabled = Array.from(contextMenuRef.current?.querySelectorAll<HTMLElement>(
+              '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])'
+            ) ?? []);
+            if (!enabled.length) return;
+            const current = enabled.indexOf(document.activeElement as HTMLElement);
+            const next = (current + (event.key === "ArrowDown" ? 1 : -1) + enabled.length) % enabled.length;
+            event.preventDefault();
+            enabled[next].focus();
+          }}
+        >
+          {contextMenu.item ? (
+            <>
+              <strong className="km-start-context-caption">{contextMenu.item.name}</strong>
+              <button type="button" role="menuitem" onClick={() => { const target = contextMenu.item; setContextMenu(null); if (target) void openItem(target); }}>
+                {contextMenu.item.type === "folder" ? "打开文件夹" : "打开链接"} <span aria-hidden="true">↗</span>
+              </button>
+              {contextMenu.item.type === "folder" ? (
+                <>
+                  <div className="km-start-context-divider" role="separator" />
+                  <span className="km-start-context-label">文件夹大小</span>
+                  {([
+                    ["small", "小 · 半宽单排"],
+                    ["medium", "中 · 通栏单排"],
+                    ["large", "大 · 通栏双排"]
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={folderSize(contextMenu.item!) === value}
+                      disabled={!user || savingFolder !== null}
+                      onClick={() => void changeFolderSize(contextMenu.item!, value)}
+                    ><span>{label}</span><span aria-hidden="true">{folderSize(contextMenu.item!) === value ? "✓" : ""}</span></button>
+                  ))}
+                  {!user ? <small className="km-start-context-note">登录后可修改并保存尺寸</small> : null}
+                </>
+              ) : (
+                <button type="button" role="menuitem" onClick={() => copyLink(contextMenu.item!)}>复制链接</button>
+              )}
+              <div className="km-start-context-divider" role="separator" />
+              {user ? <a role="menuitem" href={"/admin/navigation?editItem=" + contextMenu.item.id}>编辑导航</a>
+                : <a role="menuitem" href="/login?next=%2Fstart">登录后编辑</a>}
+            </>
+          ) : (
+            <>
+              <strong className="km-start-context-caption">Start</strong>
+              <button type="button" role="menuitem" onClick={() => window.location.reload()}>刷新导航</button>
+              <a role="menuitem" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理导航" : "登录后管理"}</a>
+              <a role="menuitem" href="/">返回个人主页</a>
+            </>
+          )}
         </div>
       ) : null}
     </div>
