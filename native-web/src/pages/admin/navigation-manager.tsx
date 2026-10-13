@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { requestJSON } from "../../api";
 import type { NavGroup, NavItem } from "../../types";
 import { AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../../ui";
@@ -23,6 +23,7 @@ type ItemDraft = {
   iconText: string;
   backgroundColor: string;
   size: "1x1" | "2x1" | "2x2";
+  startFolderSize: "small" | "medium" | "large";
   visibility: "public" | "private";
   openMode: "new_tab" | "same_tab";
 };
@@ -42,6 +43,7 @@ function emptyItem(groupId = 0): ItemDraft {
     iconText: "",
     backgroundColor: "",
     size: "1x1",
+    startFolderSize: "medium",
     visibility: "private",
     openMode: "new_tab"
   };
@@ -68,6 +70,7 @@ export function NavigationManager() {
   const [pendingImport, setPendingImport] = useState<{ raw: string; strategy: "merge" | "replace"; preview: ImportPreview } | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: number; mode?: ItemDropMode } | null>(null);
+  const deepLinkHandled = useRef(false);
 
   async function reload() {
     const payload = await requestJSON<{ groups: NavGroup[] }>("/api/navigation");
@@ -223,10 +226,25 @@ export function NavigationManager() {
       iconText: item.iconText,
       backgroundColor: item.backgroundColor,
       size: item.size,
+      startFolderSize: item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large" ? item.extra.startFolderSize : "medium",
       visibility: item.visibility,
       openMode: item.extra?.openMode === "same_tab" ? "same_tab" : "new_tab"
     });
   }
+
+  useEffect(() => {
+    if (!groups || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const id = Number(params.get("editItem"));
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+    const target = groups.flatMap((group) => flatten(group.items ?? [])).find(({ item }) => item.id === id)?.item;
+    if (!target) return;
+    setSelectedGroupId(target.groupId);
+    editItem(target);
+    params.delete("editItem");
+    window.history.replaceState(window.history.state, "", window.location.pathname + (params.size ? "?" + params : "") + window.location.hash);
+  }, [groups]);
 
   async function importItab(file: File, strategy: "merge" | "replace") {
     setError("");
@@ -345,7 +363,7 @@ export function NavigationManager() {
                       <strong>{item.name}</strong>
                       <small>{item.type === "folder" ? `${item.children.length} 个子项` : item.url || "无 URL"}</small>
                     </div>
-                    <span>{item.size}</span>
+                    <span>{item.type === "folder" ? ({ small: "小", medium: "中", large: "大" } as const)[item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large" ? item.extra.startFolderSize : "medium"] : item.size}</span>
                     <span>{item.visibility === "public" ? "公开" : "私有"}</span>
                     {item.browserLocal ? <em>本地</em> : null}
                     <div className="km-nav-row-actions">
@@ -411,19 +429,23 @@ export function NavigationManager() {
               </div>
             </section>
             <section className="km-nav-edit-section">
-              <header><strong>外观</strong><small>设置卡片图标、颜色与尺寸</small></header>
+              <header><strong>外观</strong><small>设置图标、颜色与导航尺寸</small></header>
               <div className="km-form-grid">
                 <label className="dk-field km-span-2">图标 URL<input value={itemDraft.iconUrl} onChange={(e) => setItemDraft({ ...itemDraft, iconUrl: e.target.value })} /></label>
                 <label className="dk-field">图标文字<input value={itemDraft.iconText} onChange={(e) => setItemDraft({ ...itemDraft, iconText: e.target.value })} /></label>
                 <label className="dk-field">背景色<input value={itemDraft.backgroundColor} onChange={(e) => setItemDraft({ ...itemDraft, backgroundColor: e.target.value })} placeholder="#6366f1" /></label>
-                <label className="dk-field">尺寸<select value={itemDraft.size} onChange={(e) => setItemDraft({ ...itemDraft, size: e.target.value as ItemDraft["size"] })}><option value="1x1">1×1</option><option value="2x1">2×1</option><option value="2x2">2×2</option></select></label>
+                {itemDraft.type === "folder" ? (
+                   <label className="dk-field">Start 文件夹大小<select value={itemDraft.startFolderSize} onChange={(e) => setItemDraft({ ...itemDraft, startFolderSize: e.target.value as ItemDraft["startFolderSize"] })}><option value="small">小 · 半宽单排</option><option value="medium">中 · 通栏单排</option><option value="large">大 · 通栏双排</option></select></label>
+                 ) : (
+                   <label className="dk-field">尺寸<select value={itemDraft.size} onChange={(e) => setItemDraft({ ...itemDraft, size: e.target.value as ItemDraft["size"] })}><option value="1x1">1×1</option><option value="2x1">2×1</option><option value="2x2">2×2</option></select></label>
+                 )}
                 <div className="km-nav-live-preview-wrap">
                   <span>即时预览</span>
                   <div className={"km-nav-item-live-preview is-" + itemDraft.size} style={itemDraft.backgroundColor ? { background: itemDraft.backgroundColor } : undefined}>
                     <div className="km-nav-item-live-preview-icon">{itemDraft.iconUrl ? <img src={itemDraft.iconUrl} alt="" /> : (itemDraft.iconText || (itemDraft.type === "folder" ? "▣" : itemDraft.name.slice(0, 1) || "N"))}</div>
                     <strong>{itemDraft.name || "导航名称"}</strong>
                     <small>{itemDraft.type === "folder" ? "文件夹" : itemDraft.url || "https://example.com"}</small>
-                    <em>{itemDraft.size}</em>
+                    <em>{itemDraft.type === "folder" ? { small: "小", medium: "中", large: "大" }[itemDraft.startFolderSize] : itemDraft.size}</em>
                   </div>
                 </div>
               </div>

@@ -149,7 +149,7 @@ func (s *Server) handleNavigationAction(w http.ResponseWriter, r *http.Request) 
 			BackgroundColor: stringValue(body.Data["backgroundColor"]),
 			Size:            itemSizeValue(body.Data["size"]),
 			Visibility:      visibilityValue(body.Data["visibility"]),
-			Extra:           map[string]any{"openMode": openModeValue(body.Data["openMode"])},
+			Extra:           map[string]any{"openMode": openModeValue(body.Data["openMode"]), "startFolderSize": startFolderSizeValue(body.Data["startFolderSize"])},
 		})
 		err = createErr
 		response = map[string]any{"ok": true, "id": id}
@@ -208,8 +208,15 @@ func (s *Server) handleNavigationAction(w http.ResponseWriter, r *http.Request) 
 			v := visibilityValue(value)
 			patch.Visibility = &v
 		}
+		extraPatch := map[string]any{}
 		if value, ok := body.Data["openMode"]; ok {
-			patch.Extra = &map[string]any{"openMode": openModeValue(value)}
+			extraPatch["openMode"] = openModeValue(value)
+		}
+		if value, ok := body.Data["startFolderSize"]; ok {
+			extraPatch["startFolderSize"] = startFolderSizeValue(value)
+		}
+		if len(extraPatch) > 0 {
+			patch.Extra = &extraPatch
 		}
 		_, err = s.navigation.UpdateItem(r.Context(), id, patch)
 		response = map[string]any{"ok": true}
@@ -536,6 +543,15 @@ func stringValue(value any) string {
 		return text
 	}
 	return fmt.Sprint(value)
+}
+
+func startFolderSizeValue(value any) string {
+	switch stringValue(value) {
+	case "small", "large":
+		return stringValue(value)
+	default:
+		return "medium"
+	}
 }
 
 func openModeValue(value any) string {
