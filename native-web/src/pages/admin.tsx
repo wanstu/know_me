@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { logout, requestAPI, requestJSON } from "../api";
 import { applyTheme, loadThemeCatalog, validGradientPacks, type ThemeCatalog } from "../kit";
 import { validateMediaFile } from "../media";
+import { START_SEARCH_ENGINES, validSearchEngineURL } from "../start-search-engines";
 import type { MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
 import { MediaManager } from "./admin/media-manager";
@@ -702,7 +703,9 @@ function NetworkAccessSettings() {
 
 function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChange: (settings: SiteSettings) => void }) {
   const [draft, setDraft] = useState(settings);
-  const [section, setSection] = useState<SettingsSection>("profile");
+  const [section, setSection] = useState<SettingsSection>(
+    () => new URLSearchParams(window.location.search).get("section") === "start" ? "start" : "profile"
+  );
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
@@ -853,6 +856,16 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (!draft.searchEngines?.length ||
+        draft.searchEngines.some((engine) => !/^[a-z0-9_-]{1,80}$/i.test(engine.id) ||
+          !engine.name.trim() || !validSearchEngineURL(engine.url) ||
+          Boolean(engine.iconUrl && !/^https:\/\/[^\s]+/i.test(engine.iconUrl))) ||
+        new Set(draft.searchEngines.map((item) => item.id)).size !== draft.searchEngines.length ||
+        !draft.searchEngines.some((engine) => engine.id === draft.defaultSearchEngine)) {
+      setMessageTone("error");
+      setMessage("请检查搜索引擎：至少保留一个、名称/ID 不重复，搜索地址必须是 HTTPS 且包含一次 {query}；默认引擎必须有效");
+      return;
+    }
     if (draft.themeStyle === "gradient" && !validGradientPacks(gradientNames)) {
       setMessageTone("error");
       setMessage("渐变模式需要选择 2～4 个不同的基础主题");
@@ -907,6 +920,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="dk-field km-span-2">简介<textarea rows={4} value={draft.profileBio} onChange={(event) => update("profileBio", event.target.value)} /></label>
               <MediaField label="头像" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} />
               <MediaField label="主页背景" value={draft.homeBackgroundUrl} onChange={(value) => update("homeBackgroundUrl", value)} />
+              <p className="km-muted km-span-2">手动填写时固定显示；留空时每次打开主页随机选择一条内置短句，不使用 AI，也不是每天定时生成。</p>
               <label className="dk-field">今日短句<input value={draft.quote} onChange={(event) => update("quote", event.target.value)} /></label>
               <label className="dk-field">短句署名<input value={draft.quoteAuthor} onChange={(event) => update("quoteAuthor", event.target.value)} /></label>
               <label className="km-check"><input type="checkbox" checked={draft.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} /><span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span></label>
@@ -934,13 +948,63 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             <header><span className="km-eyebrow">START</span><h2>浏览器起始页</h2><p>控制背景、搜索方式、卡片密度和公开策略。</p></header>
             <div className="km-form-grid">
               <MediaField label="Start 背景" value={draft.startBackgroundUrl} onChange={(value) => update("startBackgroundUrl", value)} />
-              <label className="dk-field">默认搜索<select value={draft.defaultSearchEngine} onChange={(event) => update("defaultSearchEngine", event.target.value as SiteSettings["defaultSearchEngine"])}><option>Bing</option><option>Google</option><option>DuckDuckGo</option></select></label>
+              <label className="dk-field">默认搜索<select value={draft.defaultSearchEngine} onChange={(event) => update("defaultSearchEngine", event.target.value)}>
+                {(draft.searchEngines?.length ? draft.searchEngines : START_SEARCH_ENGINES).map((engine) => <option key={engine.id} value={engine.id}>{engine.name || engine.id}</option>)}
+              </select></label>
               <label className="dk-field">起始页密度<select value={draft.startDensity} onChange={(event) => update("startDensity", event.target.value as SiteSettings["startDensity"])}><option value="compact">紧凑</option><option value="comfortable">舒适</option><option value="spacious">宽松</option></select></label>
               <label className="dk-field">卡片透明度 <b>{draft.startCardOpacity}%</b><input type="range" min={30} max={95} value={draft.startCardOpacity} onChange={(event) => update("startCardOpacity", Number(event.target.value))} /></label>
               <label className="dk-field">卡片圆角 <b>{draft.startCardRadius}px</b><input type="range" min={12} max={32} value={draft.startCardRadius} onChange={(event) => update("startCardRadius", Number(event.target.value))} /></label>
               <label className="dk-field">背景压暗 <b>{draft.startBackgroundDim}%</b><input type="range" min={0} max={90} value={draft.startBackgroundDim} onChange={(event) => update("startBackgroundDim", Number(event.target.value))} /></label>
               <label className="km-check km-span-2"><input type="checkbox" checked={draft.startPublic} onChange={(event) => update("startPublic", event.target.checked)} /><span><strong>公开起始页</strong><small>关闭后未登录访客无法查看导航。</small></span></label>
             </div>
+            <section className="km-settings-collection km-search-engines-editor">
+              <header>
+                <div><span className="km-eyebrow">SEARCH ENGINES</span><h3>搜索引擎管理</h3>
+                  <p className="km-muted">引擎列表与默认项对整个站点生效；Start 会记住当前浏览器的手动选择，可随时恢复站点默认。最多 12 个，搜索地址使用 <code>{"{query}"}</code> 作为关键词占位符。</p>
+                </div>
+                <button type="button" className="dk-button" disabled={(draft.searchEngines?.length ?? 0) >= 12}
+                  onClick={() => setDraft((current) => ({
+                    ...current,
+                    searchEngines: [...(current.searchEngines ?? []), { id: "custom_" + Date.now().toString(36), name: "", url: "https://example.com/search?q={query}", iconUrl: "" }]
+                  }))}>新增引擎</button>
+              </header>
+              <div className="km-search-engine-list">
+                {(draft.searchEngines ?? []).map((engine, index) => (
+                  <div className="km-search-engine-entry" key={engine.id}>
+                    <div className="km-search-engine-heading">
+                      <span className="km-search-engine-glyph" aria-hidden="true">{engine.name?.trim().slice(0, 1) || "⌕"}</span>
+                      <strong>{engine.name || "新搜索引擎"}</strong>
+                      <label className="km-search-engine-default"><input type="radio" name="defaultSearchEngine" checked={draft.defaultSearchEngine === engine.id} onChange={() => update("defaultSearchEngine", engine.id)} />设为默认</label>
+                    </div>
+                    <div className="km-search-engine-fields">
+                      <label>名称<input aria-label={"搜索引擎 " + index + " 名称"} value={engine.name} onChange={(e) => setDraft((current) => ({
+                        ...current, searchEngines: current.searchEngines.map((item, i) => i === index ? { ...item, name: e.target.value } : item)
+                      }))} placeholder="如：必应、Google 或公司内搜索" /></label>
+                      <label>搜索地址<input aria-label={"搜索引擎 " + index + " 搜索地址"} value={engine.url} onChange={(e) => setDraft((current) => ({
+                        ...current, searchEngines: current.searchEngines.map((item, i) => i === index ? { ...item, url: e.target.value } : item)
+                      }))} placeholder="https://example.com/search?q={query}" /></label>
+                      <label>图标地址（可留空）<input aria-label={"搜索引擎 " + index + " 图标地址"} value={engine.iconUrl ?? ""} onChange={(e) => setDraft((current) => ({
+                        ...current, searchEngines: current.searchEngines.map((item, i) => i === index ? { ...item, iconUrl: e.target.value } : item)
+                      }))} placeholder="https://example.com/favicon.ico" /></label>
+                    </div>
+                    <div className="km-search-engine-actions">
+                      <button type="button" disabled={index === 0} onClick={() => setDraft((current) => {
+                        const next = [...current.searchEngines]; [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        return { ...current, searchEngines: next };
+                      })}>上移</button>
+                      <button type="button" disabled={index === draft.searchEngines.length - 1} onClick={() => setDraft((current) => {
+                        const next = [...current.searchEngines]; [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                        return { ...current, searchEngines: next };
+                      })}>下移</button>
+                      <button type="button" className="is-danger" disabled={draft.searchEngines.length < 2} onClick={() => setDraft((current) => {
+                        const next = current.searchEngines.filter((item) => item.id !== engine.id);
+                        return { ...current, searchEngines: next, defaultSearchEngine: current.defaultSearchEngine === engine.id ? next[0]?.id ?? "Bing" : current.defaultSearchEngine };
+                      })}>删除</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           </section>
         ) : null}
 

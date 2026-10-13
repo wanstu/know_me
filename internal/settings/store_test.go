@@ -139,3 +139,76 @@ func TestThemeGradientPersistenceAndLegacyCompatibility(t *testing.T) {
 		t.Fatalf("solid should preserve editable gradient selection: %+v", changed)
 	}
 }
+
+func TestSearchEngineConfigurationPersistenceAndLegacy(t *testing.T) {
+	t.Parallel()
+	db, err := database.Open(filepath.Join(t.TempDir(), "search-engines.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db.SQL)
+	ctx := context.Background()
+
+	// Existing site JSON contains only the old default ID.
+	if _, err := db.SQL.ExecContext(ctx,
+		"INSERT INTO settings(key,value_json,updated_at) VALUES('site', ?, 1)",
+		`{"defaultSearchEngine":"Google"}`); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.DefaultSearchEngine != "Google" || len(legacy.SearchEngines) != 5 {
+		t.Fatalf("legacy search settings changed: %+v", legacy)
+	}
+
+	list := []SearchEngine{
+		{ID: "custom", Name: "内部搜索", URL: "https://example.com/find?term={query}", IconURL: "https://example.com/favicon.ico"},
+		{ID: "Google", Name: "Google", URL: "https://www.google.com/search?q={query}"},
+	}
+	def := SearchEngineName("custom")
+	updated, err := store.UpdateSite(ctx, SitePatch{SearchEngines: &list, DefaultSearchEngine: &def})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.SearchEngines) != 2 || updated.DefaultSearchEngine != "custom" {
+		t.Fatalf("custom engines not persisted: %+v", updated)
+	}
+	reloaded, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.SearchEngines) != 2 || reloaded.SearchEngines[0].ID != "custom" {
+		t.Fatalf("custom engine was not reloaded: %+v", reloaded)
+	}
+
+	// Removing the current default must never leave a dangling engine selection.
+	shortened := []SearchEngine{list[1]}
+	updated, err = store.UpdateSite(ctx, SitePatch{SearchEngines: &shortened})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.DefaultSearchEngine != "Google" {
+		t.Fatalf("missing fallback default: %+v", updated)
+	}
+
+	invalid := []SearchEngine{
+		{ID: "bad", Name: "invalid", URL: "javascript:alert({query})"},
+		{ID: "bad2", Name: "invalid", URL: "http://not-secure.test/?q={query}"},
+		{ID: "valid", Name: "valid", URL: "https://example.com/?q={query}", IconURL: "javascript:alert(1)"},
+		{ID: "valid", Name: "duplicate", URL: "https://example.com/?q={query}"},
+		{ID: "missing", Name: "no placeholder", URL: "https://example.com/"},
+	}
+	updated, err = store.UpdateSite(ctx, SitePatch{SearchEngines: &invalid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.SearchEngines) != 1 || updated.SearchEngines[0].ID != "valid" || updated.SearchEngines[0].IconURL != "" {
+		t.Fatalf("invalid URLs were not filtered: %+v", updated.SearchEngines)
+	}
+	if updated.DefaultSearchEngine != "valid" {
+		t.Fatalf("invalid default after filter: %+v", updated)
+	}
+}
