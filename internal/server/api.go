@@ -86,10 +86,29 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 }
 
 func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
+	// Homepage entries depend on the current session: never cache across visitors.
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Add("Vary", "Cookie")
 	value, err := s.settings.GetSite(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "settings_failed"})
 		return
+	}
+	// Do not expose login-only homepage links to anonymous visitors.
+	// Authenticated administrators receive the complete editable collection.
+	user, authErr := s.currentUser(r)
+	if authErr != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "auth_failed"})
+		return
+	}
+	if user == nil {
+		publicEntries := make([]settings.HomeEntry, 0, len(value.HomeEntries))
+		for _, entry := range value.HomeEntries {
+			if entry.Visibility != settings.HomeEntryAuthenticated {
+				publicEntries = append(publicEntries, entry)
+			}
+		}
+		value.HomeEntries = publicEntries
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"settings": value, "desktopBrowser": s.desktopBrowserOpen != nil})
 }

@@ -41,11 +41,9 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
     return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)] ?? fallbackQuotes[0];
   }, [settings.quote]);
 
-  const entries = settings.homeEntries?.length ? settings.homeEntries : [
-    { id: "blog", name: "Blog", description: "文章与笔记", url: "/blog", newTab: false },
-    { id: "start", name: "Start", description: "浏览器起始页", url: "/start", newTab: false },
-    { id: "admin", name: "Admin", description: "管理后台", url: "/admin", newTab: false }
-  ];
+  const entries = (settings.homeEntries ?? []).filter((entry) =>
+    entry.visibility === "authenticated" ? Boolean(user) : entry.visibility === "guest" ? !user : true
+  );
 
   return (
     <PageFrame settings={settings} user={user} className="km-home-page">

@@ -2517,7 +2517,7 @@ button { cursor: pointer; }
   grid-template-columns: minmax(120px, .5fr) minmax(240px, 1.4fr) auto;
 }
 .settings-collection-row--entry {
-  grid-template-columns: minmax(120px, .5fr) minmax(180px, .8fr) minmax(220px, 1.2fr) auto auto;
+  grid-template-columns: minmax(120px, .5fr) minmax(150px, .8fr) minmax(180px, 1.2fr) auto auto auto;
 }
 .settings-collection-row--project {
   grid-template-columns: minmax(150px, .7fr) minmax(110px, .4fr) minmax(220px, 1.2fr) minmax(200px, 1fr) auto;

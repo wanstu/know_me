@@ -35,6 +35,14 @@ const (
 	DensitySpacious    StartDensity = "spacious"
 )
 
+type HomeEntryVisibility string
+
+const (
+	HomeEntryAll           HomeEntryVisibility = "all"
+	HomeEntryAuthenticated HomeEntryVisibility = "authenticated"
+	HomeEntryGuest         HomeEntryVisibility = "guest"
+)
+
 type SocialLink struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
@@ -42,11 +50,12 @@ type SocialLink struct {
 }
 
 type HomeEntry struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	NewTab      bool   `json:"newTab"`
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	URL         string              `json:"url"`
+	NewTab      bool                `json:"newTab"`
+	Visibility  HomeEntryVisibility `json:"visibility"`
 }
 
 type ProjectEntry struct {
@@ -169,8 +178,8 @@ func Defaults() SiteSettings {
 			{ID: "about", Name: "About", Description: "关于我", URL: "#about"},
 			{ID: "admin", Name: "Admin", Description: "管理后台", URL: "/admin"},
 		},
-		Projects:        []ProjectEntry{},
-		FriendLinks:     []FriendLink{},
+		Projects:    []ProjectEntry{},
+		FriendLinks: []FriendLink{},
 	}
 }
 
@@ -178,7 +187,7 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 	var raw string
 	err := s.db.QueryRowContext(ctx, "SELECT value_json FROM settings WHERE key = 'site' LIMIT 1").Scan(&raw)
 	if err == sql.ErrNoRows {
-		return Defaults(), nil
+		return normalize(Defaults()), nil
 	}
 	if err != nil {
 		return SiteSettings{}, err
@@ -186,7 +195,7 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 
 	value := Defaults()
 	if err := json.Unmarshal([]byte(raw), &value); err != nil {
-		return Defaults(), nil
+		return normalize(Defaults()), nil
 	}
 
 	var keys map[string]json.RawMessage
@@ -407,6 +416,11 @@ func normalizeHome(values []HomeEntry) []HomeEntry {
 		}
 		item.Name = trim(item.Name, 80)
 		item.Description = trim(item.Description, 160)
+		switch item.Visibility {
+		case HomeEntryAuthenticated, HomeEntryGuest:
+		default:
+			item.Visibility = HomeEntryAll
+		}
 		item.URL = trim(item.URL, 1000)
 		if item.Name != "" && item.URL != "" {
 			out = append(out, item)

@@ -213,7 +213,7 @@ export function SettingsManager({
         <div>
           <div className="eyebrow">Explore</div>
           <h2>主页入口卡片</h2>
-          <p className="muted">控制主页 Explore 区域的入口、文案、顺序和打开方式。</p>
+          <p className="muted">控制主页 Explore 区域的入口、文案、顺序、显示条件和打开方式。显示条件不等于目标页面的访问权限。</p>
         </div>
 
         <div className="settings-collection">
@@ -222,6 +222,9 @@ export function SettingsManager({
               <input value={item.name} onChange={(event) => updateEntry(index, { name: event.target.value })} placeholder="名称" />
               <input value={item.description} onChange={(event) => updateEntry(index, { description: event.target.value })} placeholder="说明" />
               <input value={item.url} onChange={(event) => updateEntry(index, { url: event.target.value })} placeholder="/blog、#projects 或 https://..." />
+              <label className="settings-inline-check">显示条件
+                <select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => updateEntry(index, { visibility: event.target.value as "all" | "authenticated" | "guest" })}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option></select>
+              </label>
               <label className="settings-inline-check">
                 <input type="checkbox" checked={item.newTab} onChange={(event) => updateEntry(index, { newTab: event.target.checked })} />
                 新标签页
@@ -237,7 +240,7 @@ export function SettingsManager({
           <button
             type="button"
             className="secondary-button settings-add-button"
-            onClick={() => update("homeEntries", [...settings.homeEntries, { id: id("entry"), name: "", description: "", url: "/", newTab: false }])}
+            onClick={() => update("homeEntries", [...settings.homeEntries, { id: id("entry"), name: "", description: "", url: "/", newTab: false, visibility: "all" }])}
           >
             ＋ 添加主页入口
           </button>
