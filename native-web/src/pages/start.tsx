@@ -45,6 +45,15 @@ function searchURL(engine: SiteSettings["defaultSearchEngine"], query: string) {
   return "https://www.bing.com/search?q=" + q;
 }
 
+function groupMark(group: NavGroup) {
+  const marks: Record<string, string> = {
+    home: "⌂", code: "⌘", read: "▤", app: "▦",
+    entertainment: "◇", office: "▣", tool: "⚙"
+  };
+  const key = group.icon?.toLowerCase() ?? "";
+  return marks[key] ?? (group.icon && group.icon.length <= 2 ? group.icon : group.name.slice(0, 1));
+}
+
 function icon(item: NavItem) {
   if (item.iconUrl && (/^https?:\/\//i.test(item.iconUrl) || item.iconUrl.startsWith("/media/"))) {
     return <img src={item.iconUrl} alt="" loading="lazy" />;
@@ -239,7 +248,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <nav>
           {groups.map((item) => (
             <button key={item.id} className={item.id === group?.id ? "is-active" : ""} onClick={() => { setActiveGroup(item.id); setQuery(""); setFolder(null); setFolderHistory([]); }} title={item.name}>
-              <span>{item.icon || item.name.slice(0, 1)}</span><small>{item.name}</small>
+              <span aria-hidden="true">{groupMark(item)}</span><small>{item.name}</small>
             </button>
           ))}
         </nav>
@@ -249,10 +258,10 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       <main className="km-start-main">
         <header className="km-start-top">
           <div>
-            <span className="km-eyebrow">{query ? "SEARCH" : "START"}</span>
+            <span className="km-eyebrow">{query ? "搜索导航" : "我的工作台"}</span>
             <h1>{query ? "全局搜索" : group?.name || "我的导航"}</h1>
           </div>
-          <a href="/">返回主页</a>
+          <a href="/">返回个人主页 <span aria-hidden="true">↗</span></a>
         </header>
 
         <form className="km-start-search" onSubmit={submitSearch}>
@@ -274,7 +283,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               }
             }}
             placeholder={"搜索所有导航，或使用 " + settings.defaultSearchEngine}
-            autoFocus
+            autoComplete="off"
           />
           {query ? (
             <div className="km-start-search-actions">
@@ -292,30 +301,111 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           </p>
         ) : null}
 
-        <section className="km-start-grid">
-          {visibleEntries.map(({ item, meta, selected }) => (
-            <button
-              key={item.id}
-              className={"km-start-card size-" + item.size + (selected ? " is-selected" : "")}
-              type="button"
-              onClick={() => void openItem(item)}
-              style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
-            >
-              <span className="km-start-icon">{icon(item)}</span>
-              <span className="km-start-card-copy">
-                <strong>{item.name}</strong>
-                <small>
-                  {meta
-                    ? [meta.group, meta.folder].filter(Boolean).join(" / ") + (item.url ? " · " + item.url : "")
-                    : item.type === "folder"
-                      ? (item.children?.length ?? 0) + " 个项目"
-                      : item.browserLocal ? "浏览器本地" : item.url}
-                </small>
-              </span>
-              <b>{item.type === "folder" ? "›" : "↗"}</b>
-            </button>
-          ))}
-        </section>
+        {query.trim() ? (
+          <section className="km-start-grid km-start-search-grid" aria-label="搜索结果">
+            {visibleEntries.map(({ item, meta, selected }) => (
+              <button
+                key={item.id}
+                className={"km-start-card size-" + item.size + (selected ? " is-selected" : "")}
+                type="button"
+                onClick={() => void openItem(item)}
+                style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
+              >
+                <span className="km-start-icon">{icon(item)}</span>
+                <span className="km-start-card-copy">
+                  <strong>{item.name}</strong>
+                  <small>{[meta?.group, meta?.folder].filter(Boolean).join(" / ") + (item.url ? " · " + item.url : "")}</small>
+                </span>
+                <b aria-hidden="true">{item.type === "folder" ? "›" : "↗"}</b>
+              </button>
+            ))}
+          </section>
+        ) : (
+          <div className="km-start-sections">
+            {(group?.items ?? []).some((item) => item.type !== "folder") ? (
+              <section className="km-start-quick-section" aria-labelledby="km-start-quick-title">
+                <header className="km-start-section-head">
+                  <div>
+                    <h2 id="km-start-quick-title">快捷访问</h2>
+                    <p>点击图标，直接打开常用网站</p>
+                  </div>
+                  <span>{(group?.items ?? []).filter((item) => item.type !== "folder").length} 个快捷入口</span>
+                </header>
+                <div className="km-start-grid km-start-quick-grid">
+                  {(group?.items ?? []).filter((item) => item.type !== "folder").map((item) => (
+                    <button
+                      key={item.id}
+                      className={"km-start-card size-" + item.size}
+                      type="button"
+                      onClick={() => void openItem(item)}
+                      style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
+                      title={item.name}
+                    >
+                      <span className="km-start-icon">{icon(item)}</span>
+                      <span className="km-start-card-copy">
+                        <strong>{item.name}</strong>
+                        <small>{item.browserLocal ? "浏览器本地" : item.url}</small>
+                      </span>
+                      <b aria-hidden="true">↗</b>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
+              const children = item.children ?? [];
+              const preview = children.slice(0, 12);
+              const remaining = children.length - preview.length;
+              return (
+                <section className="km-start-folder-section" key={item.id} aria-label={item.name}>
+                  <header className="km-start-folder-section-head">
+                    <button type="button" className="km-start-folder-title" onClick={() => void openItem(item)} title={"打开 " + item.name}>
+                      <span className="km-start-folder-symbol" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6.5a2 2 0 0 1 2-2h4.2l2.1 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        </svg>
+                      </span>
+                      <span className="km-start-folder-label">
+                        <strong>{item.name}</strong>
+                        <small>{children.length} 个项目 · 点击标题打开文件夹</small>
+                      </span>
+                    </button>
+                    <button type="button" className="km-start-folder-open" onClick={() => void openItem(item)}>
+                      打开文件夹 <span aria-hidden="true">↗</span>
+                    </button>
+                  </header>
+                  {children.length ? (
+                    <div className="km-start-folder-links">
+                      {preview.map((child) => (
+                        <button
+                          type="button"
+                          key={child.id}
+                          className="km-start-folder-link"
+                          onClick={() => void openItem(child)}
+                          style={child.backgroundColor ? { "--km-card-accent": child.backgroundColor } as CSSProperties : undefined}
+                          title={child.type === "folder" ? "打开文件夹：" + child.name : child.name}
+                        >
+                          <span className="km-start-icon">{icon(child)}</span>
+                          <span className="km-start-folder-link-name">{child.name}</span>
+                          {child.type === "folder" ? <span className="km-start-folder-nested" aria-label="子文件夹">›</span> : null}
+                        </button>
+                      ))}
+                      {remaining > 0 ? (
+                        <button type="button" className="km-start-folder-more" onClick={() => void openItem(item)}>
+                          <span>+{remaining}</span>
+                          <small>查看全部</small>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <button type="button" className="km-start-folder-empty" onClick={() => void openItem(item)}>文件夹暂无内容 · 打开查看</button>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
 
         {!visibleEntries.length && !query ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
       </main>
