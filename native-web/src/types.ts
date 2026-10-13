@@ -1,3 +1,5 @@
+export type SearchEngineConfig = { id: string; name: string; url: string; iconUrl: string };
+
 export type SocialLink = { id: string; label: string; url: string };
 export type HomeEntryVisibility = "all" | "authenticated" | "guest";
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean; visibility?: HomeEntryVisibility };
@@ -19,7 +21,8 @@ export type SiteSettings = {
   homeBackgroundUrl: string;
   startBackgroundUrl: string;
   startPublic: boolean;
-  defaultSearchEngine: "Bing" | "Google" | "DuckDuckGo";
+  defaultSearchEngine: string;
+  searchEngines: SearchEngineConfig[];
   themeMode: "auto" | "dark" | "light";
   themePreset: string;
   themeStyle: "solid" | "gradient";

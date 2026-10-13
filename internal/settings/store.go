@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -46,6 +47,23 @@ const (
 	HomeEntryAuthenticated HomeEntryVisibility = "authenticated"
 	HomeEntryGuest         HomeEntryVisibility = "guest"
 )
+
+type SearchEngine struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	IconURL string `json:"iconUrl"`
+}
+
+func DefaultSearchEngines() []SearchEngine {
+	return []SearchEngine{
+		{ID: "Bing", Name: "Bing", URL: "https://www.bing.com/search?q={query}", IconURL: "https://www.bing.com/favicon.ico"},
+		{ID: "Google", Name: "Google", URL: "https://www.google.com/search?q={query}", IconURL: "https://www.google.com/favicon.ico"},
+		{ID: "DuckDuckGo", Name: "DuckDuckGo", URL: "https://duckduckgo.com/?q={query}", IconURL: "https://duckduckgo.com/favicon.ico"},
+		{ID: "Baidu", Name: "百度", URL: "https://www.baidu.com/s?wd={query}", IconURL: "https://www.baidu.com/favicon.ico"},
+		{ID: "Sogou", Name: "搜狗", URL: "https://www.sogou.com/web?query={query}", IconURL: "https://www.sogou.com/favicon.ico"},
+	}
+}
 
 type SocialLink struct {
 	ID    string `json:"id"`
@@ -93,6 +111,7 @@ type SiteSettings struct {
 	StartBackgroundURL  string           `json:"startBackgroundUrl"`
 	StartPublic         bool             `json:"startPublic"`
 	DefaultSearchEngine SearchEngineName `json:"defaultSearchEngine"`
+	SearchEngines       []SearchEngine   `json:"searchEngines"`
 	ThemeMode           ThemeMode        `json:"themeMode"`
 	ThemePreset         ThemePreset      `json:"themePreset"`
 	ThemeStyle          ThemeStyle       `json:"themeStyle"`
@@ -131,6 +150,7 @@ type SitePatch struct {
 	StartBackgroundURL  *string           `json:"startBackgroundUrl"`
 	StartPublic         *bool             `json:"startPublic"`
 	DefaultSearchEngine *SearchEngineName `json:"defaultSearchEngine"`
+	SearchEngines       *[]SearchEngine   `json:"searchEngines"`
 	ThemeMode           *ThemeMode        `json:"themeMode"`
 	ThemePreset         *ThemePreset      `json:"themePreset"`
 	ThemeStyle          *ThemeStyle       `json:"themeStyle"`
@@ -171,6 +191,7 @@ func Defaults() SiteSettings {
 		QuoteEnabled:        true,
 		QuoteAuthorEnabled:  true,
 		DefaultSearchEngine: SearchBing,
+		SearchEngines:       DefaultSearchEngines(),
 		ThemeMode:           ThemeAuto,
 		ThemePreset:         PresetAurora,
 		ThemeStyle:          StyleSolid,
@@ -287,6 +308,9 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.DefaultSearchEngine != nil {
 		v.DefaultSearchEngine = *p.DefaultSearchEngine
 	}
+	if p.SearchEngines != nil {
+		v.SearchEngines = *p.SearchEngines
+	}
 	if p.ThemeMode != nil {
 		v.ThemeMode = *p.ThemeMode
 	}
@@ -367,10 +391,16 @@ func normalize(v SiteSettings) SiteSettings {
 	v.HomeBackgroundURL = trim(v.HomeBackgroundURL, 1000)
 	v.StartBackgroundURL = trim(v.StartBackgroundURL, 1000)
 
-	switch v.DefaultSearchEngine {
-	case SearchGoogle, SearchDuckDuckGo, SearchBing:
-	default:
-		v.DefaultSearchEngine = SearchBing
+	v.SearchEngines = normalizeSearchEngines(v.SearchEngines)
+	defaultFound := false
+	for _, engine := range v.SearchEngines {
+		if string(v.DefaultSearchEngine) == engine.ID {
+			defaultFound = true
+			break
+		}
+	}
+	if !defaultFound {
+		v.DefaultSearchEngine = SearchEngineName(v.SearchEngines[0].ID)
 	}
 	switch v.ThemeMode {
 	case ThemeAuto, ThemeDark, ThemeLight:
@@ -422,6 +452,55 @@ func normalizeThemeGradientPacks(packs []string) []string {
 		out = append(out, p)
 	}
 	return out
+}
+
+// Engines are server-configured. Accept only HTTPS templates with one {query}
+// and no credentials, so user input cannot become a navigation protocol.
+func normalizeSearchEngines(values []SearchEngine) []SearchEngine {
+	if len(values) == 0 {
+		return DefaultSearchEngines()
+	}
+	if len(values) > 12 {
+		values = values[:12]
+	}
+	out := make([]SearchEngine, 0, len(values))
+	seen := map[string]bool{}
+	for _, item := range values {
+		item.ID = trim(item.ID, 80)
+		item.Name = trim(item.Name, 60)
+		item.URL = trim(item.URL, 1000)
+		item.IconURL = trim(item.IconURL, 1000)
+		if item.ID == "" || item.Name == "" || !validSearchEngineID(item.ID) ||
+			seen[item.ID] || strings.Count(item.URL, "{query}") != 1 {
+			continue
+		}
+		u, err := url.Parse(strings.Replace(item.URL, "{query}", "searchterm", 1))
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
+			continue
+		}
+		if item.IconURL != "" {
+			icon, err := url.Parse(item.IconURL)
+			if err != nil || icon.Scheme != "https" || icon.Hostname() == "" || icon.User != nil {
+				item.IconURL = ""
+			}
+		}
+		seen[item.ID] = true
+		out = append(out, item)
+	}
+	if len(out) == 0 {
+		return DefaultSearchEngines()
+	}
+	return out
+}
+
+func validSearchEngineID(value string) bool {
+	for _, ch := range value {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' ||
+			ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeSocial(values []SocialLink) []SocialLink {

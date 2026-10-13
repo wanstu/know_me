@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, ty
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
-import { START_SEARCH_ENGINES, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
+import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
+import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 
@@ -71,12 +72,26 @@ function iconTextColor(value: string) {
   return brightness[0] * .2126 + brightness[1] * .7152 + brightness[2] * .0722 > .28 ? "#152033" : "#fff";
 }
 
+function FallbackImage({ src, fallback, color, engine = false }: { src: string; fallback: string; color?: string; engine?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  return src && !failed
+    ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} />
+    : <span className={engine ? "km-start-engine-letter" : undefined} style={color ? { color } : undefined}>{fallback}</span>;
+}
+
+function EngineBadge({ engine }: { engine: SearchEngineConfig }) {
+  const iconURL = /^https:\/\//i.test(engine.iconUrl ?? "") ? engine.iconUrl : "";
+  const letter = engine.name.trim().slice(0, 1).toUpperCase();
+  return <span className={"km-start-engine-mark is-" + engine.id.toLowerCase()} aria-hidden="true"><FallbackImage src={iconURL} fallback={letter} engine /></span>;
+}
+
 function icon(item: NavItem) {
   if (item.type === "folder") {
     return <svg className="km-start-folder-mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6.5a2 2 0 0 1 2-2h4.2l2.1 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
   }
   if (item.iconUrl && (/^https?:\/\//i.test(item.iconUrl) || item.iconUrl.startsWith("/media/"))) {
-    return <img src={item.iconUrl} alt="" loading="lazy" />;
+    return <FallbackImage src={item.iconUrl} fallback={item.iconText || item.name.slice(0, 1).toUpperCase()} color={item.backgroundColor ? iconTextColor(item.backgroundColor) : undefined} />;
   }
   return <span style={item.backgroundColor ? { color: iconTextColor(item.backgroundColor) } : undefined}>{item.iconText || item.name.slice(0, 1).toUpperCase()}</span>;
 }
@@ -102,14 +117,20 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [searchFocused, setSearchFocused] = useState(false);
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
   const searchShellRef = useRef<HTMLDivElement | null>(null);
+  const engines = configuredStartSearchEngines(settings.searchEngines);
   const [activeEngine, setActiveEngine] = useState<StartSearchEngine>(() => {
     try {
       const stored = window.localStorage.getItem("knowme:start:search-engine");
-      return isStartSearchEngine(stored) ? stored : settings.defaultSearchEngine;
+      return isStartSearchEngine(stored, engines) ? stored : (isStartSearchEngine(settings.defaultSearchEngine, engines) ? settings.defaultSearchEngine : engines[0].id);
     } catch {
-      return settings.defaultSearchEngine;
+      return isStartSearchEngine(settings.defaultSearchEngine, engines) ? settings.defaultSearchEngine : engines[0].id;
     }
   });
+  useEffect(() => {
+    if (!isStartSearchEngine(activeEngine, engines)) {
+      setActiveEngine(isStartSearchEngine(settings.defaultSearchEngine, engines) ? settings.defaultSearchEngine : engines[0].id);
+    }
+  }, [settings.searchEngines, settings.defaultSearchEngine, activeEngine]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -377,7 +398,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     const value = query.trim();
     if (!value) return;
     setSearchFocused(false);
-    const target = looksLikeURL(value) ? value : startSearchURL(activeEngine, value);
+    const target = looksLikeURL(value) ? value : startSearchURL(activeEngine, value, engines);
     if (openExternalBrowser(target)) return;
     window.location.href = target;
   }
@@ -402,7 +423,15 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     setSearchFocused(true);
   }
 
-  const selectedEngine = START_SEARCH_ENGINES.find((engine) => engine.id === activeEngine) ?? START_SEARCH_ENGINES[0];
+  function resetEnginePreference() {
+    const next = isStartSearchEngine(settings.defaultSearchEngine, engines) ? settings.defaultSearchEngine : engines[0].id;
+    setActiveEngine(next);
+    setEngineMenuOpen(false);
+    try { window.localStorage.removeItem("knowme:start:search-engine"); } catch { /* Browser storage may be unavailable. */ }
+    searchRef.current?.focus();
+  }
+
+  const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
   const startBackground = safeHref(settings.startBackgroundUrl);
   const style = {
@@ -465,14 +494,14 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 aria-expanded={engineMenuOpen}
                 onClick={() => { setEngineMenuOpen((value) => !value); setSearchFocused(false); }}
               >
-                <span className={"km-start-engine-mark is-" + activeEngine.toLowerCase()} aria-hidden="true">{selectedEngine.mark}</span>
-                <span className="km-start-engine-name">{selectedEngine.short}</span>
+                <EngineBadge engine={selectedEngine} />
+                <span className="km-start-engine-name">{selectedEngine.name}</span>
                 <span className="km-start-engine-chevron" aria-hidden="true">⌄</span>
               </button>
               {engineMenuOpen ? (
                 <div className="km-start-engine-menu" role="menu" aria-label="搜索引擎">
                   <p>选择搜索引擎</p>
-                  {START_SEARCH_ENGINES.map((engine) => (
+                  {engines.map((engine) => (
                     <button
                       type="button"
                       role="menuitemradio"
@@ -481,11 +510,13 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                       className={engine.id === activeEngine ? "is-current" : ""}
                       onClick={() => chooseEngine(engine.id)}
                     >
-                      <span className={"km-start-engine-mark is-" + engine.id.toLowerCase()} aria-hidden="true">{engine.mark}</span>
+                      <EngineBadge engine={engine} />
                       <span>{engine.name}</span>
                       {engine.id === activeEngine ? <b aria-hidden="true">✓</b> : null}
                     </button>
                   ))}
+                  <button type="button" className="km-start-engine-reset" onClick={resetEnginePreference}>恢复站点默认：{engines.find((item) => item.id === settings.defaultSearchEngine)?.name ?? engines[0].name}</button>
+                  {user ? <a className="km-start-engine-manage" href="/admin/settings?section=start">管理搜索引擎 <span aria-hidden="true">⚙</span></a> : null}
                   <small>输入搜索内容后，按 Tab 快速切换</small>
                 </div>
               ) : null}
@@ -504,7 +535,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 if (event.nativeEvent.isComposing || event.key === "Process") return;
                 if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
                   event.preventDefault();
-                  chooseEngine(nextStartSearchEngine(activeEngine, event.shiftKey ? -1 : 1));
+                  chooseEngine(nextStartSearchEngine(activeEngine, event.shiftKey ? -1 : 1, engines));
                 } else if (event.key === "ArrowDown" && searchMatches.length) {
                   event.preventDefault();
                   setSelectedIndex((index) => (index + 1) % searchMatches.length);
@@ -535,7 +566,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           {searchFocused && query.trim() && !engineMenuOpen ? (
             <div id="km-start-search-suggestions" className="km-start-search-suggestions" role="listbox" aria-label="搜索建议">
               <button type="button" className="km-start-suggestion-web" onClick={searchWeb}>
-                <span className={"km-start-engine-mark is-" + activeEngine.toLowerCase()} aria-hidden="true">{selectedEngine.mark}</span>
+                <EngineBadge engine={selectedEngine} />
                 <span className="km-start-suggestion-copy"><strong>使用 {selectedEngine.name} 搜索</strong><small>{query.trim()}</small></span>
                 <span aria-hidden="true">↗</span>
               </button>

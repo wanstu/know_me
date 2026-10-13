@@ -26,6 +26,8 @@ function backgroundStyle(url: string) {
 
 export function HomePage({ settings, user }: { settings: SiteSettings; user: SessionUser | null }) {
   const [recentPosts, setRecentPosts] = useState<PostRecord[]>([]);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => setAvatarFailed(false), [settings.avatarUrl]);
 
   useEffect(() => {
     void requestJSON<{ posts: PostRecord[] }>("/api/blog/posts?limit=3&summary=1")
@@ -49,7 +51,7 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
     <PageFrame settings={settings} user={user} className="km-home-page">
       <section className="km-home-hero" style={backgroundStyle(settings.homeBackgroundUrl)}>
         <div className="km-home-avatar">
-          {settings.avatarUrl && avatarHref !== "#" ? <img src={avatarHref} alt="" /> : <span>K</span>}
+          {settings.avatarUrl && avatarHref !== "#" && !avatarFailed ? <img src={avatarHref} alt="" onError={() => setAvatarFailed(true)} /> : <span>K</span>}
         </div>
         <div className="km-home-copy">
           <span className="km-eyebrow">PERSONAL HOME</span>
