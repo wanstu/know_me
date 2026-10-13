@@ -6,6 +6,8 @@ export type HomeEntry = { id: string; name: string; description: string; url: st
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
 export type FriendLink = { id: string; name: string; url: string; visible: boolean };
 
+export type QuoteEntry = { id: string; text: string; author: string; enabled: boolean };
+
 export type SiteSettings = {
   profileName: string;
   profileTagline: string;
@@ -15,6 +17,7 @@ export type SiteSettings = {
   quoteAuthor: string;
   quoteEnabled: boolean;
   quoteAuthorEnabled: boolean;
+  quotes: QuoteEntry[];
   githubUrl: string;
   emailUrl: string;
   aboutUrl: string;
