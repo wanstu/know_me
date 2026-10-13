@@ -2717,3 +2717,45 @@ select:focus-visible {
   .km-folder-grid button .km-start-icon { width: 40px; height: 40px; }
   .km-folder-grid button strong { font-size: 11px; }
 }
+
+
+/* Compact Start folders: a one-row desktop shortcut strip instead of tall panels. */
+.km-start-sections { gap: 14px; margin-top: 20px; }
+.km-start-folder-section { padding: 15px 18px; border-radius: 20px; }
+.km-start-folder-section-head { gap: 10px; }
+.km-start-folder-title { gap: 10px; }
+.km-start-folder-symbol { width: 36px; height: 36px; border-radius: 11px; }
+.km-start-folder-symbol svg { width: 20px; height: 20px; }
+.km-start-folder-label { gap: 2px; }
+.km-start-folder-label strong { font-size: 16px; }
+.km-start-folder-label small { font-size: 11px; }
+.km-start-folder-open { padding: 7px 10px; border-radius: 9px; }
+.km-start-folder-links { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.km-start-folder-link, .km-start-folder-more {
+  min-height: 76px; gap: 5px; padding: 8px 5px; border-radius: 11px;
+}
+.km-start-folder-link .km-start-icon { width: 35px; height: 35px; border-radius: 10px; }
+.km-start-folder-link-name { font-size: 11px; }
+.km-start-folder-more span { font-size: 19px; line-height: 1.2; }
+.km-start-folder-more small { font-size: 11px; }
+.km-start-folder-empty { min-height: 54px; margin-top: 10px; }
+.km-folder-modal { width: min(740px, 100%); padding: 20px; }
+.km-folder-modal h2 { font-size: 21px; }
+.km-folder-grid { gap: 8px; margin-top: 14px; }
+.km-folder-grid button { min-height: 92px; gap: 6px; padding: 8px 6px; border-radius: 12px; }
+.km-folder-grid button .km-start-icon { width: 38px; height: 38px; border-radius: 10px; }
+@media (max-width: 1190px) {
+  .km-start-folder-links { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .km-start-sections { gap: 12px; margin-top: 16px; }
+  .km-start-folder-section { padding: 12px; border-radius: 17px; }
+  .km-start-folder-symbol { width: 34px; height: 34px; }
+  .km-start-folder-label strong { font-size: 15px; }
+  .km-start-folder-links { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .km-start-folder-link, .km-start-folder-more { min-height: 72px; padding: 7px 3px; }
+  .km-start-folder-link .km-start-icon { width: 33px; height: 33px; }
+  .km-folder-modal { padding: 15px; }
+  .km-folder-grid { gap: 6px; }
+  .km-folder-grid button { min-height: 88px; padding: 7px 4px; }
+}

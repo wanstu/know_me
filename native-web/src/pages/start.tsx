@@ -79,11 +79,22 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [folder, setFolder] = useState<NavItem | null>(null);
   const [folderHistory, setFolderHistory] = useState<NavItem[]>([]);
   const [folderSelectedIndex, setFolderSelectedIndex] = useState(0);
+  const [folderPreviewLimit, setFolderPreviewLimit] = useState(7);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const resize = () => setFolderPreviewLimit(
+      window.innerWidth <= 1190 ? 5 : 7
+    );
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
 
   useEffect(() => {
     setError("");
@@ -336,8 +347,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           <div className="km-start-sections">
             {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
               const children = item.children ?? [];
-              // Reserve the last tile for "view all" so a single overflow entry never creates an orphan row.
-              const preview = children.slice(0, children.length > 12 ? 11 : 12);
+              // One compact row; the final tile opens the complete folder when needed.
+              const preview = children.slice(0, folderPreviewLimit);
               const remaining = children.length - preview.length;
               return (
                 <section className="km-start-folder-section" key={item.id} aria-label={item.name}>
