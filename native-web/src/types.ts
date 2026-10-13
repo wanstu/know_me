@@ -1,7 +1,7 @@
 export type SearchEngineConfig = { id: string; name: string; url: string; iconUrl: string };
 
 export type SocialLink = { id: string; label: string; url: string };
-export type HomeEntryVisibility = "all" | "authenticated" | "guest";
+export type HomeEntryVisibility = "all" | "authenticated" | "guest" | "disabled";
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean; visibility?: HomeEntryVisibility };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
 export type FriendLink = { id: string; name: string; url: string; visible: boolean };

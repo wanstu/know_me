@@ -30,6 +30,8 @@ func TestSiteEntriesOnlyExposeLoginLinksToAuthenticatedVisitors(t *testing.T) {
 		{ID: "public", Name: "公开", URL: "/blog", Visibility: settings.HomeEntryAll},
 		{ID: "private", Name: "仅登录", URL: "/admin", Visibility: settings.HomeEntryAuthenticated},
 		{ID: "guest", Name: "未登录", URL: "/login", Visibility: settings.HomeEntryGuest},
+		{ID: "disabled", Name: "停用入口", URL: "https://example.com/hidden", Visibility: settings.HomeEntryDisabled},
+		{ID: "external", Name: "外部站点", URL: "https://example.com/", Visibility: settings.HomeEntryAll, NewTab: true},
 	}
 	if _, err := s.settings.UpdateSite(context.Background(), settings.SitePatch{HomeEntries: &entries}); err != nil {
 		t.Fatal(err)
@@ -54,7 +56,7 @@ func TestSiteEntriesOnlyExposeLoginLinksToAuthenticatedVisitors(t *testing.T) {
 		return payload.Settings.HomeEntries
 	}
 	anonymous := readSite(nil)
-	if len(anonymous) != 2 || anonymous[0].ID != "public" || anonymous[1].ID != "guest" {
+	if len(anonymous) != 3 || anonymous[0].ID != "public" || anonymous[1].ID != "guest" || anonymous[2].ID != "external" {
 		t.Fatalf("anonymous API leaked login-only links: %#v", anonymous)
 	}
 
@@ -70,7 +72,7 @@ func TestSiteEntriesOnlyExposeLoginLinksToAuthenticatedVisitors(t *testing.T) {
 	// An authenticated administrator must see every entry for editing, including
 	// guest-only entries. Public homepage rendering filters it for logged-in users.
 	authenticated := readSite(cookie)
-	if len(authenticated) != 3 || authenticated[1].ID != "private" || authenticated[2].ID != "guest" {
+	if len(authenticated) != 5 || authenticated[1].ID != "private" || authenticated[2].ID != "guest" || authenticated[3].ID != "disabled" || authenticated[4].ID != "external" {
 		t.Fatalf("authenticated API incomplete: %#v", authenticated)
 	}
 }

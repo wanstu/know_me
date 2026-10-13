@@ -3,6 +3,7 @@ import { logout, requestAPI, requestJSON } from "../api";
 import { applyTheme, loadThemeCatalog, validGradientPacks, type ThemeCatalog } from "../kit";
 import { validateMediaFile } from "../media";
 import { dailyQuote, enabledQuoteCount } from "../daily-quotes";
+import { HOME_ENTRY_LINK_PRESETS, homeEntryPreset, validHomeEntryLink } from "../home-entry-links";
 import { START_SEARCH_ENGINES, validSearchEngineURL } from "../start-search-engines";
 import type { MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
@@ -870,6 +871,11 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
       setMessage("请检查搜索引擎：至少保留一个、名称/ID 不重复，搜索地址必须是 HTTPS 且包含一次 {query}；默认引擎必须有效");
       return;
     }
+    if (draft.homeEntries.some((entry) => entry.name.trim() && !validHomeEntryLink(entry.url))) {
+      setMessageTone("error");
+      setMessage("主页入口链接无效：请选择内置地址，或填写 / 开头的站内路径、#锚点、https:// 外部网址。");
+      return;
+    }
     if (draft.themeStyle === "gradient" && !validGradientPacks(gradientNames)) {
       setMessageTone("error");
       setMessage("渐变模式需要选择 2～4 个不同的基础主题");
@@ -1174,20 +1180,39 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             </section>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">显示条件仅控制首页卡片是否出现，不会改变目标页面的访问权限。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
+              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">显示条件仅控制首页卡片是否出现，不会改变目标页面的访问权限。「禁用」只隐藏入口，不删除配置。支持站内路径与外部完整网址。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
               <div className="km-settings-rows is-entry">
                 {draft.homeEntries.map((item, index) => (
                   <div
                     key={item.id}
-                    className={collectionDrag?.kind === "entry" && collectionDrag.index === index ? "is-dragging" : ""}
+                    className={(item.visibility === "disabled" ? "is-entry-disabled " : "") + (collectionDrag?.kind === "entry" && collectionDrag.index === index ? "is-dragging" : "")}
                     onDragOver={(event) => { if (collectionDrag?.kind === "entry") event.preventDefault(); }}
                     onDrop={(event) => { event.preventDefault(); reorderCollection("entry", index); }}
                   >
                     <span className="km-settings-drag" draggable onDragStart={() => setCollectionDrag({ kind: "entry", index })} onDragEnd={() => setCollectionDrag(null)} title="拖拽排序">⠿</span>
                     <input value={item.name} onChange={(event) => updateHomeEntry(index, "name", event.target.value)} placeholder="名称" />
                     <input value={item.description} onChange={(event) => updateHomeEntry(index, "description", event.target.value)} placeholder="说明" />
-                    <input value={item.url} onChange={(event) => updateHomeEntry(index, "url", event.target.value)} placeholder="/blog" />
-                    <label className="km-entry-visibility">显示条件<select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, visibility: event.target.value as "all" | "authenticated" | "guest" } : entry) }))}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option></select></label>
+                    <label className="km-entry-link-field">
+                      <span className="km-entry-link-control">
+                        <input aria-label={(item.name || "主页入口") + "链接地址"} value={item.url} onChange={(event) => updateHomeEntry(index, "url", event.target.value)} placeholder="/blog、#about 或 https://example.com" />
+                        <select aria-label={(item.name || "主页入口") + "选择内置地址"} value={homeEntryPreset(item.url)} onChange={(event) => {
+                          if (event.target.value) updateHomeEntry(index, "url", event.target.value);
+                        }}>
+                          <option value="">选择内置地址…</option>
+                          {["站内页面", "主页区块", "管理功能"].map((group) => (
+                            <optgroup key={group} label={group}>
+                              {HOME_ENTRY_LINK_PRESETS.filter((entry) => entry.group === group).map((entry) => (
+                                <option key={entry.url} value={entry.url}>{entry.label} · {entry.url}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </span>
+                      <small className="km-entry-link-help">可选内置页面；也可手填站内路径（/…）、主页锚点（#…）或完整外部网址。</small>
+                      {/^https?:\/\//i.test(item.url.trim()) ? <small className="km-entry-external-hint">↗ 外部网站会在新标签页打开</small> : null}
+                      {item.url.trim() && !validHomeEntryLink(item.url) ? <small className="km-entry-link-error">地址无效，请输入完整 https:// 网址或选择内置地址</small> : null}
+                    </label>
+                    <label className="km-entry-visibility">显示条件<select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, visibility: event.target.value as "all" | "authenticated" | "guest" | "disabled" } : entry) }))}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option><option value="disabled">禁用（不显示）</option></select></label>
                     <label className="km-settings-checkbox"><input type="checkbox" checked={item.newTab} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, newTab: event.target.checked } : entry) }))} />新标签页</label>
                     <div className="km-settings-row-actions">
                       <button type="button" title="上移" aria-label={"上移“" + (item.name || "主页入口") + "”"} disabled={index === 0} onClick={() => moveCollection("entry", index, -1)}>↑</button>

@@ -46,6 +46,7 @@ const (
 	HomeEntryAll           HomeEntryVisibility = "all"
 	HomeEntryAuthenticated HomeEntryVisibility = "authenticated"
 	HomeEntryGuest         HomeEntryVisibility = "guest"
+	HomeEntryDisabled      HomeEntryVisibility = "disabled"
 )
 
 type SearchEngine struct {
@@ -91,6 +92,66 @@ var builtInQuoteTexts = []string{
 	"页面可以很轻，内容应该足够真。",
 	"不是所有信息都值得保存，但值得保存的要容易找到。",
 	"把入口统一之后，注意力就少了一次切换。",
+	"清晨不必急着回答世界，先听听自己的脚步。",
+	"把今天走稳，明天自然会有新的路口。",
+	"真正的自由，是能为自己的时间做决定。",
+	"有些答案藏在出发之后，而不是计划之中。",
+	"把注意力给眼前的事，也是一种勇气。",
+	"日子不必每天闪光，持续发亮就很好。",
+	"认真生活的人，总能发现细小的惊喜。",
+	"给生活留一点空白，好让新念头住进来。",
+	"向前不一定要跑，方向清楚就不算慢。",
+	"当你开始记录，平凡也有了清晰的轮廓。",
+	"好奇心是一扇门，推开就能看见新风景。",
+	"别让待办事项遮住窗外的天空。",
+	"成长常常没有声音，回头时却能看见距离。",
+	"放下无谓的比较，才能听见自己的节奏。",
+	"今天完成的一小步，也在改变未来的路线。",
+	"一件事值得做，就值得耐心打磨。",
+	"把问题说清楚，解决办法就已经出现一半。",
+	"思考可以很深，行动可以很轻。",
+	"知识不是收藏品，用起来才会长出价值。",
+	"先做好最重要的一件事，再让其余事情排队。",
+	"真正可靠的工具，不会抢走人的注意力。",
+	"清晰比复杂难得，简单比热闹长久。",
+	"整理一次思路，胜过反复寻找出口。",
+	"少一点重复操作，多一点自由探索。",
+	"与其追逐所有消息，不如守住自己的问题。",
+	"做过的事留下痕迹，走过的路便能辨认。",
+	"世界很大，先从眼前这扇窗看起。",
+	"读过的书会沉淀，走过的路会回答。",
+	"新的风景常常从一条陌生的小路开始。",
+	"不必等待完美天气，也可以为远方做准备。",
+	"把地图打开，是对未知最温柔的邀请。",
+	"远方值得期待，身边也值得留意。",
+	"在熟悉的城市里，也能找到初见的惊喜。",
+	"每一次转弯，都可能遇见不同的光。",
+	"风从哪里吹来，就从哪里开始观察。",
+	"愿你既敢奔向远方，也懂得安放日常。",
+	"生活不是竞赛，沿途的发现同样重要。",
+	"让好奇带路，让判断决定方向。",
+	"雨天适合整理心事，晴天适合走出房间。",
+	"把复杂的一天拆开，先照顾好这一刻。",
+	"休息不是空白，它也是生活的一部分。",
+	"不必把每一天都写成成绩单。",
+	"在喧闹之外，为自己保留一段安静。",
+	"有时候，关掉一个窗口才能看清整个世界。",
+	"愿每次停留都有意义，每次出发都不匆忙。",
+	"不要急着填满日程，留点时间给意外的美好。",
+	"专注像光，落在哪里，哪里就慢慢清晰。",
+	"把热爱藏进细节，作品会替你说话。",
+	"一个想法被认真对待，就有机会成为作品。",
+	"先动手做出雏形，再慢慢靠近理想。",
+	"好的设计懂得退后，把位置留给内容。",
+	"不为复杂而复杂，恰好够用就是本领。",
+	"稳定和优雅并不矛盾，它们可以一起生长。",
+	"让过程可理解，成果才更值得信任。",
+	"敢于修正昨天，是今天的一种进步。",
+	"慢慢积累的东西，往往更经得起时间。",
+	"不要因为起点普通，就怀疑沿途的可能。",
+	"即使没有掌声，也可以认真完成今天。",
+	"热情让人开始，习惯帮助人走得更远。",
+	"愿你对世界保持兴趣，也对自己保持耐心。",
 }
 
 // LegacyQuoteEntries preserves the formerly single configurable quote and also
@@ -108,6 +169,40 @@ func LegacyQuoteEntries(legacyText, legacyAuthor string) []QuoteEntry {
 		out = append(out, QuoteEntry{ID: fmt.Sprintf("built-in-%d", i+1), Text: text, Enabled: true})
 	}
 	return out
+}
+
+// The version is saved with site settings to seed additions once without
+// restoring older quotes deliberately disabled, edited or deleted by an admin.
+const quoteCatalogVersion = 2
+const previousBuiltinQuoteCount = 12
+
+func appendNewBuiltinQuotes(current []QuoteEntry) []QuoteEntry {
+	if len(current) == 0 {
+		return current
+	}
+	// Respect an administrator who has explicitly disabled the entire collection.
+	anyEnabled := false
+	for _, item := range current {
+		if item.Enabled {
+			anyEnabled = true
+			break
+		}
+	}
+	if !anyEnabled {
+		return current
+	}
+	known := make(map[string]bool, len(current))
+	for _, item := range current {
+		known[item.ID] = true
+	}
+	for i := previousBuiltinQuoteCount; i < len(builtInQuoteTexts); i++ {
+		id := fmt.Sprintf("built-in-%d", i+1)
+		if known[id] {
+			continue
+		}
+		current = append(current, QuoteEntry{ID: id, Text: builtInQuoteTexts[i], Enabled: true})
+	}
+	return current
 }
 
 type HomeEntry struct {
@@ -144,6 +239,7 @@ type SiteSettings struct {
 	QuoteEnabled        bool             `json:"quoteEnabled"`
 	QuoteAuthorEnabled  bool             `json:"quoteAuthorEnabled"`
 	Quotes              []QuoteEntry     `json:"quotes"`
+	QuoteCatalogVersion int              `json:"quoteCatalogVersion"`
 	GitHubURL           string           `json:"githubUrl"`
 	EmailURL            string           `json:"emailUrl"`
 	AboutURL            string           `json:"aboutUrl"`
@@ -232,6 +328,7 @@ func Defaults() SiteSettings {
 		QuoteEnabled:        true,
 		QuoteAuthorEnabled:  true,
 		Quotes:              LegacyQuoteEntries("生命如意志永存，青春永远年轻。", "今日短句"),
+		QuoteCatalogVersion: quoteCatalogVersion,
 		DefaultSearchEngine: SearchBing,
 		SearchEngines:       DefaultSearchEngines(),
 		ThemeMode:           ThemeAuto,
@@ -278,6 +375,12 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 	}
 	if _, exists := keys["quotes"]; !exists {
 		value.Quotes = LegacyQuoteEntries(value.Quote, value.QuoteAuthor)
+	}
+	if _, hasVersion := keys["quoteCatalogVersion"]; !hasVersion || value.QuoteCatalogVersion < quoteCatalogVersion {
+		if _, hasQuotes := keys["quotes"]; hasQuotes {
+			value.Quotes = appendNewBuiltinQuotes(value.Quotes)
+		}
+		value.QuoteCatalogVersion = quoteCatalogVersion
 	}
 	return normalize(value), nil
 }
@@ -621,7 +724,7 @@ func normalizeHome(values []HomeEntry) []HomeEntry {
 		item.Name = trim(item.Name, 80)
 		item.Description = trim(item.Description, 160)
 		switch item.Visibility {
-		case HomeEntryAuthenticated, HomeEntryGuest:
+		case HomeEntryAuthenticated, HomeEntryGuest, HomeEntryDisabled:
 		default:
 			item.Visibility = HomeEntryAll
 		}

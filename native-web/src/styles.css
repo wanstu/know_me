@@ -3246,3 +3246,22 @@ select:focus-visible {
   .km-quote-library-fields { grid-template-columns: 1fr; }
   .km-quote-library-actions { grid-column: 1; }
 }
+
+/* Home entry link chooser: selected internal route and editable external URL. */
+.km-entry-link-field { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.km-entry-link-control { display: grid; grid-template-columns: minmax(0,1fr) minmax(138px,42%); align-items: center; gap: 6px; min-width: 0; }
+.km-entry-link-control input, .km-entry-link-control select { min-width: 0; width: 100%; }
+.km-entry-link-control select {
+  border: 1px solid var(--dk-border,#dce3ed); border-radius: 9px;
+  background: var(--dk-bg-subtle,#f5f7fa); color: var(--dk-text,#172033);
+  padding: 8px 6px; font-size: 12px; max-width: 100%; cursor: pointer;
+}
+.km-entry-link-help, .km-entry-external-hint, .km-entry-link-error { display: block; font-size: 10px; line-height: 1.5; }
+.km-entry-link-help { color: var(--dk-text-muted,#7a849a); }
+.km-entry-external-hint { color: var(--dk-primary,#6366f1); }
+.km-entry-link-error { color: var(--dk-danger,#dc2626); }
+.km-settings-rows.is-entry > div.is-entry-disabled { opacity: .65; }
+.km-settings-rows.is-entry > div.is-entry-disabled .km-entry-visibility select { border-style: dashed; }
+@media (max-width: 670px) {
+  .km-entry-link-control { grid-template-columns: minmax(0,1fr); }
+}
