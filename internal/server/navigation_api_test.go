@@ -235,6 +235,82 @@ func TestNativeNavigationAPI(t *testing.T) {
 		t.Fatalf("folder size not persisted: %#v", updatedTree.Groups[0].Items[1].Extra)
 	}
 
+	// Standalone card sizes and ordered link slots must survive a persisted reorder.
+	secondLinkPayload := bytes.NewBufferString(`{"action":"create_item","data":{"groupId":` +
+		jsonInt(groupResponse.ID) + `,"name":"Second Link","url":"https://example.org","size":"1x1","visibility":"public"}}`)
+	req, _ = http.NewRequest(http.MethodPost, base+"/api/navigation", secondLinkPayload)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", base)
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("create second link: %d", resp.StatusCode)
+	}
+	var secondLink struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&secondLink); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	updateSize := bytes.NewBufferString(`{"action":"update_item","data":{"id":` +
+		jsonInt(secondLink.ID) + `,"size":"2x2"}}`)
+	req, _ = http.NewRequest(http.MethodPost, base+"/api/navigation", updateSize)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", base)
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update size: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	newOrder := bytes.NewBufferString(`{"action":"reorder_items","data":{"groupId":` +
+		jsonInt(groupResponse.ID) + `,"parentId":null,"ids":[` +
+		jsonInt(secondLink.ID) + "," + jsonInt(folderResponse.ID) + "," + jsonInt(itemResponse.ID) + `]}}`)
+	req, _ = http.NewRequest(http.MethodPost, base+"/api/navigation", newOrder)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", base)
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reorder top-level: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	resp, err = client.Get(base + "/api/navigation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reordered struct {
+		Groups []struct {
+			Items []struct {
+				ID   int64  `json:"id"`
+				Size string `json:"size"`
+				Type string `json:"type"`
+			} `json:"items"`
+		} `json:"groups"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&reordered); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(reordered.Groups) != 1 || len(reordered.Groups[0].Items) != 3 {
+		t.Fatalf("reorder changed item count: %#v", reordered)
+	}
+	orderedItems := reordered.Groups[0].Items
+	if orderedItems[0].ID != secondLink.ID || orderedItems[0].Size != "2x2" ||
+		orderedItems[1].ID != folderResponse.ID || orderedItems[1].Type != "folder" ||
+		orderedItems[2].ID != itemResponse.ID {
+		t.Fatalf("shortcut reorder/size not persisted: %#v", orderedItems)
+	}
+
 	resp, err = client.Get(base + "/api/navigation/export")
 	if err != nil {
 		t.Fatal(err)

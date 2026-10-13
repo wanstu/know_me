@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
+import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
 import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 
@@ -95,7 +96,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [contextMenu, setContextMenu] = useState<StartContextMenu | null>(null);
   const [contextError, setContextError] = useState("");
-  const [savingFolder, setSavingFolder] = useState<number | null>(null);
+  const [savingItem, setSavingItem] = useState<number | null>(null);
+  const [sortBusy, setSortBusy] = useState(false);
+  const [dragLinkID, setDragLinkID] = useState<number | null>(null);
+  const [dragTargetID, setDragTargetID] = useState<number | null>(null);
+  const sortMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const lastDragAt = useRef(0);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -259,14 +265,14 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     setContextMenu({
       item,
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - 256)),
-      y: Math.max(8, Math.min(event.clientY, window.innerHeight - (item?.type === "folder" ? 310 : 220)))
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - (item?.type === "folder" ? 310 : item?.parentId == null && item?.type === "link" ? 365 : 220)))
     });
   }
 
   async function changeFolderSize(item: NavItem, size: FolderSize) {
-    if (!user || savingFolder !== null) return;
+    if (!user || savingItem !== null) return;
     setContextMenu(null);
-    setSavingFolder(item.id);
+    setSavingItem(item.id);
     setContextError("");
     try {
       const result = await requestJSON<{ tree: { groups: NavGroup[] } }>("/api/navigation", {
@@ -283,8 +289,63 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     } catch (reason) {
       setContextError("文件夹大小保存失败：" + (reason instanceof Error ? reason.message : "请求失败"));
     } finally {
-      setSavingFolder(null);
+      setSavingItem(null);
     }
+  }
+
+  async function changeShortcutSize(item: NavItem, size: NavItem["size"]) {
+    if (!user || savingItem !== null || item.type !== "link" || item.parentId != null) return;
+    setContextMenu(null);
+    setContextError("");
+    setSavingItem(item.id);
+    try {
+      const result = await requestJSON<{ tree: { groups: NavGroup[] } }>("/api/navigation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "update_item", data: { id: item.id, size } })
+      });
+      setGroups(result.tree.groups);
+    } catch (reason) {
+      setContextError("图标大小保存失败：" + (reason instanceof Error ? reason.message : "请求失败"));
+    } finally {
+      setSavingItem(null);
+    }
+  }
+
+  async function saveShortcutOrder(ordered: NavItem[]) {
+    if (!user || !group || sortBusy) return;
+    setSortBusy(true);
+    setContextError("");
+    try {
+      const ids = replaceLinkOrder(group.items ?? [], ordered);
+      const result = await requestJSON<{ tree: { groups: NavGroup[] } }>("/api/navigation", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "reorder_items", data: { groupId: group.id, parentId: null, ids } })
+      });
+      setGroups(result.tree.groups);
+    } catch (reason) {
+      setContextError("排序保存失败：" + (reason instanceof Error ? reason.message : "请求失败"));
+    } finally {
+      setSortBusy(false);
+    }
+  }
+
+  function quickSortShortcuts(mode: ShortcutSortMode) {
+    sortMenuRef.current?.removeAttribute("open");
+    if (!group || !user || sortBusy) return;
+    void saveShortcutOrder(quickSortStandaloneLinks(group.items ?? [], mode));
+  }
+
+  function onShortcutDrop(event: ReactDragEvent<HTMLButtonElement>, target: NavItem) {
+    event.preventDefault();
+    const sourceID = dragLinkID;
+    setDragLinkID(null);
+    setDragTargetID(null);
+    lastDragAt.current = Date.now();
+    if (!group || !user || sortBusy || sourceID == null || sourceID === target.id) return;
+    const ordered = moveStandaloneLink(group.items ?? [], sourceID, target.id);
+    if (ordered) void saveShortcutOrder(ordered);
   }
 
   function copyLink(item: NavItem) {
@@ -486,17 +547,47 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 <header className="km-start-section-head">
                   <div>
                     <h2 id="km-start-quick-title">快捷访问</h2>
-                    <p>点击图标，直接打开常用网站</p>
+                    <p>{user ? "拖动卡片调整顺序 · 右键修改大小" : "点击图标直接打开网站 · 登录后可调整布局"}</p>
                   </div>
-                  <span>{(group?.items ?? []).filter((item) => item.type !== "folder").length} 个快捷入口</span>
+                  <div className="km-start-quick-head-actions">
+                    <span>{(group?.items ?? []).filter((item) => item.type !== "folder").length} 个快捷入口</span>
+                    <details className="km-start-sort-menu" ref={sortMenuRef}>
+                      <summary aria-label="快捷排序" aria-haspopup="menu">快捷排序 <span aria-hidden="true">⌄</span></summary>
+                      <div className="km-start-sort-options" role="group" aria-label="快捷排序方式">
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("name")}>按名称排序 A–Z</button>
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("visits")}>按访问次数排序</button>
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("reverse")}>反转当前顺序</button>
+                        {!user ? <a href="/login?next=%2Fstart">登录后可保存排序</a> : <small>排序结果自动保存</small>}
+                      </div>
+                    </details>
+                  </div>
                 </header>
                 <div className="km-start-grid km-start-quick-grid">
                   {(group?.items ?? []).filter((item) => item.type !== "folder").map((item) => (
                     <button
                       key={item.id}
-                      className={"km-start-card size-" + item.size}
+                      className={"km-start-card size-" + item.size
+                        + (dragLinkID === item.id ? " is-dragging" : "")
+                        + (dragTargetID === item.id ? " is-drop-target" : "")}
                       type="button"
-                      onClick={() => void openItem(item)}
+                      draggable={Boolean(user) && !sortBusy}
+                      onDragStart={(event) => {
+                        if (!user) return;
+                        setDragLinkID(item.id);
+                        setDragTargetID(null);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", String(item.id));
+                      }}
+                      onDragOver={(event) => {
+                        if (dragLinkID == null || !user || sortBusy) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDragTargetID(item.id);
+                      }}
+                      onDragLeave={() => setDragTargetID((current) => current === item.id ? null : current)}
+                      onDrop={(event) => onShortcutDrop(event, item)}
+                      onDragEnd={() => { setDragLinkID(null); setDragTargetID(null); lastDragAt.current = Date.now(); }}
+                      onClick={() => { if (Date.now() - lastDragAt.current > 250) void openItem(item); }}
                       onContextMenu={(event) => showContextMenu(event, item)}
                       style={item.backgroundColor ? { "--km-card-accent": item.backgroundColor } as CSSProperties : undefined}
                       title={item.name}
@@ -602,14 +693,38 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                       type="button"
                       role="menuitemradio"
                       aria-checked={folderSize(contextMenu.item!) === value}
-                      disabled={!user || savingFolder !== null}
+                      disabled={!user || savingItem !== null}
                       onClick={() => void changeFolderSize(contextMenu.item!, value)}
                     ><span>{label}</span><span aria-hidden="true">{folderSize(contextMenu.item!) === value ? "✓" : ""}</span></button>
                   ))}
                   {!user ? <small className="km-start-context-note">登录后可修改并保存尺寸</small> : null}
                 </>
               ) : (
-                <button type="button" role="menuitem" onClick={() => copyLink(contextMenu.item!)}>复制链接</button>
+                <>
+                  {contextMenu.item.parentId == null ? (
+                    <>
+                      <div className="km-start-context-divider" role="separator" />
+                      <span className="km-start-context-label">图标大小</span>
+                      {([
+                        ["1x1", "小 · 1×1"],
+                        ["2x1", "中 · 2×1"],
+                        ["2x2", "大 · 2×2"]
+                      ] as const).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={contextMenu.item!.size === value}
+                          disabled={!user || savingItem !== null}
+                          onClick={() => void changeShortcutSize(contextMenu.item!, value)}
+                        ><span>{label}</span><span aria-hidden="true">{contextMenu.item!.size === value ? "✓" : ""}</span></button>
+                      ))}
+                      {!user ? <small className="km-start-context-note">登录后可修改并保存大小</small> : null}
+                    </>
+                  ) : null}
+                  <div className="km-start-context-divider" role="separator" />
+                  <button type="button" role="menuitem" onClick={() => copyLink(contextMenu.item!)}>复制链接</button>
+                </>
               )}
               <div className="km-start-context-divider" role="separator" />
               {user ? <a role="menuitem" href={"/admin/navigation?editItem=" + contextMenu.item.id}>编辑导航</a>
