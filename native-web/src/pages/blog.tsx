@@ -233,7 +233,7 @@ export function BlogIndexPage({ settings, user }: { settings: SiteSettings; user
                 {taxonomy.tags.map((item) => <a key={item} className={item === tag ? "is-active" : ""} href={href({ tag: item === tag ? null : item })}>{item}</a>)}
               </div>
             </section>
-            <section className="km-panel">
+            <section className="km-panel" id="archive">
               <span className="km-eyebrow">ARCHIVE</span>
               <div className="km-filter-list">
                 {data.archives.map((item) => (

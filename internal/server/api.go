@@ -104,7 +104,7 @@ func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		publicEntries := make([]settings.HomeEntry, 0, len(value.HomeEntries))
 		for _, entry := range value.HomeEntries {
-			if entry.Visibility != settings.HomeEntryAuthenticated {
+			if entry.Visibility != settings.HomeEntryAuthenticated && entry.Visibility != settings.HomeEntryDisabled {
 				publicEntries = append(publicEntries, entry)
 			}
 		}

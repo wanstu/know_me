@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { dailyQuote } from "../daily-quotes";
+import { isHomeEntryVisible } from "../home-entry-visibility";
 import { requestJSON } from "../api";
 import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { PageFrame, isExternal, safeHref } from "../ui";
@@ -36,7 +37,7 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
   const showQuote = settings.quoteEnabled && Boolean(quote);
 
   const entries = (settings.homeEntries ?? []).filter((entry) =>
-    entry.visibility === "authenticated" ? Boolean(user) : entry.visibility === "guest" ? !user : true
+    isHomeEntryVisible(entry.visibility, Boolean(user))
   );
 
   return (

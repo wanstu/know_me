@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -234,7 +235,7 @@ func TestQuoteLibraryLegacyAndDailySettingsPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(old.Quotes) != 13 || old.Quotes[0].Text != "自己写的短句" || old.Quotes[0].Author != "自定义署名" {
+	if len(old.Quotes) != len(builtInQuoteTexts)+1 || old.Quotes[0].Text != "自己写的短句" || old.Quotes[0].Author != "自定义署名" {
 		t.Fatalf("legacy quote not preserved: %+v", old.Quotes)
 	}
 	if !old.Quotes[1].Enabled {
@@ -283,5 +284,106 @@ func TestQuoteLibraryNormalizesDuplicateAndBlankEntries(t *testing.T) {
 	out := normalizeQuotes(values)
 	if len(out) != 3 || out[0].Text != "A" || out[1].Text != "B" || out[0].ID == out[1].ID || out[2].Enabled {
 		t.Fatalf("invalid normalized quote entries: %+v", out)
+	}
+}
+
+func TestAdditionalQuoteCatalogUpgradePreservesEditsAndDeletedEntries(t *testing.T) {
+	t.Parallel()
+	if len(builtInQuoteTexts) <= previousBuiltinQuoteCount+40 {
+		t.Fatalf("expected many additional built-in quotes, got %d", len(builtInQuoteTexts))
+	}
+	db, err := database.Open(filepath.Join(t.TempDir(), "quote-catalog-upgrade.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db.SQL)
+	ctx := context.Background()
+	old := []QuoteEntry{
+		{ID: "legacy", Text: "我的旧短句", Enabled: true},
+		{ID: "built-in-1", Text: "用户改过的句子", Enabled: false},
+		{ID: "built-in-3", Text: "原来的第三句", Enabled: true},
+	} // built-in-2 was explicitly deleted
+	oldJSON, err := json.Marshal(map[string]any{"quotes": old, "quoteEnabled": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.SQL.ExecContext(ctx, "INSERT INTO settings(key,value_json,updated_at) VALUES('site',?,1)", string(oldJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upgraded.Quotes) != len(old)+(len(builtInQuoteTexts)-previousBuiltinQuoteCount) {
+		t.Fatalf("added quote count incorrect, got %d", len(upgraded.Quotes))
+	}
+	if upgraded.Quotes[0].Text != "我的旧短句" || upgraded.Quotes[1].Text != "用户改过的句子" || upgraded.Quotes[1].Enabled {
+		t.Fatalf("existing quote changed: %+v", upgraded.Quotes[:3])
+	}
+	for _, q := range upgraded.Quotes {
+		if q.ID == "built-in-2" {
+			t.Fatalf("explicitly deleted old quote was restored")
+		}
+	}
+	_, err = store.SetSite(ctx, upgraded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again.Quotes) != len(upgraded.Quotes) || again.QuoteCatalogVersion != quoteCatalogVersion {
+		t.Fatalf("repeated migration duplicated quotes: got %d vs %d", len(again.Quotes), len(upgraded.Quotes))
+	}
+
+	disabled := []QuoteEntry{{ID: "built-in-1", Text: "不要启用", Enabled: false}}
+	body, err := json.Marshal(map[string]any{"quotes": disabled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.SQL.ExecContext(ctx, "UPDATE settings SET value_json=? WHERE key='site'", string(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Quotes) != 1 || got.Quotes[0].Enabled {
+		t.Fatalf("disabled collection re-enabled unexpectedly: %+v", got.Quotes)
+	}
+}
+
+func TestDisabledAndExternalHomeEntriesPersist(t *testing.T) {
+	t.Parallel()
+	db, err := database.Open(filepath.Join(t.TempDir(), "home-entries.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db.SQL)
+	ctx := context.Background()
+	entries := []HomeEntry{
+		{ID: "off", Name: "暂时隐藏", URL: "/blog", Visibility: HomeEntryDisabled},
+		{ID: "outside", Name: "外部网站", URL: "https://example.com/abc?x=1", NewTab: true, Visibility: HomeEntryAll},
+		{ID: "anchor", Name: "文章归档", URL: "/blog#archive", Visibility: HomeEntryAll},
+	}
+	got, err := store.UpdateSite(ctx, SitePatch{HomeEntries: &entries})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.HomeEntries) != 3 || got.HomeEntries[0].Visibility != HomeEntryDisabled {
+		t.Fatalf("disabled item lost during normalization: %+v", got.HomeEntries)
+	}
+	reload, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reload.HomeEntries[1].URL != "https://example.com/abc?x=1" || !reload.HomeEntries[1].NewTab ||
+		reload.HomeEntries[2].URL != "/blog#archive" {
+		t.Fatalf("entry links changed during save: %+v", reload.HomeEntries)
 	}
 }
