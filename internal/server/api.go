@@ -104,11 +104,19 @@ func (s *Server) handleSiteGet(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		publicEntries := make([]settings.HomeEntry, 0, len(value.HomeEntries))
 		for _, entry := range value.HomeEntries {
-			if entry.Visibility != settings.HomeEntryAuthenticated && entry.Visibility != settings.HomeEntryDisabled {
+			if settings.AllowedLink(value, entry.URL, entry.Visibility, false) {
 				publicEntries = append(publicEntries, entry)
 			}
 		}
+		publicTags := make([]settings.SocialLink, 0, len(value.SocialLinks))
+		for _, link := range value.SocialLinks {
+			if settings.AllowedLink(value, link.URL, link.Visibility, false) &&
+				!link.Disabled {
+				publicTags = append(publicTags, link)
+			}
+		}
 		value.HomeEntries = publicEntries
+		value.SocialLinks = publicTags
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"settings": value, "desktopBrowser": s.desktopBrowserOpen != nil})
 }

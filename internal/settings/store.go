@@ -67,10 +67,11 @@ func DefaultSearchEngines() []SearchEngine {
 }
 
 type SocialLink struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	URL      string `json:"url"`
-	Disabled bool   `json:"disabled"`
+	ID         string              `json:"id"`
+	Label      string              `json:"label"`
+	URL        string              `json:"url"`
+	Disabled   bool                `json:"disabled"` // Legacy display flag; visibility is canonical.
+	Visibility HomeEntryVisibility `json:"visibility,omitempty"`
 }
 
 // Built-in homepage tags were hardcoded before this version. Move them into
@@ -255,85 +256,87 @@ type FriendLink struct {
 }
 
 type SiteSettings struct {
-	ProfileName         string           `json:"profileName"`
-	ProfileTagline      string           `json:"profileTagline"`
-	ProfileBio          string           `json:"profileBio"`
-	AvatarURL           string           `json:"avatarUrl"`
-	Quote               string           `json:"quote"`
-	QuoteAuthor         string           `json:"quoteAuthor"`
-	QuoteEnabled        bool             `json:"quoteEnabled"`
-	QuoteAuthorEnabled  bool             `json:"quoteAuthorEnabled"`
-	Quotes              []QuoteEntry     `json:"quotes"`
-	QuoteCatalogVersion int              `json:"quoteCatalogVersion"`
-	GitHubURL           string           `json:"githubUrl"`
-	EmailURL            string           `json:"emailUrl"`
-	AboutURL            string           `json:"aboutUrl"`
-	HomeBackgroundURL   string           `json:"homeBackgroundUrl"`
-	StartBackgroundURL  string           `json:"startBackgroundUrl"`
-	StartPublic         bool             `json:"startPublic"`
-	DefaultSearchEngine SearchEngineName `json:"defaultSearchEngine"`
-	SearchEngines       []SearchEngine   `json:"searchEngines"`
-	ThemeMode           ThemeMode        `json:"themeMode"`
-	ThemePreset         ThemePreset      `json:"themePreset"`
-	ThemeStyle          ThemeStyle       `json:"themeStyle"`
-	ThemeGradientPacks  []string         `json:"themeGradientPacks"`
-	StartDensity        StartDensity     `json:"startDensity"`
-	StartCardOpacity    int              `json:"startCardOpacity"`
-	StartCardRadius     int              `json:"startCardRadius"`
-	StartBackgroundDim  int              `json:"startBackgroundDim"`
-	SocialLinks         []SocialLink     `json:"socialLinks"`
-	HomeTagsVersion     int              `json:"homeTagsVersion"`
-	HomeEntries         []HomeEntry      `json:"homeEntries"`
-	Projects            []ProjectEntry   `json:"projects"`
-	ShowICP             bool             `json:"showIcp"`
-	ICPNumber           string           `json:"icpNumber"`
-	ICPURL              string           `json:"icpUrl"`
-	ShowPolice          bool             `json:"showPolice"`
-	PoliceNumber        string           `json:"policeNumber"`
-	PoliceURL           string           `json:"policeUrl"`
-	FooterText          string           `json:"footerText"`
-	ShowFriendLinks     bool             `json:"showFriendLinks"`
-	FriendLinks         []FriendLink     `json:"friendLinks"`
+	ProfileName         string                         `json:"profileName"`
+	ProfileTagline      string                         `json:"profileTagline"`
+	ProfileBio          string                         `json:"profileBio"`
+	AvatarURL           string                         `json:"avatarUrl"`
+	Quote               string                         `json:"quote"`
+	QuoteAuthor         string                         `json:"quoteAuthor"`
+	QuoteEnabled        bool                           `json:"quoteEnabled"`
+	QuoteAuthorEnabled  bool                           `json:"quoteAuthorEnabled"`
+	Quotes              []QuoteEntry                   `json:"quotes"`
+	QuoteCatalogVersion int                            `json:"quoteCatalogVersion"`
+	GitHubURL           string                         `json:"githubUrl"`
+	EmailURL            string                         `json:"emailUrl"`
+	AboutURL            string                         `json:"aboutUrl"`
+	HomeBackgroundURL   string                         `json:"homeBackgroundUrl"`
+	StartBackgroundURL  string                         `json:"startBackgroundUrl"`
+	StartPublic         bool                           `json:"startPublic"` // Legacy compatibility; routeAccess is authoritative.
+	RouteAccess         map[string]HomeEntryVisibility `json:"routeAccess"`
+	DefaultSearchEngine SearchEngineName               `json:"defaultSearchEngine"`
+	SearchEngines       []SearchEngine                 `json:"searchEngines"`
+	ThemeMode           ThemeMode                      `json:"themeMode"`
+	ThemePreset         ThemePreset                    `json:"themePreset"`
+	ThemeStyle          ThemeStyle                     `json:"themeStyle"`
+	ThemeGradientPacks  []string                       `json:"themeGradientPacks"`
+	StartDensity        StartDensity                   `json:"startDensity"`
+	StartCardOpacity    int                            `json:"startCardOpacity"`
+	StartCardRadius     int                            `json:"startCardRadius"`
+	StartBackgroundDim  int                            `json:"startBackgroundDim"`
+	SocialLinks         []SocialLink                   `json:"socialLinks"`
+	HomeTagsVersion     int                            `json:"homeTagsVersion"`
+	HomeEntries         []HomeEntry                    `json:"homeEntries"`
+	Projects            []ProjectEntry                 `json:"projects"`
+	ShowICP             bool                           `json:"showIcp"`
+	ICPNumber           string                         `json:"icpNumber"`
+	ICPURL              string                         `json:"icpUrl"`
+	ShowPolice          bool                           `json:"showPolice"`
+	PoliceNumber        string                         `json:"policeNumber"`
+	PoliceURL           string                         `json:"policeUrl"`
+	FooterText          string                         `json:"footerText"`
+	ShowFriendLinks     bool                           `json:"showFriendLinks"`
+	FriendLinks         []FriendLink                   `json:"friendLinks"`
 }
 
 type SitePatch struct {
-	ProfileName         *string           `json:"profileName"`
-	ProfileTagline      *string           `json:"profileTagline"`
-	ProfileBio          *string           `json:"profileBio"`
-	AvatarURL           *string           `json:"avatarUrl"`
-	Quote               *string           `json:"quote"`
-	QuoteAuthor         *string           `json:"quoteAuthor"`
-	QuoteEnabled        *bool             `json:"quoteEnabled"`
-	QuoteAuthorEnabled  *bool             `json:"quoteAuthorEnabled"`
-	Quotes              *[]QuoteEntry     `json:"quotes"`
-	GitHubURL           *string           `json:"githubUrl"`
-	EmailURL            *string           `json:"emailUrl"`
-	AboutURL            *string           `json:"aboutUrl"`
-	HomeBackgroundURL   *string           `json:"homeBackgroundUrl"`
-	StartBackgroundURL  *string           `json:"startBackgroundUrl"`
-	StartPublic         *bool             `json:"startPublic"`
-	DefaultSearchEngine *SearchEngineName `json:"defaultSearchEngine"`
-	SearchEngines       *[]SearchEngine   `json:"searchEngines"`
-	ThemeMode           *ThemeMode        `json:"themeMode"`
-	ThemePreset         *ThemePreset      `json:"themePreset"`
-	ThemeStyle          *ThemeStyle       `json:"themeStyle"`
-	ThemeGradientPacks  *[]string         `json:"themeGradientPacks"`
-	StartDensity        *StartDensity     `json:"startDensity"`
-	StartCardOpacity    *int              `json:"startCardOpacity"`
-	StartCardRadius     *int              `json:"startCardRadius"`
-	StartBackgroundDim  *int              `json:"startBackgroundDim"`
-	SocialLinks         *[]SocialLink     `json:"socialLinks"`
-	HomeEntries         *[]HomeEntry      `json:"homeEntries"`
-	Projects            *[]ProjectEntry   `json:"projects"`
-	ShowICP             *bool             `json:"showIcp"`
-	ICPNumber           *string           `json:"icpNumber"`
-	ICPURL              *string           `json:"icpUrl"`
-	ShowPolice          *bool             `json:"showPolice"`
-	PoliceNumber        *string           `json:"policeNumber"`
-	PoliceURL           *string           `json:"policeUrl"`
-	FooterText          *string           `json:"footerText"`
-	ShowFriendLinks     *bool             `json:"showFriendLinks"`
-	FriendLinks         *[]FriendLink     `json:"friendLinks"`
+	ProfileName         *string                         `json:"profileName"`
+	ProfileTagline      *string                         `json:"profileTagline"`
+	ProfileBio          *string                         `json:"profileBio"`
+	AvatarURL           *string                         `json:"avatarUrl"`
+	Quote               *string                         `json:"quote"`
+	QuoteAuthor         *string                         `json:"quoteAuthor"`
+	QuoteEnabled        *bool                           `json:"quoteEnabled"`
+	QuoteAuthorEnabled  *bool                           `json:"quoteAuthorEnabled"`
+	Quotes              *[]QuoteEntry                   `json:"quotes"`
+	GitHubURL           *string                         `json:"githubUrl"`
+	EmailURL            *string                         `json:"emailUrl"`
+	AboutURL            *string                         `json:"aboutUrl"`
+	HomeBackgroundURL   *string                         `json:"homeBackgroundUrl"`
+	StartBackgroundURL  *string                         `json:"startBackgroundUrl"`
+	StartPublic         *bool                           `json:"startPublic"`
+	RouteAccess         *map[string]HomeEntryVisibility `json:"routeAccess"`
+	DefaultSearchEngine *SearchEngineName               `json:"defaultSearchEngine"`
+	SearchEngines       *[]SearchEngine                 `json:"searchEngines"`
+	ThemeMode           *ThemeMode                      `json:"themeMode"`
+	ThemePreset         *ThemePreset                    `json:"themePreset"`
+	ThemeStyle          *ThemeStyle                     `json:"themeStyle"`
+	ThemeGradientPacks  *[]string                       `json:"themeGradientPacks"`
+	StartDensity        *StartDensity                   `json:"startDensity"`
+	StartCardOpacity    *int                            `json:"startCardOpacity"`
+	StartCardRadius     *int                            `json:"startCardRadius"`
+	StartBackgroundDim  *int                            `json:"startBackgroundDim"`
+	SocialLinks         *[]SocialLink                   `json:"socialLinks"`
+	HomeEntries         *[]HomeEntry                    `json:"homeEntries"`
+	Projects            *[]ProjectEntry                 `json:"projects"`
+	ShowICP             *bool                           `json:"showIcp"`
+	ICPNumber           *string                         `json:"icpNumber"`
+	ICPURL              *string                         `json:"icpUrl"`
+	ShowPolice          *bool                           `json:"showPolice"`
+	PoliceNumber        *string                         `json:"policeNumber"`
+	PoliceURL           *string                         `json:"policeUrl"`
+	FooterText          *string                         `json:"footerText"`
+	ShowFriendLinks     *bool                           `json:"showFriendLinks"`
+	FriendLinks         *[]FriendLink                   `json:"friendLinks"`
 }
 
 type Store struct {
@@ -413,6 +416,12 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 		}
 		value.QuoteCatalogVersion = quoteCatalogVersion
 	}
+	if _, hasPolicy := keys["routeAccess"]; !hasPolicy {
+		// Old homepage cards and tags only controlled whether a link appeared.
+		// Do NOT silently promote their hidden state to page/API restrictions.
+		// Preserve the one legacy route policy: Start's public/private switch.
+		value.RouteAccess = DefaultRouteAccess(value.StartPublic)
+	}
 	return normalize(value), nil
 }
 
@@ -484,8 +493,16 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.StartBackgroundURL != nil {
 		v.StartBackgroundURL = *p.StartBackgroundURL
 	}
-	if p.StartPublic != nil {
+	if p.StartPublic != nil && p.RouteAccess == nil {
 		v.StartPublic = *p.StartPublic
+		if v.RouteAccess == nil {
+			v.RouteAccess = DefaultRouteAccess(v.StartPublic)
+		}
+		v.RouteAccess[RouteStart] = DefaultRouteAccess(v.StartPublic)[RouteStart]
+	}
+	if p.RouteAccess != nil {
+		// Actual page/API permissions remain separate from link visibility.
+		v.RouteAccess = *p.RouteAccess
 	}
 	if p.DefaultSearchEngine != nil {
 		v.DefaultSearchEngine = *p.DefaultSearchEngine
@@ -608,6 +625,8 @@ func normalize(v SiteSettings) SiteSettings {
 	v.StartCardOpacity = clamp(v.StartCardOpacity, 30, 95)
 	v.StartCardRadius = clamp(v.StartCardRadius, 12, 32)
 	v.StartBackgroundDim = clamp(v.StartBackgroundDim, 0, 90)
+	v.RouteAccess = NormalizeRouteAccess(v.RouteAccess, v.StartPublic)
+	v.StartPublic = v.RouteAccess[RouteStart] == HomeEntryAll || v.RouteAccess[RouteStart] == HomeEntryGuest
 	v.SocialLinks = normalizeSocial(v.SocialLinks)
 	v.HomeEntries = normalizeHome(v.HomeEntries)
 	v.Projects = normalizeProjects(v.Projects)
@@ -732,6 +751,14 @@ func normalizeSocial(values []SocialLink) []SocialLink {
 		}
 		item.Label = trim(item.Label, 80)
 		item.URL = trim(item.URL, 1000)
+		if !ValidVisibility(item.Visibility) {
+			if item.Disabled {
+				item.Visibility = HomeEntryDisabled
+			} else {
+				item.Visibility = HomeEntryAll
+			}
+		}
+		item.Disabled = item.Visibility == HomeEntryDisabled
 		if item.Label != "" && item.URL != "" {
 			out = append(out, item)
 		}

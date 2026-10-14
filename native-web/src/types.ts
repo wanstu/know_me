@@ -1,6 +1,6 @@
 export type SearchEngineConfig = { id: string; name: string; url: string; iconUrl: string };
 
-export type SocialLink = { id: string; label: string; url: string; disabled?: boolean };
+export type SocialLink = { id: string; label: string; url: string; disabled?: boolean; visibility?: HomeEntryVisibility };
 export type HomeEntryVisibility = "all" | "authenticated" | "guest" | "disabled";
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean; visibility?: HomeEntryVisibility };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
@@ -23,7 +23,8 @@ export type SiteSettings = {
   aboutUrl: string;
   homeBackgroundUrl: string;
   startBackgroundUrl: string;
-  startPublic: boolean;
+  startPublic: boolean; // legacy compatibility
+  routeAccess: Record<string, HomeEntryVisibility>;
   defaultSearchEngine: string;
   searchEngines: SearchEngineConfig[];
   themeMode: "auto" | "dark" | "light";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { dailyQuote } from "../daily-quotes";
-import { isHomeEntryVisible } from "../home-entry-visibility";
+import { siteLinkAllowed } from "../route-access";
 import { requestJSON } from "../api";
 import type { PostRecord, SessionUser, SiteSettings } from "../types";
 import { PageFrame, isExternal, safeHref } from "../ui";
@@ -37,7 +37,7 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
   const showQuote = settings.quoteEnabled && Boolean(quote);
 
   const entries = (settings.homeEntries ?? []).filter((entry) =>
-    isHomeEntryVisible(entry.visibility, Boolean(user))
+    siteLinkAllowed(settings, entry.url, entry.visibility, Boolean(user))
   );
 
   return (
@@ -52,7 +52,7 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
           <p className="km-home-tagline">{settings.profileTagline}</p>
           {settings.profileBio ? <p className="km-home-bio" id="about">{settings.profileBio}</p> : null}
           <div className="km-chip-row">
-            {(settings.socialLinks ?? []).filter((item) => !item.disabled).map((item) => {
+            {(settings.socialLinks ?? []).filter((item) => siteLinkAllowed(settings, item.url, item.visibility ?? (item.disabled ? "disabled" : "all"), Boolean(user))).map((item) => {
               const href = safeHref(item.url);
               return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.label}</a>;
             })}

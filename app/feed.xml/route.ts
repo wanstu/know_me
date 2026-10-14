@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth/session";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { allowsVisibility, routeAllowed } from "@/lib/settings/access";
 import { listPublishedPosts } from "@/lib/blog/repository";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -14,6 +17,15 @@ function escapeXml(value: string) {
 }
 
 export async function GET() {
+  const settings = getSiteSettings();
+  const user = await getSessionUser();
+  const loggedIn = Boolean(user);
+  if (!routeAllowed(settings.routeAccess, "/feed.xml", loggedIn)) {
+    const denied = allowsVisibility(settings.routeAccess["/feed.xml"], loggedIn)
+      ? settings.routeAccess["/blog"] : settings.routeAccess["/feed.xml"];
+    const status = denied === "disabled" ? 404 : denied === "authenticated" && !loggedIn ? 401 : 403;
+    return new NextResponse("feed_unavailable", { status, headers: { "cache-control": "private, no-store" } });
+  }
   const base = getSiteUrl();
   const posts = listPublishedPosts("", 50);
   const items = posts.map((post) => {
@@ -46,7 +58,7 @@ export async function GET() {
   return new NextResponse(xml, {
     headers: {
       "content-type": "application/rss+xml; charset=utf-8",
-      "cache-control": "public, max-age=300"
+      "cache-control": "private, no-store"
     }
   });
 }

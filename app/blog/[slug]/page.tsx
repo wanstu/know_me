@@ -6,7 +6,7 @@ import { PublicFooter } from "@/components/public-footer";
 import { extractToc } from "@/lib/blog/toc";
 import { getAdjacentPublishedPosts, getPublishedPostBySlug } from "@/lib/blog/repository";
 import { markdownToText } from "@/lib/blog/markdown";
-import { getSiteSettings } from "@/lib/settings/repository";
+import { requirePageAccess } from "@/lib/settings/require-page-access";
 import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
@@ -26,6 +26,7 @@ function formatDate(value: number | null) {
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params;
+  await requirePageAccess("/blog", "/blog/" + encodeURIComponent(slug));
   const post = getPublishedPostBySlug(decodeURIComponent(slug));
   if (!post) return { title: "文章不存在" };
   return {
@@ -43,13 +44,13 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params;
+  const { settings } = await requirePageAccess("/blog", "/blog/" + encodeURIComponent(slug));
   const post = getPublishedPostBySlug(decodeURIComponent(slug));
   if (!post) notFound();
 
   const toc = extractToc(post.contentMd, post.title);
   const adjacent = getAdjacentPublishedPosts(post.id);
   const minutes = Math.max(1, Math.ceil(markdownToText(post.contentMd).length / 500));
-  const settings = getSiteSettings();
 
   return (
     <main className={"paper-page " + themeClass(settings)}>

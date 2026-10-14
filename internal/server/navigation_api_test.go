@@ -11,6 +11,7 @@ import (
 	"time"
 
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
+	"github.com/wanstu/know_me/internal/settings"
 )
 
 func TestNativeNavigationAPI(t *testing.T) {
@@ -25,6 +26,11 @@ func TestNativeNavigationAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.auth.UpsertAdmin(context.Background(), "admin", "0123456789-password", "Admin"); err != nil {
+		t.Fatal(err)
+	}
+	// This test deliberately makes Start public; restricted access has separate tests.
+	publicStart := true
+	if _, err := s.settings.UpdateSite(context.Background(), settings.SitePatch{StartPublic: &publicStart}); err != nil {
 		t.Fatal(err)
 	}
 	addr, err := s.Listen()

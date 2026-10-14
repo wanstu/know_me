@@ -133,7 +133,7 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 	mux.Handle("/", spaHandler(assets))
 
 	s.http = &http.Server{
-		Handler:           securityHeaders(s.networkAccessMiddleware(mux)),
+		Handler:           securityHeaders(s.networkAccessMiddleware(s.routeAccessMiddleware(mux))),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

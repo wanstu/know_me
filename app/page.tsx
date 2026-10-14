@@ -4,6 +4,7 @@ import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LiveClock } from "@/components/live-clock";
 import { PublicFooter } from "@/components/public-footer";
 import { getSiteSettings } from "@/lib/settings/repository";
+import { linkVisible } from "@/lib/settings/access";
 import { randomHomeQuote } from "@/lib/home/quotes";
 import { themeClass } from "@/lib/settings/theme";
 
@@ -31,10 +32,11 @@ export default async function HomePage() {
   const settings = getSiteSettings();
   const authenticated = Boolean(await getSessionUser());
   const socials = settings.socialLinks
+    .filter((item) => linkVisible(settings.routeAccess, item.url, item.visibility ?? (item.disabled ? "disabled" : "all"), authenticated))
     .map((item) => ({ ...item, href: safeHref(item.url) }))
     .filter((item) => item.label && item.href);
   const entries = settings.homeEntries
-    .filter((item) => item.visibility === "authenticated" ? authenticated : item.visibility === "guest" ? !authenticated : true)
+    .filter((item) => linkVisible(settings.routeAccess, item.url, item.visibility, authenticated))
     .map((item) => ({ ...item, href: safeHref(item.url, false) }))
     .filter((item) => item.name && item.href);
   const projects = settings.projects
@@ -77,8 +79,6 @@ export default async function HomePage() {
                 {item.label}
               </a>
             ))}
-            <Link href="/blog" className="chip">Blog</Link>
-            <Link href="/feed.xml" className="chip">RSS</Link>
           </div>
         </article>
 

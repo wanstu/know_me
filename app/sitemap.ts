@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { listPublishedPosts } from "@/lib/blog/repository";
 import { getSiteUrl } from "@/lib/site-url";
+import { getSiteSettings } from "@/lib/settings/repository";
+import { routeAllowed } from "@/lib/settings/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +13,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: base + "/", changeFrequency: "weekly", priority: 1 },
     { url: base + "/blog", changeFrequency: "daily", priority: 0.9 }
   ];
+  // Do not disclose restricted articles through the public sitemap.
+  if (!routeAllowed(getSiteSettings().routeAccess, "/blog", false)) return staticEntries.slice(0, 1);
   const posts: MetadataRoute.Sitemap = listPublishedPosts("", 500).map((post) => ({
     url: base + "/blog/" + encodeURIComponent(post.slug),
     lastModified: new Date(post.updatedAt),
