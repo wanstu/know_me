@@ -161,10 +161,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   useEffect(() => {
     setError("");
-    if (!user && !settings.startPublic) {
-      setLoaded(true);
-      return;
-    }
     setLoaded(false);
     const endpoint = user ? "/api/navigation" : "/api/navigation/public";
     void requestJSON<{ groups: NavGroup[] }>(endpoint)

@@ -5,7 +5,8 @@ import { validateMediaFile } from "../media";
 import { dailyQuote, enabledQuoteCount } from "../daily-quotes";
 import { HOME_ENTRY_LINK_PRESETS, homeEntryPreset, validHomeEntryLink } from "../home-entry-links";
 import { START_SEARCH_ENGINES, validSearchEngineURL } from "../start-search-engines";
-import type { MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
+import { MANAGED_SITE_ROUTES, managedSiteRoute } from "../route-access";
+import type { HomeEntryVisibility, MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
 import { MediaManager } from "./admin/media-manager";
 import { NavigationManager } from "./admin/navigation-manager";
@@ -1004,7 +1005,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 
         {section === "start" ? (
           <section className="km-settings-pane">
-            <header><span className="km-eyebrow">START</span><h2>浏览器起始页</h2><p>控制背景、搜索方式、卡片密度和公开策略。</p></header>
+            <header><span className="km-eyebrow">START</span><h2>浏览器起始页</h2><p>控制背景、搜索方式与卡片密度；页面访问权限在「链接与项目」统一管理。</p></header>
             <div className="km-form-grid">
               <MediaField label="Start 背景" value={draft.startBackgroundUrl} onChange={(value) => update("startBackgroundUrl", value)} />
               <label className="dk-field">默认搜索<select value={draft.defaultSearchEngine} onChange={(event) => update("defaultSearchEngine", event.target.value)}>
@@ -1014,7 +1015,6 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="dk-field">卡片透明度 <b>{draft.startCardOpacity}%</b><input type="range" min={30} max={95} value={draft.startCardOpacity} onChange={(event) => update("startCardOpacity", Number(event.target.value))} /></label>
               <label className="dk-field">卡片圆角 <b>{draft.startCardRadius}px</b><input type="range" min={12} max={32} value={draft.startCardRadius} onChange={(event) => update("startCardRadius", Number(event.target.value))} /></label>
               <label className="dk-field">背景压暗 <b>{draft.startBackgroundDim}%</b><input type="range" min={0} max={90} value={draft.startBackgroundDim} onChange={(event) => update("startBackgroundDim", Number(event.target.value))} /></label>
-              <label className="km-check km-span-2"><input type="checkbox" checked={draft.startPublic} onChange={(event) => update("startPublic", event.target.checked)} /><span><strong>公开起始页</strong><small>关闭后未登录访客无法查看导航。</small></span></label>
             </div>
             <section className="km-settings-collection km-search-engines-editor">
               <header>
@@ -1153,22 +1153,35 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
 
         {section === "content" ? (
           <section className="km-settings-pane">
-            <header><span className="km-eyebrow">CONTENT</span><h2>链接与项目</h2><p>管理主页上的社交链接、入口卡片与项目作品。</p></header>
+            <header><span className="km-eyebrow">CONTENT</span><h2>链接与项目</h2><p>统一管理内置页面的实际访问权限，以及首页展示的快捷标签和入口。</p></header>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">SOCIAL</span><h3>主页快捷标签</h3><p className="km-muted">头像下方的小标签统一在这里管理。Blog、RSS 也可以改名、排序、禁用或删除；RSS 订阅地址为 /feed.xml。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, socialLinks: [...current.socialLinks, { id: "social-" + Date.now(), label: "", url: "", disabled: false }] }))}>新增</button></header>
+              <header><div><span className="km-eyebrow">ACCESS</span><h3>页面访问权限</h3><p className="km-muted">Go 服务端同时检查页面 URL 和公开 API。Start 包括导航数据，Blog 包括文章页与查询 API；RSS 不得突破 Blog 权限。后台始终要求登录，外部网站不受本站控制。</p></div></header>
+              <div className="km-form-grid">
+                {MANAGED_SITE_ROUTES.map(({ path, label }) => (
+                  <label className="dk-field" key={path}>{label} · {path}
+                    <select value={draft.routeAccess[path] ?? "all"} aria-label={label + "访问权限"} onChange={(event) => setDraft((current) => ({ ...current, routeAccess: { ...current.routeAccess, [path]: event.target.value as HomeEntryVisibility } }))}>
+                      <option value="all">公开访问</option><option value="authenticated">仅登录访问</option><option value="guest">仅未登录访问</option><option value="disabled">禁用（无法访问）</option>
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className="km-settings-collection">
+              <header><div><span className="km-eyebrow">SOCIAL</span><h3>主页快捷标签</h3><p className="km-muted">头像下方的小标签统一在这里管理。Blog、RSS 也可以改名和排序。内置页面访问权限以上面的统一规则为准；外部标签的显示条件仅影响展示。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, socialLinks: [...current.socialLinks, { id: "social-" + Date.now(), label: "", url: "", disabled: false, visibility: "all" }] }))}>新增</button></header>
               <div className="km-settings-rows is-social">
                 {draft.socialLinks.map((item, index) => (
                   <div
                     key={item.id}
-                    className={(item.disabled ? "is-link-disabled " : "") + (collectionDrag?.kind === "social" && collectionDrag.index === index ? "is-dragging" : "")}
+                    className={((item.visibility === "disabled" || item.disabled) ? "is-link-disabled " : "") + (collectionDrag?.kind === "social" && collectionDrag.index === index ? "is-dragging" : "")}
                     onDragOver={(event) => { if (collectionDrag?.kind === "social") event.preventDefault(); }}
                     onDrop={(event) => { event.preventDefault(); reorderCollection("social", index); }}
                   >
                     <span className="km-settings-drag" draggable onDragStart={() => setCollectionDrag({ kind: "social", index })} onDragEnd={() => setCollectionDrag(null)} title="拖拽排序">⠿</span>
                     <input value={item.label} onChange={(event) => updateSocial(index, "label", event.target.value)} placeholder="名称" />
                     <input value={item.url} onChange={(event) => updateSocial(index, "url", event.target.value)} placeholder="https://..." />
-                    <label className="km-settings-checkbox km-tag-visibility"><input type="checkbox" checked={!item.disabled} onChange={(event) => setDraft((current) => ({ ...current, socialLinks: current.socialLinks.map((link, i) => i === index ? { ...link, disabled: !event.target.checked } : link) }))} />显示</label>
+                    <label className="km-entry-visibility">显示条件<select aria-label={(item.label || "快捷标签") + "显示条件"} value={managedSiteRoute(item.url) ? (draft.routeAccess[managedSiteRoute(item.url)!] ?? "all") : (item.visibility ?? (item.disabled ? "disabled" : "all"))} onChange={(event) => setDraft((current) => { const route = managedSiteRoute(item.url); return route ? { ...current, routeAccess: { ...current.routeAccess, [route]: event.target.value as HomeEntryVisibility } } : { ...current, socialLinks: current.socialLinks.map((link, i) => i === index ? { ...link, visibility: event.target.value as HomeEntryVisibility, disabled: event.target.value === "disabled" } : link) }; })}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option><option value="disabled">禁用</option></select></label>
                     <div className="km-settings-row-actions">
                       <button type="button" title="上移" aria-label={"上移“" + (item.label || "链接") + "”"} disabled={index === 0} onClick={() => moveCollection("social", index, -1)}>↑</button>
                       <button type="button" title="下移" aria-label={"下移“" + (item.label || "链接") + "”"} disabled={index === draft.socialLinks.length - 1} onClick={() => moveCollection("social", index, 1)}>↓</button>
@@ -1181,7 +1194,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             </section>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">显示条件仅控制首页卡片是否出现，不会改变目标页面的访问权限。「禁用」只隐藏入口，不删除配置。支持站内路径与外部完整网址。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
+              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">内置 Start、Blog 等页面的显示条件与实际访问权限使用同一规则；其他链接仅控制首页显示。支持站内路径与外部完整网址。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
               <div className="km-settings-rows is-entry">
                 {draft.homeEntries.map((item, index) => (
                   <div
