@@ -274,7 +274,21 @@ export function TextPromptDialog({
   );
 }
 
-export function SiteHeader({ settings, user }: { settings: SiteSettings; user?: SessionUser | null }) {
+export function SiteBrandIcon({ url, className }: { url: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+  const src = url.trim();
+  const allowed = src.startsWith("/media/") || /^https?:\/\//i.test(src);
+  return (
+    <span className={className}>
+      {allowed && !failed
+        ? <img src={src} alt="" onError={() => setFailed(true)} />
+        : "K"}
+    </span>
+  );
+}
+
+function SiteHeader({ settings, user }: { settings: SiteSettings; user?: SessionUser | null }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -299,7 +313,7 @@ export function SiteHeader({ settings, user }: { settings: SiteSettings; user?: 
   return (
     <header ref={headerRef} className="km-header">
       <a className="km-brand" href="/">
-        <span className="km-brand-mark">K</span>
+        <SiteBrandIcon url={settings.brandIconUrl ?? ""} className="km-brand-mark" />
         <span><strong>{settings.profileName || "Know Me"}</strong><small>PERSONAL</small></span>
       </a>
       <button
@@ -414,7 +428,7 @@ export function AdminShell({
   return (
     <div className="km-admin-layout">
       <aside className="km-admin-sidebar">
-        <a className="km-admin-brand" href="/"><span>K</span><strong>Know Me</strong></a>
+        <a className="km-admin-brand" href="/"><SiteBrandIcon url={settings.brandIconUrl ?? ""} className="km-admin-brand-mark" /><strong>Know Me</strong></a>
         <nav ref={navRef} className="km-admin-nav">
           {adminMenu.map(([href, label]) => (
             <a key={href} href={href} aria-current={current === href ? "page" : undefined}>{label}</a>

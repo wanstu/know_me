@@ -13,6 +13,7 @@ export type SiteSettings = {
   profileTagline: string;
   profileBio: string;
   avatarUrl: string;
+  brandIconUrl: string;
   quote: string;
   quoteAuthor: string;
   quoteEnabled: boolean;

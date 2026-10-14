@@ -17,7 +17,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const stringKeys = [
-      "profileName", "profileTagline", "profileBio", "avatarUrl", "quote", "quoteAuthor",
+      "profileName", "profileTagline", "profileBio", "avatarUrl", "brandIconUrl", "quote", "quoteAuthor",
       "githubUrl", "emailUrl", "aboutUrl", "homeBackgroundUrl", "startBackgroundUrl",
       "icpNumber", "icpUrl", "policeNumber", "policeUrl", "footerText"
     ] as const;

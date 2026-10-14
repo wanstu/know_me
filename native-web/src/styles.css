@@ -3442,3 +3442,81 @@ select:focus-visible {
   .km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2; grid-row: 7; }
   .km-settings-rows.is-entry > div:has(.km-link-route-warning) > .km-settings-drag { grid-row: 1 / 8; }
 }
+
+/* Brand mark: use a custom uploaded square image with automatic K fallback. */
+.km-brand-mark, .km-admin-brand-mark { overflow: hidden; flex-shrink: 0; }
+.km-brand-mark img, .km-admin-brand-mark img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; border-radius: inherit;
+}
+.km-admin-brand-mark {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 11px; background: var(--dk-primary, #6366f1);
+  color: var(--dk-primary-contrast, #fff); font-weight: 850;
+}
+@media (max-width: 820px) {
+  .km-admin-brand > .km-admin-brand-mark { width: 32px; height: 32px; border-radius: 10px; }
+}
+
+/* Layout is based on the *available settings panel width*, not viewport width.
+   The admin sidebar means a 1400px browser can still have a <900px form. */
+.km-settings-rows.is-social,
+.km-settings-rows.is-entry,
+.km-route-access-section { container-type: inline-size; min-width: 0; }
+.km-settings-rows.is-social > div,
+.km-settings-rows.is-entry > div {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 12px;
+  min-width: 0;
+}
+.km-settings-rows.is-social > div > *,
+.km-settings-rows.is-entry > div > * { min-width: 0; }
+.km-settings-rows.is-social > div > .km-settings-drag,
+.km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1; align-self: center; }
+.km-settings-rows.is-social > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+.km-settings-rows.is-social > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
+.km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 2; }
+.km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 3; grid-row: 2; justify-content: flex-end; }
+.km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 3; }
+.km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+.km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
+.km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2 / -1; grid-row: 2; }
+.km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
+.km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 3; grid-row: 3; justify-self: end; }
+.km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2 / -1; grid-row: 4; justify-content: flex-end; }
+.km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 5; }
+.km-settings-rows .km-entry-visibility { display: flex; flex-wrap: wrap; white-space: normal; }
+.km-settings-rows .km-entry-visibility select { width: min(100%, 210px); max-width: 100%; }
+.km-settings-rows .km-entry-link-control,
+.km-settings-rows .km-entry-link-field { min-width: 0; }
+.km-route-access-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@container (max-width: 850px) {
+  .km-route-access-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 520px) {
+  .km-route-access-grid { grid-template-columns: minmax(0, 1fr); }
+  .km-settings-rows.is-social > div,
+  .km-settings-rows.is-entry > div { grid-template-columns: 22px minmax(0, 1fr); }
+  .km-settings-rows.is-social > div > input:nth-of-type(1),
+  .km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+  .km-settings-rows.is-social > div > input:nth-of-type(2),
+  .km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 2; grid-row: 2; }
+  .km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
+  .km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 2; grid-row: 4; justify-content: flex-start; }
+  .km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2; grid-row: 5; }
+  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2; grid-row: 3; }
+  .km-settings-rows.is-entry .km-entry-link-control { grid-template-columns: minmax(0, 1fr); }
+  .km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 4; }
+  .km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 2; grid-row: 5; justify-self: start; }
+  .km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2; grid-row: 6; justify-content: flex-start; }
+  .km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2; grid-row: 7; }
+}
+
+.km-media-field-preview.is-square { width: 76px; max-width: 76px; height: 76px; }
+.km-media-field-preview.is-square img { object-fit: cover; }
+@media (max-width: 700px) {
+  .km-media-field-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .km-media-field-row > input { grid-column: 1 / -1; }
+}

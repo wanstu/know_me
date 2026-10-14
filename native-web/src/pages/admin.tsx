@@ -526,11 +526,13 @@ function reorderValues<T>(values: T[], from: number, to: number) {
 function MediaField({
   label,
   value,
-  onChange
+  onChange,
+  square = false
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  square?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [media, setMedia] = useState<MediaRecord[] | null>(null);
@@ -583,7 +585,7 @@ function MediaField({
         <button type="button" className="dk-button" onClick={() => void openPicker()}>媒体库</button>
         {value ? <button type="button" className="dk-button" onClick={() => onChange("")}>清除</button> : null}
       </div>
-      {value ? <div className="km-media-field-preview"><img src={value} alt="" /></div> : null}
+      {value ? <div className={"km-media-field-preview" + (square ? " is-square" : "")}><img src={value} alt="" /></div> : null}
       {open ? (
         <div className="km-modal-backdrop" onMouseDown={() => { if (!busy) setOpen(false); }}>
           <section className="km-panel km-media-picker" role="dialog" aria-modal="true" aria-label={label + "媒体选择"} onMouseDown={(event) => event.stopPropagation()}>
@@ -930,6 +932,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="dk-field">短描述<input value={draft.profileTagline} onChange={(event) => update("profileTagline", event.target.value)} /></label>
               <label className="dk-field km-span-2">简介<textarea rows={4} value={draft.profileBio} onChange={(event) => update("profileBio", event.target.value)} /></label>
               <MediaField label="头像" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} />
+              <MediaField label="站点图标（左上角）" square value={draft.brandIconUrl} onChange={(value) => update("brandIconUrl", value)} />
+              <p className="km-muted km-span-2">用于公共页左上角及管理后台侧栏。建议使用正方形 PNG / WebP，清除后恢复默认的 K 图标；与个人头像分别设置。</p>
               <MediaField label="主页背景" value={draft.homeBackgroundUrl} onChange={(value) => update("homeBackgroundUrl", value)} />
               <label className="km-check"><input type="checkbox" checked={draft.quoteEnabled} onChange={(event) => update("quoteEnabled", event.target.checked)} /><span><strong>显示今日短句</strong><small>关闭后主页不显示短句卡片。</small></span></label>
               <label className="km-check"><input type="checkbox" checked={draft.quoteAuthorEnabled} onChange={(event) => update("quoteAuthorEnabled", event.target.checked)} /><span><strong>显示短句署名</strong><small>仅控制每条短句的署名显示。</small></span></label>

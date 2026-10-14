@@ -17,6 +17,7 @@ export type SiteSettings = {
   profileTagline: string;
   profileBio: string;
   avatarUrl: string;
+  brandIconUrl: string;
   quote: string;
   quoteAuthor: string;
   quoteEnabled: boolean;
@@ -54,6 +55,7 @@ const defaults: SiteSettings = {
   profileTagline: "记录、创造，也把每天真正会用的东西放在这里。",
   profileBio: "一个属于自己的数字入口：主页、博客和浏览器起始页，不再分散在不同服务里。",
   avatarUrl: "",
+  brandIconUrl: "",
   quote: "生命如意志永存，青春永远年轻。",
   quoteAuthor: "今日短句",
   quoteEnabled: true,
@@ -206,6 +208,7 @@ export function getSiteSettings(): SiteSettings {
     profileTagline: typeof stored.profileTagline === "string" ? stored.profileTagline : defaults.profileTagline,
     profileBio: typeof stored.profileBio === "string" ? stored.profileBio : defaults.profileBio,
     avatarUrl: typeof stored.avatarUrl === "string" ? stored.avatarUrl : defaults.avatarUrl,
+    brandIconUrl: typeof stored.brandIconUrl === "string" ? stored.brandIconUrl : defaults.brandIconUrl,
     quote: typeof stored.quote === "string" ? stored.quote : defaults.quote,
     quoteAuthor: typeof stored.quoteAuthor === "string" ? stored.quoteAuthor : defaults.quoteAuthor,
     quoteEnabled: typeof stored.quoteEnabled === "boolean" ? stored.quoteEnabled : defaults.quoteEnabled,
@@ -248,6 +251,7 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     profileTagline: input.profileTagline?.slice(0, 240) ?? current.profileTagline,
     profileBio: input.profileBio?.slice(0, 1000) ?? current.profileBio,
     avatarUrl: input.avatarUrl?.slice(0, 1000) ?? current.avatarUrl,
+    brandIconUrl: input.brandIconUrl?.slice(0, 1000) ?? current.brandIconUrl,
     quote: input.quote?.slice(0, 500) ?? current.quote,
     quoteAuthor: input.quoteAuthor?.slice(0, 100) ?? current.quoteAuthor,
     quoteEnabled: input.quoteEnabled ?? current.quoteEnabled,
