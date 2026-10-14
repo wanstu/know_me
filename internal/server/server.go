@@ -126,6 +126,7 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 	s.registerNetworkAccessAPI(mux)
 	s.registerNavigationAPI(mux)
 	s.registerBlogAPI(mux)
+	s.registerRSSFeed(mux)
 	s.registerMediaAPI(mux)
 	s.registerBackupAPI(mux)
 	mux.Handle("/desktopkit-theme/", themeManager.Handler())

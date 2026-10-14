@@ -74,7 +74,7 @@ func TestLegacySocialLinksAreDerived(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(value.SocialLinks) != 1 || value.SocialLinks[0].ID != "github" {
+	if len(value.SocialLinks) != 3 || value.SocialLinks[0].ID != "github" || value.SocialLinks[1].ID != "home-blog" || value.SocialLinks[2].ID != "home-rss" {
 		t.Fatalf("legacy socials = %#v", value.SocialLinks)
 	}
 }
@@ -385,5 +385,81 @@ func TestDisabledAndExternalHomeEntriesPersist(t *testing.T) {
 	if reload.HomeEntries[1].URL != "https://example.com/abc?x=1" || !reload.HomeEntries[1].NewTab ||
 		reload.HomeEntries[2].URL != "/blog#archive" {
 		t.Fatalf("entry links changed during save: %+v", reload.HomeEntries)
+	}
+}
+
+func TestHomepageTagsMigrationAndCustomVisibility(t *testing.T) {
+	t.Parallel()
+	db, err := database.Open(filepath.Join(t.TempDir(), "tags.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db.SQL)
+	ctx := context.Background()
+
+	initial, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(initial.SocialLinks) != 2 || initial.SocialLinks[0].URL != "/blog" || initial.SocialLinks[1].URL != "/feed.xml" {
+		t.Fatalf("initial Blog/RSS tags missing: %+v", initial.SocialLinks)
+	}
+
+	// Simulate v0.1.14 site configuration which had custom socialLinks but
+	// rendered two additional hardcoded Blog/RSS chips.
+	_, err = db.SQL.ExecContext(ctx, "INSERT INTO settings(key,value_json,updated_at) VALUES('site',?,1)",
+		`{"socialLinks":[{"id":"github","label":"GitHub","url":"https://github.com/example"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrated.SocialLinks) != 3 || migrated.SocialLinks[0].Label != "GitHub" ||
+		migrated.SocialLinks[1].Label != "Blog" || migrated.SocialLinks[2].Label != "RSS" ||
+		migrated.HomeTagsVersion != homeTagsVersion {
+		t.Fatalf("legacy links not migrated: %+v", migrated)
+	}
+
+	// No duplicate Blog if an admin had already added a matching link.
+	_, err = db.SQL.ExecContext(ctx, "UPDATE settings SET value_json=? WHERE key='site'",
+		`{"socialLinks":[{"id":"blog-manual","label":"Blog","url":"/blog"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrated, err = store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrated.SocialLinks) != 2 || migrated.SocialLinks[1].Label != "RSS" {
+		t.Fatalf("manual Blog tag was duplicated: %+v", migrated.SocialLinks)
+	}
+
+	// Save disabled RSS and removed Blog. Neither should be silently restored.
+	list := []SocialLink{{ID: "my-rss", Label: "RSS", URL: "/feed.xml", Disabled: true}}
+	value, err := store.UpdateSite(ctx, SitePatch{SocialLinks: &list})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(value.SocialLinks) != 1 || !value.SocialLinks[0].Disabled {
+		t.Fatalf("not saved: %+v", value)
+	}
+	again, err := store.GetSite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again.SocialLinks) != 1 || again.SocialLinks[0].ID != "my-rss" || !again.SocialLinks[0].Disabled {
+		t.Fatalf("Blog/RSS were restored after admin edit: %+v", again.SocialLinks)
+	}
+	empty := []SocialLink{}
+	_, err = store.UpdateSite(ctx, SitePatch{SocialLinks: &empty})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err = store.GetSite(ctx)
+	if err != nil || len(again.SocialLinks) != 0 {
+		t.Fatalf("explicitly empty tags were recreated: %+v %v", again.SocialLinks, err)
 	}
 }

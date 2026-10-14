@@ -52,12 +52,10 @@ export function HomePage({ settings, user }: { settings: SiteSettings; user: Ses
           <p className="km-home-tagline">{settings.profileTagline}</p>
           {settings.profileBio ? <p className="km-home-bio" id="about">{settings.profileBio}</p> : null}
           <div className="km-chip-row">
-            {(settings.socialLinks ?? []).map((item) => {
+            {(settings.socialLinks ?? []).filter((item) => !item.disabled).map((item) => {
               const href = safeHref(item.url);
               return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.label}</a>;
             })}
-            <a href="/blog">Blog</a>
-            <a href="/feed.xml">RSS</a>
           </div>
         </div>
       </section>

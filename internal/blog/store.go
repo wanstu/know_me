@@ -298,6 +298,20 @@ func (s *Store) GetPublishedBySlug(ctx context.Context, slug string) (Post, erro
 	return s.mapPost(ctx, s.db, row)
 }
 
+// ListFeed returns only publicly available posts in publish-date order.
+// Unlike the homepage, pinned posts don't override RSS chronology.
+func (s *Store) ListFeed(ctx context.Context, limit int) ([]Post, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return s.listRows(ctx, s.db,
+		selectPost+" WHERE (status = 'published' OR (status = 'scheduled' AND published_at <= ?)) ORDER BY published_at DESC, id DESC LIMIT ?",
+		time.Now().UnixMilli(), limit)
+}
+
 func (s *Store) ListAdmin(ctx context.Context) ([]Post, error) {
 	return s.listRows(ctx, s.db, selectPost+" ORDER BY updated_at DESC, id DESC")
 }

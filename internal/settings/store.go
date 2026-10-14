@@ -67,9 +67,34 @@ func DefaultSearchEngines() []SearchEngine {
 }
 
 type SocialLink struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	URL   string `json:"url"`
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	URL      string `json:"url"`
+	Disabled bool   `json:"disabled"`
+}
+
+// Built-in homepage tags were hardcoded before this version. Move them into
+// editable site settings exactly once; never recreate intentionally deleted tags.
+const homeTagsVersion = 1
+
+func migratedHomeTags(links []SocialLink) []SocialLink {
+	for _, candidate := range []SocialLink{
+		{ID: "home-blog", Label: "Blog", URL: "/blog"},
+		{ID: "home-rss", Label: "RSS", URL: "/feed.xml"},
+	} {
+		found := false
+		for _, link := range links {
+			if strings.EqualFold(link.Label, candidate.Label) ||
+				strings.EqualFold(link.URL, candidate.URL) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			links = append(links, candidate)
+		}
+	}
+	return links
 }
 
 type QuoteEntry struct {
@@ -257,6 +282,7 @@ type SiteSettings struct {
 	StartCardRadius     int              `json:"startCardRadius"`
 	StartBackgroundDim  int              `json:"startBackgroundDim"`
 	SocialLinks         []SocialLink     `json:"socialLinks"`
+	HomeTagsVersion     int              `json:"homeTagsVersion"`
 	HomeEntries         []HomeEntry      `json:"homeEntries"`
 	Projects            []ProjectEntry   `json:"projects"`
 	ShowICP             bool             `json:"showIcp"`
@@ -339,7 +365,8 @@ func Defaults() SiteSettings {
 		StartCardOpacity:    64,
 		StartCardRadius:     22,
 		StartBackgroundDim:  62,
-		SocialLinks:         []SocialLink{},
+		SocialLinks:         migratedHomeTags([]SocialLink{}),
+		HomeTagsVersion:     homeTagsVersion,
 		HomeEntries: []HomeEntry{
 			{ID: "blog", Name: "Blog", Description: "文章与笔记", URL: "/blog"},
 			{ID: "start", Name: "Start", Description: "浏览器起始页", URL: "/start"},
@@ -372,6 +399,10 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 	_ = json.Unmarshal([]byte(raw), &keys)
 	if _, exists := keys["socialLinks"]; !exists {
 		value.SocialLinks = legacySocialLinks(value)
+	}
+	if _, hasVersion := keys["homeTagsVersion"]; !hasVersion || value.HomeTagsVersion < homeTagsVersion {
+		value.SocialLinks = migratedHomeTags(value.SocialLinks)
+		value.HomeTagsVersion = homeTagsVersion
 	}
 	if _, exists := keys["quotes"]; !exists {
 		value.Quotes = LegacyQuoteEntries(value.Quote, value.QuoteAuthor)
