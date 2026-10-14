@@ -260,6 +260,7 @@ type SiteSettings struct {
 	ProfileTagline      string                         `json:"profileTagline"`
 	ProfileBio          string                         `json:"profileBio"`
 	AvatarURL           string                         `json:"avatarUrl"`
+	BrandIconURL        string                         `json:"brandIconUrl"`
 	Quote               string                         `json:"quote"`
 	QuoteAuthor         string                         `json:"quoteAuthor"`
 	QuoteEnabled        bool                           `json:"quoteEnabled"`
@@ -303,6 +304,7 @@ type SitePatch struct {
 	ProfileTagline      *string                         `json:"profileTagline"`
 	ProfileBio          *string                         `json:"profileBio"`
 	AvatarURL           *string                         `json:"avatarUrl"`
+	BrandIconURL        *string                         `json:"brandIconUrl"`
 	Quote               *string                         `json:"quote"`
 	QuoteAuthor         *string                         `json:"quoteAuthor"`
 	QuoteEnabled        *bool                           `json:"quoteEnabled"`
@@ -463,6 +465,9 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	if p.AvatarURL != nil {
 		v.AvatarURL = *p.AvatarURL
 	}
+	if p.BrandIconURL != nil {
+		v.BrandIconURL = *p.BrandIconURL
+	}
 	if p.Quote != nil {
 		v.Quote = *p.Quote
 	}
@@ -577,6 +582,7 @@ func normalize(v SiteSettings) SiteSettings {
 	v.ProfileTagline = trim(v.ProfileTagline, 240)
 	v.ProfileBio = trim(v.ProfileBio, 1000)
 	v.AvatarURL = trim(v.AvatarURL, 1000)
+	v.BrandIconURL = trim(v.BrandIconURL, 1000)
 	v.Quote = trim(v.Quote, 500)
 	v.QuoteAuthor = trim(v.QuoteAuthor, 100)
 	v.Quotes = normalizeQuotes(v.Quotes)

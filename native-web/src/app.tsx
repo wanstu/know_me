@@ -41,6 +41,21 @@ export function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Keep the browser tab icon consistent with the configured site brand.
+    const url = settings?.brandIconUrl?.trim() ?? "";
+    const allowed = url.startsWith("/media/") || /^https?:\/\//i.test(url);
+    const existing = document.querySelector<HTMLLinkElement>('link[data-know-me-brand-icon]');
+    existing?.remove();
+    if (!allowed) return;
+    const icon = document.createElement("link");
+    icon.rel = "icon";
+    icon.href = url;
+    icon.setAttribute("data-know-me-brand-icon", "");
+    document.head.appendChild(icon);
+    return () => icon.remove();
+  }, [settings?.brandIconUrl]);
+
+  useEffect(() => {
     let activeDialog: HTMLElement | null = null;
     let previousFocus: HTMLElement | null = null;
 
