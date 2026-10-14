@@ -1156,18 +1156,19 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             <header><span className="km-eyebrow">CONTENT</span><h2>链接与项目</h2><p>管理主页上的社交链接、入口卡片与项目作品。</p></header>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">SOCIAL</span><h3>主页链接</h3></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, socialLinks: [...current.socialLinks, { id: "social-" + Date.now(), label: "", url: "" }] }))}>新增</button></header>
-              <div className="km-settings-rows">
+              <header><div><span className="km-eyebrow">SOCIAL</span><h3>主页快捷标签</h3><p className="km-muted">头像下方的小标签统一在这里管理。Blog、RSS 也可以改名、排序、禁用或删除；RSS 订阅地址为 /feed.xml。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, socialLinks: [...current.socialLinks, { id: "social-" + Date.now(), label: "", url: "", disabled: false }] }))}>新增</button></header>
+              <div className="km-settings-rows is-social">
                 {draft.socialLinks.map((item, index) => (
                   <div
                     key={item.id}
-                    className={collectionDrag?.kind === "social" && collectionDrag.index === index ? "is-dragging" : ""}
+                    className={(item.disabled ? "is-link-disabled " : "") + (collectionDrag?.kind === "social" && collectionDrag.index === index ? "is-dragging" : "")}
                     onDragOver={(event) => { if (collectionDrag?.kind === "social") event.preventDefault(); }}
                     onDrop={(event) => { event.preventDefault(); reorderCollection("social", index); }}
                   >
                     <span className="km-settings-drag" draggable onDragStart={() => setCollectionDrag({ kind: "social", index })} onDragEnd={() => setCollectionDrag(null)} title="拖拽排序">⠿</span>
                     <input value={item.label} onChange={(event) => updateSocial(index, "label", event.target.value)} placeholder="名称" />
                     <input value={item.url} onChange={(event) => updateSocial(index, "url", event.target.value)} placeholder="https://..." />
+                    <label className="km-settings-checkbox km-tag-visibility"><input type="checkbox" checked={!item.disabled} onChange={(event) => setDraft((current) => ({ ...current, socialLinks: current.socialLinks.map((link, i) => i === index ? { ...link, disabled: !event.target.checked } : link) }))} />显示</label>
                     <div className="km-settings-row-actions">
                       <button type="button" title="上移" aria-label={"上移“" + (item.label || "链接") + "”"} disabled={index === 0} onClick={() => moveCollection("social", index, -1)}>↑</button>
                       <button type="button" title="下移" aria-label={"下移“" + (item.label || "链接") + "”"} disabled={index === draft.socialLinks.length - 1} onClick={() => moveCollection("social", index, 1)}>↓</button>
@@ -1175,7 +1176,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
                     </div>
                   </div>
                 ))}
-                {!draft.socialLinks.length ? <p className="km-muted">没有额外社交链接。</p> : null}
+                {!draft.socialLinks.length ? <p className="km-muted">当前没有主页标签。可点击「新增」添加 Blog、RSS 或其他地址。</p> : null}
               </div>
             </section>
 
