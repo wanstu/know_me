@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "route:smoke": "tsx scripts/route-access-smoke.ts",
     "route:ui-smoke": "tsx scripts/native-route-access-smoke.ts",
+    "settings:layout-smoke": "tsx scripts/settings-layout-smoke.ts",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "admin:init": "tsx scripts/init-admin.ts",
     "auth:smoke": "tsx scripts/auth-smoke.ts",

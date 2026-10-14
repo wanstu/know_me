@@ -3266,7 +3266,8 @@ select:focus-visible {
   .km-entry-link-control { grid-template-columns: minmax(0,1fr); }
 }
 
-/* Homepage links: one consistent, responsive card editor for chips and entries. */
+/* Homepage entry cards use a shared border, but the actual layout is defined
+   once in the container-responsive block below. */
 .km-settings-collection > header > .dk-button {
   border: 1px solid var(--dk-border, #dce3ed);
   min-height: 36px;
@@ -3280,79 +3281,22 @@ select:focus-visible {
   border: 1px solid var(--dk-border, #dce3ed);
   border-radius: 13px;
   background: color-mix(in srgb, var(--dk-bg-elevated, #fff) 88%, transparent);
-  column-gap: 12px;
-  row-gap: 10px;
+  gap: 8px 12px;
   min-width: 0;
 }
 .km-settings-rows.is-social > div:focus-within,
 .km-settings-rows.is-entry > div:focus-within {
   border-color: color-mix(in srgb, var(--dk-primary, #6366f1) 50%, var(--dk-border, #dce3ed));
 }
-.km-settings-rows.is-social > div {
-  grid-template-columns: 22px minmax(140px, .9fr) minmax(220px, 1.5fr) minmax(175px, 200px) auto;
-}
-.km-settings-rows.is-social > div > .km-settings-drag { grid-column: 1; }
-.km-settings-rows.is-social > div > input:nth-of-type(1) { grid-column: 2; }
-.km-settings-rows.is-social > div > input:nth-of-type(2) { grid-column: 3; }
-.km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 4; }
-.km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 5; }
 .km-settings-rows.is-social > div.is-link-disabled { opacity: .65; }
-.km-settings-rows.is-entry > div {
-  grid-template-columns: 22px minmax(160px, .9fr) minmax(180px, 1.1fr) minmax(300px, 1.65fr);
-}
-.km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1 / 3; }
-.km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
-.km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
-.km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 4; grid-row: 1; }
-.km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 2; }
-.km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 3; grid-row: 2; }
-.km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 4; grid-row: 2; justify-content: flex-end; }
-.km-settings-rows.is-social .km-entry-visibility,
-.km-settings-rows.is-entry .km-entry-visibility,
-.km-settings-rows.is-entry .km-settings-checkbox { min-width: 0; font-size: 12px; }
-.km-settings-rows.is-social .km-entry-visibility select,
-.km-settings-rows.is-entry .km-entry-visibility select { flex: 1 1 auto; min-width: 0; max-width: 200px; }
-.km-settings-rows.is-social .km-settings-row-actions,
-.km-settings-rows.is-entry .km-settings-row-actions { white-space: nowrap; }
 .km-settings-rows.is-social > div > input,
 .km-settings-rows.is-entry > div > input { min-height: 40px; width: 100%; }
-@media (max-width: 1200px) {
-  .km-settings-rows.is-social > div,
-  .km-settings-rows.is-entry > div {
-    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .km-settings-rows.is-social > div > .km-settings-drag,
-  .km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1 / 4; align-self: start; }
-  .km-settings-rows.is-social > div > input:nth-of-type(1),
-  .km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
-  .km-settings-rows.is-social > div > input:nth-of-type(2),
-  .km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
-  .km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 2; }
-  .km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 3; grid-row: 2; justify-content: flex-end; }
-  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2 / -1; grid-row: 2; }
-  .km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
-  .km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 3; grid-row: 3; justify-self: end; }
-  .km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2 / -1; grid-row: 4; justify-content: flex-end; }
-}
-@media (max-width: 700px) {
-  .km-settings-rows.is-social > div,
-  .km-settings-rows.is-entry > div { grid-template-columns: 22px minmax(0, 1fr); }
-  .km-settings-rows.is-social > div > .km-settings-drag,
-  .km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1 / 5; }
-  .km-settings-rows.is-social > div > input:nth-of-type(1),
-  .km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
-  .km-settings-rows.is-social > div > input:nth-of-type(2),
-  .km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 2; grid-row: 2; }
-  .km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
-  .km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 2; grid-row: 4; justify-content: flex-start; }
-  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2; grid-row: 3; }
-  .km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 4; }
-  .km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 2; grid-row: 5; justify-self: start; }
-  .km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2; grid-row: 6; justify-content: flex-start; }
-  .km-settings-rows.is-entry > div > .km-settings-drag { grid-row: 1 / 7; }
-  .km-settings-rows .km-entry-visibility select { max-width: none; }
-  .km-settings-collection > header { flex-wrap: wrap; }
-}
+.km-settings-rows.is-social .km-settings-row-actions,
+.km-settings-rows.is-entry .km-settings-row-actions { white-space: nowrap; }
+.km-settings-rows .km-entry-visibility { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.km-settings-rows .km-entry-visibility select { width: min(100%, 220px); max-width: 100%; }
+.km-settings-rows.is-entry .km-settings-checkbox { font-size: 12px; }
+.km-settings-collection > header { flex-wrap: wrap; }
 
 /* Access policy: actual server-side rules remain visually separate from link visibility. */
 .km-route-access-grid {
@@ -3458,62 +3402,95 @@ select:focus-visible {
   .km-admin-brand > .km-admin-brand-mark { width: 32px; height: 32px; border-radius: 10px; }
 }
 
-/* Layout is based on the *available settings panel width*, not viewport width.
-   The admin sidebar means a 1400px browser can still have a <900px form. */
+/* One container-responsive layout: size is based on the editor width, not
+   the browser viewport. Keep actions grouped in the footer on all sizes. */
 .km-settings-rows.is-social,
 .km-settings-rows.is-entry,
 .km-route-access-section { container-type: inline-size; min-width: 0; }
 .km-settings-rows.is-social > div,
 .km-settings-rows.is-entry > div {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px 12px;
   min-width: 0;
+  align-items: start;
 }
 .km-settings-rows.is-social > div > *,
 .km-settings-rows.is-entry > div > * { min-width: 0; }
-.km-settings-rows.is-social > div > .km-settings-drag,
-.km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1; align-self: center; }
+.km-settings-rows.is-social > div {
+  grid-template-columns: 22px minmax(140px, .85fr) minmax(225px, 1.6fr) minmax(180px, 1fr) auto;
+}
+.km-settings-rows.is-social > div > .km-settings-drag { grid-column: 1; grid-row: 1; align-self: center; }
 .km-settings-rows.is-social > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
 .km-settings-rows.is-social > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
-.km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 2; }
-.km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 3; grid-row: 2; justify-content: flex-end; }
-.km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 3; }
+.km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 4; grid-row: 1; align-self: center; }
+.km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 5; grid-row: 1; justify-content: flex-end; align-self: center; }
+.km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 2; }
+
+/* Large editor: name, description and URL on the first row;
+   visibility, new-tab and actions form ONE compact footer below. */
+.km-settings-rows.is-entry > div {
+  grid-template-columns: 22px minmax(150px, .85fr) minmax(170px, 1.05fr) minmax(330px, 2.25fr);
+}
+.km-settings-rows.is-entry > div > .km-settings-drag { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
 .km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
 .km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
-.km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2 / -1; grid-row: 2; }
-.km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
-.km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 3; grid-row: 3; justify-self: end; }
-.km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2 / -1; grid-row: 4; justify-content: flex-end; }
-.km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 5; }
-.km-settings-rows .km-entry-visibility { display: flex; flex-wrap: wrap; white-space: normal; }
-.km-settings-rows .km-entry-visibility select { width: min(100%, 210px); max-width: 100%; }
-.km-settings-rows .km-entry-link-control,
-.km-settings-rows .km-entry-link-field { min-width: 0; }
+.km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 4; grid-row: 1; }
+.km-settings-rows.is-entry .km-entry-link-control { grid-template-columns: minmax(0, 1fr) minmax(165px, 39%); }
+.km-settings-rows.is-entry > div > .km-entry-footer {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-height: 36px;
+}
+.km-entry-footer .km-entry-visibility { font-size: 12px; }
+.km-entry-footer .km-entry-visibility select { min-width: 170px; }
+.km-entry-footer .km-settings-checkbox { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.km-entry-footer .km-settings-row-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 3; }
 .km-route-access-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
+/* At reduced panel widths, the URL gets a separate row; the footer remains
+   one flex row where possible, instead of scattering its controls. */
+@container (max-width: 1050px) {
+  .km-settings-rows.is-entry > div { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr); }
+  .km-settings-rows.is-entry > div > .km-settings-drag { grid-row: 1 / span 3; }
+  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2 / -1; grid-row: 2; }
+  .km-settings-rows.is-entry > div > .km-entry-footer { grid-column: 2 / -1; grid-row: 3; }
+  .km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 4; }
+}
+@container (max-width: 980px) {
+  .km-settings-rows.is-social > div { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr); }
+  .km-settings-rows.is-social > div > .km-settings-drag { grid-row: 1 / span 2; }
+  .km-settings-rows.is-social > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+  .km-settings-rows.is-social > div > input:nth-of-type(2) { grid-column: 3; grid-row: 1; }
+  .km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 2; }
+  .km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 3; grid-row: 2; }
+  .km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2 / -1; grid-row: 3; }
+}
 @container (max-width: 850px) {
   .km-route-access-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@container (max-width: 520px) {
+@container (max-width: 570px) {
   .km-route-access-grid { grid-template-columns: minmax(0, 1fr); }
-  .km-settings-rows.is-social > div,
-  .km-settings-rows.is-entry > div { grid-template-columns: 22px minmax(0, 1fr); }
-  .km-settings-rows.is-social > div > input:nth-of-type(1),
+  .km-settings-rows.is-entry > div,
+  .km-settings-rows.is-social > div { grid-template-columns: 22px minmax(0, 1fr); }
+  .km-settings-rows.is-entry > div > .km-settings-drag { grid-row: 1 / span 4; }
   .km-settings-rows.is-entry > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
-  .km-settings-rows.is-social > div > input:nth-of-type(2),
   .km-settings-rows.is-entry > div > input:nth-of-type(2) { grid-column: 2; grid-row: 2; }
+  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2; grid-row: 3; }
+  .km-settings-rows.is-entry .km-entry-link-control { grid-template-columns: minmax(0, 1fr); }
+  .km-settings-rows.is-entry > div > .km-entry-footer { grid-column: 2; grid-row: 4; }
+  .km-entry-footer .km-settings-row-actions { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2; grid-row: 5; }
+  .km-settings-rows.is-social > div > .km-settings-drag { grid-row: 1 / span 4; }
+  .km-settings-rows.is-social > div > input:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+  .km-settings-rows.is-social > div > input:nth-of-type(2) { grid-column: 2; grid-row: 2; }
   .km-settings-rows.is-social > div > .km-entry-visibility { grid-column: 2; grid-row: 3; }
   .km-settings-rows.is-social > div > .km-settings-row-actions { grid-column: 2; grid-row: 4; justify-content: flex-start; }
   .km-settings-rows.is-social > div > .km-link-route-warning { grid-column: 2; grid-row: 5; }
-  .km-settings-rows.is-entry > div > .km-entry-link-field { grid-column: 2; grid-row: 3; }
-  .km-settings-rows.is-entry .km-entry-link-control { grid-template-columns: minmax(0, 1fr); }
-  .km-settings-rows.is-entry > div > .km-entry-visibility { grid-column: 2; grid-row: 4; }
-  .km-settings-rows.is-entry > div > .km-settings-checkbox { grid-column: 2; grid-row: 5; justify-self: start; }
-  .km-settings-rows.is-entry > div > .km-settings-row-actions { grid-column: 2; grid-row: 6; justify-content: flex-start; }
-  .km-settings-rows.is-entry > div > .km-link-route-warning { grid-column: 2; grid-row: 7; }
 }
-
 .km-media-field-preview.is-square { width: 76px; max-width: 76px; height: 76px; }
 .km-media-field-preview.is-square img { object-fit: cover; }
 @media (max-width: 700px) {

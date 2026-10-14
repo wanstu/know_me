@@ -43,10 +43,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Route permission smoke tests
+      - name: Route permission and editor layout smoke tests
         run: |
           npm run route:smoke
           npm run route:ui-smoke
+          npm run settings:layout-smoke
 
       - name: Navigation smoke tests
         run: |

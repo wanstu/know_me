@@ -32,10 +32,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - name: Verify route permissions and homepage link rules
+      - name: Verify route permissions and settings editor layout
         run: |
           npm run route:smoke
           npm run route:ui-smoke
+          npm run settings:layout-smoke
       - run: npm run native:web:build
       - name: Verify committed Native Web assets
         run: git diff --exit-code -- internal/webassets/static

@@ -1226,7 +1226,7 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
             </section>
 
             <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">显示条件只控制首页卡片，不改变目标页面能否直接访问；站内 Start、Blog 等页面的访问权限由上方统一控制。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
+              <header><div><span className="km-eyebrow">EXPLORE</span><h3>主页入口</h3><p className="km-muted">可选择内置页面，也可填写站内路径（/…）、锚点（#…）或外部网址。显示条件只影响首页展示，不改变实际访问权限。</p></div><button type="button" className="dk-button" onClick={() => setDraft((current) => ({ ...current, homeEntries: [...current.homeEntries, { id: "entry-" + Date.now(), name: "", description: "", url: "/", newTab: false, visibility: "all" }] }))}>新增</button></header>
               <div className="km-settings-rows is-entry">
                 {draft.homeEntries.map((item, index) => (
                   <div
@@ -1254,20 +1254,21 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
                           ))}
                         </select>
                       </span>
-                      <small className="km-entry-link-help">可选内置页面；也可手填站内路径（/…）、主页锚点（#…）或完整外部网址。</small>
                       {/^https?:\/\//i.test(item.url.trim()) ? <small className="km-entry-external-hint">↗ 外部网站会在新标签页打开</small> : null}
                       {item.url.trim() && !validHomeEntryLink(item.url) ? <small className="km-entry-link-error">地址无效，请输入完整 https:// 网址或选择内置地址</small> : null}
                     </label>
-                    <label className="km-entry-visibility">显示条件<select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, visibility: event.target.value as "all" | "authenticated" | "guest" | "disabled" } : entry) }))}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option><option value="disabled">禁用（不显示）</option></select></label>
-                    <label className="km-settings-checkbox"><input type="checkbox" checked={item.newTab} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, newTab: event.target.checked } : entry) }))} />新标签页</label>
-                    <div className="km-settings-row-actions">
-                      <button type="button" title="上移" aria-label={"上移“" + (item.name || "主页入口") + "”"} disabled={index === 0} onClick={() => moveCollection("entry", index, -1)}>↑</button>
-                      <button type="button" title="下移" aria-label={"下移“" + (item.name || "主页入口") + "”"} disabled={index === draft.homeEntries.length - 1} onClick={() => moveCollection("entry", index, 1)}>↓</button>
-                      <button type="button" className="is-danger" onClick={() => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.filter((_, i) => i !== index) }))}>删除</button>
+                    <div className="km-entry-footer">
+                      <label className="km-entry-visibility">显示条件<select aria-label={(item.name || "主页入口") + "的显示条件"} value={item.visibility ?? "all"} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, visibility: event.target.value as "all" | "authenticated" | "guest" | "disabled" } : entry) }))}><option value="all">始终显示</option><option value="authenticated">仅登录显示</option><option value="guest">仅未登录显示</option><option value="disabled">禁用（不显示）</option></select></label>
+                      <label className="km-settings-checkbox"><input type="checkbox" checked={item.newTab} onChange={(event) => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.map((entry, i) => i === index ? { ...entry, newTab: event.target.checked } : entry) }))} />新标签页</label>
+                      <div className="km-settings-row-actions">
+                        <button type="button" title="上移" aria-label={"上移“" + (item.name || "主页入口") + "”"} disabled={index === 0} onClick={() => moveCollection("entry", index, -1)}>↑</button>
+                        <button type="button" title="下移" aria-label={"下移“" + (item.name || "主页入口") + "”"} disabled={index === draft.homeEntries.length - 1} onClick={() => moveCollection("entry", index, 1)}>↓</button>
+                        <button type="button" className="is-danger" onClick={() => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.filter((_, i) => i !== index) }))}>删除</button>
+                      </div>
                     </div>
-                      {linkAccessWarning(draft, item.url, item.visibility) ? (
-                        <small className="km-link-route-warning" role="note">{linkAccessWarning(draft, item.url, item.visibility)}</small>
-                      ) : null}
+                    {linkAccessWarning(draft, item.url, item.visibility) ? (
+                      <small className="km-link-route-warning" role="note">{linkAccessWarning(draft, item.url, item.visibility)}</small>
+                    ) : null}
                   </div>
                 ))}
               </div>
