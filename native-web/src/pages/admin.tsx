@@ -5,7 +5,7 @@ import { validateMediaFile } from "../media";
 import { dailyQuote, enabledQuoteCount } from "../daily-quotes";
 import { HOME_ENTRY_LINK_PRESETS, homeEntryPreset, validHomeEntryLink } from "../home-entry-links";
 import { START_SEARCH_ENGINES, validSearchEngineURL } from "../start-search-engines";
-import { MANAGED_SITE_ROUTES } from "../route-access";
+import { MANAGED_SITE_ROUTES, linkAccessWarning, routeAudience } from "../route-access";
 import type { HomeEntryVisibility, MediaRecord, NavGroup, NavItem, PostRecord, SessionUser, SiteSettings } from "../types";
 import { AdminShell, AdminTitle, ConfirmDialog, ErrorCard, LoadingCard, Toast, errorText } from "../ui";
 import { MediaManager } from "./admin/media-manager";
@@ -1155,17 +1155,42 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
           <section className="km-settings-pane">
             <header><span className="km-eyebrow">CONTENT</span><h2>链接与项目</h2><p>在这里设置页面访问权限，并分别管理快捷标签与入口的显示条件。隐藏入口不等于禁止访问页面。</p></header>
 
-            <section className="km-settings-collection">
-              <header><div><span className="km-eyebrow">ACCESS</span><h3>页面访问权限</h3><p className="km-muted">Go 服务端同时检查页面 URL 和公开 API。Start 包括导航数据，Blog 包括文章页与查询 API；RSS 不得突破 Blog 权限。后台始终要求登录，外部网站不受本站控制。</p></div></header>
-              <div className="km-form-grid">
-                {MANAGED_SITE_ROUTES.map(({ path, label }) => (
-                  <label className="dk-field" key={path}>{label} · {path}
-                    <select value={draft.routeAccess[path] ?? "all"} aria-label={label + "访问权限"} onChange={(event) => setDraft((current) => ({ ...current, routeAccess: { ...current.routeAccess, [path]: event.target.value as HomeEntryVisibility } }))}>
-                      <option value="all">公开访问</option><option value="authenticated">仅登录访问</option><option value="guest">仅未登录访问</option><option value="disabled">禁用（无法访问）</option>
-                    </select>
-                  </label>
-                ))}
+            <section className="km-settings-collection km-route-access-section">
+              <header>
+                <div>
+                  <span className="km-eyebrow">ACCESS</span>
+                  <h3>页面访问权限</h3>
+                  <p className="km-muted">这里控制页面和公开接口的实际访问权限，包括直接输入网址访问。后台始终需要登录。</p>
+                </div>
+              </header>
+              <div className="km-route-access-grid">
+                {MANAGED_SITE_ROUTES.map(({ path, label, scope }) => {
+                  const audience = routeAudience(draft, path);
+                  return (
+                    <div className="km-route-access-card" key={path}>
+                      <div className="km-route-access-heading">
+                        <strong>{label}</strong>
+                        <code>{path}</code>
+                      </div>
+                      <p className="km-route-access-scope">{scope}</p>
+                      <label className="km-route-access-select">
+                        <span>实际访问规则</span>
+                        <select value={draft.routeAccess[path] ?? "all"} aria-label={label + "访问权限"} onChange={(event) => setDraft((current) => ({ ...current, routeAccess: { ...current.routeAccess, [path]: event.target.value as HomeEntryVisibility } }))}>
+                          <option value="all">公开访问</option>
+                          <option value="authenticated">仅登录访问</option>
+                          <option value="guest">仅未登录访问</option>
+                          <option value="disabled">禁用（无法访问）</option>
+                        </select>
+                      </label>
+                      <div className="km-route-access-audience" aria-label={label + "实际访问人群"}>
+                        <span className={audience.guest ? "is-allowed" : "is-blocked"}><span aria-hidden="true">{audience.guest ? "✓" : "–"}</span> 未登录{audience.guest ? "可访问" : "不可访问"}</span>
+                        <span className={audience.authenticated ? "is-allowed" : "is-blocked"}><span aria-hidden="true">{audience.authenticated ? "✓" : "–"}</span> 已登录{audience.authenticated ? "可访问" : "不可访问"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              <p className="km-route-access-footnote">提示：RSS 同时受 Blog 权限限制；下方的快捷标签和主页入口只管理首页展示，不会改变这里的访问规则。</p>
             </section>
 
             <section className="km-settings-collection">
@@ -1187,6 +1212,9 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
                       <button type="button" title="下移" aria-label={"下移“" + (item.label || "链接") + "”"} disabled={index === draft.socialLinks.length - 1} onClick={() => moveCollection("social", index, 1)}>↓</button>
                       <button type="button" className="is-danger" onClick={() => setDraft((current) => ({ ...current, socialLinks: current.socialLinks.filter((_, i) => i !== index) }))}>删除</button>
                     </div>
+                      {linkAccessWarning(draft, item.url, item.visibility ?? (item.disabled ? "disabled" : "all")) ? (
+                        <small className="km-link-route-warning" role="note">{linkAccessWarning(draft, item.url, item.visibility ?? (item.disabled ? "disabled" : "all"))}</small>
+                      ) : null}
                   </div>
                 ))}
                 {!draft.socialLinks.length ? <p className="km-muted">当前没有主页标签。可点击「新增」添加 Blog、RSS 或其他地址。</p> : null}
@@ -1233,6 +1261,9 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
                       <button type="button" title="下移" aria-label={"下移“" + (item.name || "主页入口") + "”"} disabled={index === draft.homeEntries.length - 1} onClick={() => moveCollection("entry", index, 1)}>↓</button>
                       <button type="button" className="is-danger" onClick={() => setDraft((current) => ({ ...current, homeEntries: current.homeEntries.filter((_, i) => i !== index) }))}>删除</button>
                     </div>
+                      {linkAccessWarning(draft, item.url, item.visibility) ? (
+                        <small className="km-link-route-warning" role="note">{linkAccessWarning(draft, item.url, item.visibility)}</small>
+                      ) : null}
                   </div>
                 ))}
               </div>
