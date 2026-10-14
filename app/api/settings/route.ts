@@ -26,6 +26,8 @@ export async function PATCH(request: NextRequest) {
       if (body[key] !== undefined) input[key] = String(body[key]);
     }
     if (body.startPublic !== undefined) input.startPublic = body.startPublic === true;
+    if (body.routeAccess && typeof body.routeAccess === "object" && !Array.isArray(body.routeAccess))
+      input.routeAccess = body.routeAccess as SiteSettings["routeAccess"];
     if (body.quoteEnabled !== undefined) input.quoteEnabled = body.quoteEnabled === true;
     if (body.quoteAuthorEnabled !== undefined) input.quoteAuthorEnabled = body.quoteAuthorEnabled === true;
     if (body.showIcp !== undefined) input.showIcp = body.showIcp === true;

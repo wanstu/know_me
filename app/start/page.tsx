@@ -4,17 +4,15 @@ import { AmbientWallpaper } from "@/components/ambient-wallpaper";
 import { LogoutButton } from "@/components/logout-button";
 import { PublicFooter } from "@/components/public-footer";
 import { StartClient } from "@/components/start/start-client";
-import { getSessionUser, requireUser } from "@/lib/auth/session";
+import { requirePageAccess } from "@/lib/settings/require-page-access";
 import { getNavigationTree } from "@/lib/navigation/repository";
-import { getSiteSettings } from "@/lib/settings/repository";
+
 import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
 
 export default async function StartPage() {
-  const settings = getSiteSettings();
-  let user = await getSessionUser();
-  if (!settings.startPublic && !user) user = await requireUser("/start");
+  const { settings, user } = await requirePageAccess("/start", "/start");
 
   const authenticated = Boolean(user);
   const tree = getNavigationTree(authenticated);

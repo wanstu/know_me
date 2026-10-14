@@ -1,11 +1,13 @@
 import { getDb } from "@/lib/db";
+import { normalizeRouteAccess } from "./access";
 
 export type SearchEngineName = "Bing" | "Google" | "DuckDuckGo";
 export type ThemeMode = "auto" | "dark" | "light";
 export type ThemePreset = string;
 export type StartDensity = "compact" | "comfortable" | "spacious";
-export type SocialLink = { id: string; label: string; url: string };
-export type HomeEntryVisibility = "all" | "authenticated" | "guest";
+export type SocialLink = { id: string; label: string; url: string; disabled?: boolean; visibility?: HomeEntryVisibility };
+export type HomeEntryVisibility = "all" | "authenticated" | "guest" | "disabled";
+export type RouteAccess = Record<"/start" | "/blog" | "/feed.xml", HomeEntryVisibility>;
 export type HomeEntry = { id: string; name: string; description: string; url: string; newTab: boolean; visibility?: HomeEntryVisibility };
 export type ProjectEntry = { id: string; name: string; description: string; url: string; tag: string };
 export type FriendLink = { id: string; name: string; url: string; visible: boolean };
@@ -25,6 +27,7 @@ export type SiteSettings = {
   homeBackgroundUrl: string;
   startBackgroundUrl: string;
   startPublic: boolean;
+  routeAccess: RouteAccess;
   defaultSearchEngine: SearchEngineName;
   themeMode: ThemeMode;
   themePreset: ThemePreset;
@@ -61,6 +64,7 @@ const defaults: SiteSettings = {
   homeBackgroundUrl: "",
   startBackgroundUrl: "",
   startPublic: false,
+  routeAccess: { "/start": "authenticated", "/blog": "all", "/feed.xml": "all" },
   defaultSearchEngine: "Bing",
   themeMode: "auto",
   themePreset: "aurora",
@@ -114,7 +118,9 @@ function normalizeSocialLinks(value: unknown, fallback: SocialLink[] = []) {
     return {
       id: text(row.id, 80) || "social-" + index,
       label: text(row.label, 80),
-      url: text(row.url, 1000)
+      url: text(row.url, 1000),
+      disabled: row.disabled === true || row.visibility === "disabled",
+      visibility: (row.visibility === "disabled" || row.visibility === "authenticated" || row.visibility === "guest" ? row.visibility : row.disabled === true ? "disabled" : "all") as HomeEntryVisibility
     };
   }).filter((entry) => entry.label && entry.url);
 }
@@ -129,7 +135,7 @@ function normalizeHomeEntries(value: unknown, fallback: HomeEntry[] = []) {
       description: text(row.description, 160),
       url: text(row.url, 1000),
       newTab: row.newTab === true,
-      visibility: (row.visibility === "authenticated" || row.visibility === "guest" ? row.visibility : "all") as HomeEntryVisibility
+      visibility: (row.visibility === "authenticated" || row.visibility === "guest" || row.visibility === "disabled" ? row.visibility : "all") as HomeEntryVisibility
     };
   }).filter((entry) => entry.name && entry.url);
 }
@@ -210,6 +216,7 @@ export function getSiteSettings(): SiteSettings {
     homeBackgroundUrl: typeof stored.homeBackgroundUrl === "string" ? stored.homeBackgroundUrl : defaults.homeBackgroundUrl,
     startBackgroundUrl: typeof stored.startBackgroundUrl === "string" ? stored.startBackgroundUrl : defaults.startBackgroundUrl,
     startPublic: stored.startPublic === true,
+    routeAccess: normalizeRouteAccess(stored.routeAccess, stored.startPublic === true),
     defaultSearchEngine: engine,
     themeMode,
     themePreset,
@@ -251,6 +258,9 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     homeBackgroundUrl: input.homeBackgroundUrl?.slice(0, 1000) ?? current.homeBackgroundUrl,
     startBackgroundUrl: input.startBackgroundUrl?.slice(0, 1000) ?? current.startBackgroundUrl,
     startPublic: input.startPublic ?? current.startPublic,
+    routeAccess: normalizeRouteAccess(input.routeAccess ?? (input.startPublic === undefined
+      ? current.routeAccess
+      : { ...current.routeAccess, "/start": input.startPublic ? "all" : "authenticated" }), input.startPublic ?? current.startPublic),
     defaultSearchEngine:
       input.defaultSearchEngine === "Google" || input.defaultSearchEngine === "DuckDuckGo" || input.defaultSearchEngine === "Bing"
         ? input.defaultSearchEngine
@@ -280,6 +290,8 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     showFriendLinks: input.showFriendLinks ?? current.showFriendLinks,
     friendLinks: input.friendLinks === undefined ? current.friendLinks : normalizeFriendLinks(input.friendLinks, current.friendLinks)
   };
-  setSetting("site", next);
+  // Keep fields owned by the Native Go UI when the legacy Next.js admin saves.
+  // Both runtimes share the same site JSON in SQLite.
+  setSetting("site", { ...object(getSetting("site", {})), ...next });
   return next;
 }

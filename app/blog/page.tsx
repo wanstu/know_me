@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BlogSearch } from "@/components/blog/blog-search";
 import { PublicFooter } from "@/components/public-footer";
 import { archiveCounts, filterPublishedPosts, listTaxonomy } from "@/lib/blog/repository";
-import { getSiteSettings } from "@/lib/settings/repository";
+import { requirePageAccess } from "@/lib/settings/require-page-access";
 import { themeClass } from "@/lib/settings/theme";
 
 export const runtime = "nodejs";
@@ -21,6 +21,7 @@ function formatDate(value: number | null) {
 }
 
 export default async function BlogPage({ searchParams }: BlogPageProps) {
+  const { settings } = await requirePageAccess("/blog", "/blog");
   const params = await searchParams;
   const query = first(params.q) ?? "";
   const tag = first(params.tag) ?? "";
@@ -28,7 +29,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const posts = filterPublishedPosts({ query, tag, category, limit: 30 });
   const taxonomy = listTaxonomy();
   const archives = archiveCounts();
-  const settings = getSiteSettings();
+
 
   return (
     <main className={"paper-page " + themeClass(settings)}>

@@ -11,7 +11,7 @@ export function managedSiteRoute(url: string): string | null {
   try {
     const parsed = new URL(url, "https://know-me.invalid");
     if (parsed.origin !== "https://know-me.invalid") return null;
-    if (parsed.pathname === "/start") return "/start";
+    if (parsed.pathname === "/start" || parsed.pathname.startsWith("/start/")) return "/start";
     if (parsed.pathname === "/feed.xml") return "/feed.xml";
     if (parsed.pathname === "/blog" || parsed.pathname.startsWith("/blog/")) return "/blog";
   } catch { /* malformed URL */ }

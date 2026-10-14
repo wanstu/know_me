@@ -135,6 +135,35 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
+  // The Start page owns search shortcuts while mounted.
+  // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
+  useEffect(() => {
+    const focusShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.key === "Process") return;
+      const search = searchRef.current;
+      if (!search) return;
+      const find = (event.ctrlKey || event.metaKey) && !event.altKey &&
+        !event.shiftKey && event.key.toLowerCase() === "f";
+      if (find) {
+        event.preventDefault();
+        search.focus();
+        search.select();
+        return;
+      }
+      if (event.key !== "Tab" || event.shiftKey || event.ctrlKey || event.metaKey ||
+          event.altKey || document.activeElement === search) return;
+
+      // Don't steal focus or Tab navigation from active form elements and dialogs.
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu']"))) return;
+      event.preventDefault();
+      search.focus();
+    };
+    window.addEventListener("keydown", focusShortcut, true);
+    return () => window.removeEventListener("keydown", focusShortcut, true);
+  }, []);
+
   useEffect(() => {
     const resize = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", resize);
@@ -589,7 +618,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               <footer><span><kbd>Tab</kbd> 切换引擎</span><span><kbd>Enter</kbd> 搜索 · <kbd>Esc</kbd> 收起</span></footer>
             </div>
           ) : null}
-          <p className="km-start-search-tip">按 <kbd>Tab</kbd> 切换引擎 · <kbd>Shift</kbd> + <kbd>Tab</kbd> 反向 · <kbd>Enter</kbd> 搜索</p>
+          <p className="km-start-search-tip"><kbd>Ctrl</kbd> + <kbd>F</kbd> 或 <kbd>Tab</kbd> 聚焦搜索 · 已聚焦后 <kbd>Tab</kbd> 切换引擎 · <kbd>Shift</kbd> + <kbd>Tab</kbd> 反向</p>
         </div>
 
         {contextError ? <div className="dk-message is-danger km-start-context-error" role="alert">{contextError}</div> : null}

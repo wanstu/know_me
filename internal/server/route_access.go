@@ -12,7 +12,8 @@ import (
 // Unknown and external destinations are not manageable page routes.
 func routePolicyForRequest(path string) string {
 	switch {
-	case path == settings.RouteStart, path == "/api/navigation/public":
+	case path == settings.RouteStart, strings.HasPrefix(path, settings.RouteStart+"/"),
+		path == "/api/navigation/public":
 		return settings.RouteStart
 	case path == settings.RouteBlog, strings.HasPrefix(path, settings.RouteBlog+"/"),
 		path == "/api/blog", strings.HasPrefix(path, "/api/blog/"):

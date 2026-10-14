@@ -93,25 +93,16 @@ func TestUnifiedRouteAccessBlocksDirectRequests(t *testing.T) {
 		} {
 			t.Run(target.route+"/"+mode.name, func(t *testing.T) {
 				update(target.route, mode.value)
-				// A permitted Blog article can yield a not-found on missing content.
-				permittedPage := mode.publicPage
-				permittedSigned := mode.signedPage
-				if target.route == settings.RouteBlog {
-					if permittedPage == 200 {
-						permittedPage = 200
-					} // SPA shell for allowed browser routes.
-					if permittedSigned == 200 {
-						permittedSigned = 200
-					}
-				}
+				// Allowed SPA browser routes return the HTML shell; the client
+				// handles any later "article not found" message.
 				for _, check := range []struct {
 					path  string
 					login bool
 					want  int
 				}{
-					{target.page, false, permittedPage},
+					{target.page, false, mode.publicPage},
 					{target.api, false, mode.publicAPI},
-					{target.page, true, permittedSigned},
+					{target.page, true, mode.signedPage},
 					{target.api, true, mode.signedAPI},
 				} {
 					if got := request(check.path, check.login); got != check.want {
@@ -130,6 +121,17 @@ func TestUnifiedRouteAccessBlocksDirectRequests(t *testing.T) {
 	}
 	if got := request("/feed.xml", true); got != http.StatusOK {
 		t.Fatalf("authenticated RSS = %d", got)
+	}
+	feedReq := httptest.NewRequest(http.MethodGet, "http://example.test/feed.xml", nil)
+	feedReq.AddCookie(cookie)
+	feedRes := httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(feedRes, feedReq)
+	if got := feedRes.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("restricted RSS cache header = %q, want private, no-store", got)
+	}
+	update(settings.RouteStart, settings.HomeEntryAuthenticated)
+	if got := request("/start/deep-link", false); got != http.StatusSeeOther {
+		t.Fatalf("nested Start route bypassed access: %d", got)
 	}
 	update(settings.RouteBlog, settings.HomeEntryAll)
 	update(settings.RouteRSS, settings.HomeEntryDisabled)

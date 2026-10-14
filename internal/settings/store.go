@@ -417,22 +417,10 @@ func (s *Store) GetSite(ctx context.Context) (SiteSettings, error) {
 		value.QuoteCatalogVersion = quoteCatalogVersion
 	}
 	if _, hasPolicy := keys["routeAccess"]; !hasPolicy {
+		// Old homepage cards and tags only controlled whether a link appeared.
+		// Do NOT silently promote their hidden state to page/API restrictions.
+		// Preserve the one legacy route policy: Start's public/private switch.
 		value.RouteAccess = DefaultRouteAccess(value.StartPublic)
-		// Preserve explicit legacy visibility for built-in destination pages.
-		for _, entry := range value.HomeEntries {
-			if route := ManagedRoute(entry.URL); route != "" && ValidVisibility(entry.Visibility) && entry.Visibility != HomeEntryAll {
-				value.RouteAccess[route] = entry.Visibility
-			}
-		}
-		for _, link := range value.SocialLinks {
-			if route := ManagedRoute(link.URL); route != "" {
-				if link.Disabled {
-					value.RouteAccess[route] = HomeEntryDisabled
-				} else if ValidVisibility(link.Visibility) && link.Visibility != HomeEntryAll {
-					value.RouteAccess[route] = link.Visibility
-				}
-			}
-		}
 	}
 	return normalize(value), nil
 }
@@ -513,20 +501,8 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 		v.RouteAccess[RouteStart] = DefaultRouteAccess(v.StartPublic)[RouteStart]
 	}
 	if p.RouteAccess != nil {
+		// Actual page/API permissions remain separate from link visibility.
 		v.RouteAccess = *p.RouteAccess
-		// The new route editor replaces legacy per-link access settings for
-		// built-in pages. External links retain independent display conditions.
-		for i := range v.SocialLinks {
-			if ManagedRoute(v.SocialLinks[i].URL) != "" {
-				v.SocialLinks[i].Visibility = HomeEntryAll
-				v.SocialLinks[i].Disabled = false
-			}
-		}
-		for i := range v.HomeEntries {
-			if ManagedRoute(v.HomeEntries[i].URL) != "" {
-				v.HomeEntries[i].Visibility = HomeEntryAll
-			}
-		}
 	}
 	if p.DefaultSearchEngine != nil {
 		v.DefaultSearchEngine = *p.DefaultSearchEngine

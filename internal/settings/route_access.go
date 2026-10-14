@@ -75,6 +75,9 @@ func ManagedRoute(raw string) string {
 	case RouteRSS:
 		return RouteRSS
 	}
+	if strings.HasPrefix(u.Path, RouteStart+"/") {
+		return RouteStart
+	}
 	if strings.HasPrefix(u.Path, RouteBlog+"/") {
 		return RouteBlog
 	}
