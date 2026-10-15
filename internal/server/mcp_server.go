@@ -156,6 +156,7 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 		return map[string]any{"post": p}, nil
 	})
 	registerMCPPostReadExtras(m, s)
+	registerMCPImportRead(m, s)
 	addMCPTool(m, "taxonomy_list", "List all categories and tags with IDs and article counts", true, func(ctx context.Context, _ struct{}) (any, error) {
 		v, err := s.blog.ListTaxonomyDetails(ctx)
 		if err != nil {
@@ -412,6 +413,8 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		return map[string]any{"deleted": in.ID}, nil
 	})
 	registerMCPPostWriteExtras(m, s)
+	registerMCPImportWrite(m, s)
+	registerMCPBatchTools(m, s)
 	addMCPTool(m, "taxonomy_change", "Create, rename or delete one category/tag. Deletion requires confirm=true", false, func(ctx context.Context, in mcpTaxonomy) (any, error) {
 		var kind blog.TaxonomyKind
 		switch in.Kind {

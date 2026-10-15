@@ -258,6 +258,13 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	return tx.Commit()
 }
 
+// HasSlug checks the public URL identifier without loading all article bodies.
+func (s *Store) HasSlug(ctx context.Context, slug string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM posts WHERE slug = ?)", slug).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) GetByID(ctx context.Context, id int64) (Post, error) {
 	row, err := scanPostRow(s.db.QueryRowContext(ctx, selectPost+" WHERE id = ? LIMIT 1", id))
 	if err == sql.ErrNoRows {

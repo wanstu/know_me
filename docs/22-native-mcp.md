@@ -31,6 +31,7 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 - `posts_list` / `posts_get` — 后台文章摘要与完整 Markdown（包括草稿）；文章列表支持状态、分类、标签、发布时间区间及分页
 - `posts_revisions_list` / `posts_revision_get` — 历史修订的摘要、日期和全文
+- `posts_import_preview` — 批量预览 1–50 个 Markdown/Hexo 文件，读取 Front Matter 并检查重复，不修改数据库
 - `taxonomy_list` — 分类与标签及数量
 - `site_get` — 站点设置与主页入口
 - `start_get` — 起始页配置与导航
@@ -42,6 +43,8 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 - `posts_set_status` — 立即发布、撤回到草稿、定时发布
 - `posts_taxonomy_update` — 分类标签按名称增量添加/移除，或全部替换
 - `posts_revision_restore` — 确认后恢复指定修订（包含新修订的标签、分类、SEO 等元数据）
+- `posts_import_apply` — 与预览一致的文件和 `previewHash`，加 `confirm:true` 后导入；默认跳过已存在的 slug，不自动覆盖文章
+- `posts_batch_taxonomy` — 批量为 1–50 篇文章增删/替换标签和分类；未确认时只预览
 - `taxonomy_change`（创建/改名/删除）、`taxonomy_merge`
 - `site_update`（档案/主题/短句/主页入口与快捷标签/项目/页脚/友链/页面访问规则等）
 - `start_update`（搜索引擎、密度、背景、布局参数）
@@ -79,6 +82,34 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 - 编辑前建议使用 `posts_get`，并带 `expectedUpdatedAt` 防止基于明显过期的文章版本覆盖数据。此检查是预检，不代替事务级并发编辑锁。
 - 修订快照现在涵盖正文、标题、URL、摘要、发布状态与日期、SEO、置顶、分类与标签。较老的历史修订如果不含新字段，恢复时对应属性仍保留当前值。历史修订恢复需 `confirm=true`，恢复可能同时使文章变为公开。
 - `posts_delete` 为**永久删除**，不会建立可恢复的回收站；操作前应确认文章 ID 和备份，再明确传 `confirm=true`。
+
+## Markdown / Hexo 批量导入
+
+面向此前的 `wanstu/wanstu.github.io` 仓库（`source/_posts` 下 33 篇 Markdown）。AI 客户端负责读取仓库文件，然后把以下结构交给 Know Me MCP；**Know Me 不会自行连接任意下载 URL，也不会在启动时自动导入**。每次最多 50 篇，每篇最多 256 KiB，单次请求 JSON 上限 3 MiB（MCP HTTP 最大请求体为 4 MiB）。
+
+1. 调用 `posts_import_preview`，例如：
+
+```json
+{
+  "documents": [
+    {
+      "path": "source/_posts/docker/使用 DockerFile 构建自己的 lnp 镜像文件.md",
+      "markdown": "---\\ntitle: 构建自己的 lnp 镜像文件\\ndate: 2024-06-22 00:00:00\\n---\\n# 正文..."
+    }
+  ],
+  "publish": false
+}
+```
+
+2. 查看每篇 `create` / `skip` / `invalid`、解析后的标题、slug、发布日期、标签、分类、缺失图片资源提示，并核对 `previewHash`。默认 **publish=false**，所有可导入文章先成为草稿，原发布日期保存在首次发布时间中。
+3. 确认无误后调用 `posts_import_apply`，**原样再次传入相同的 `documents` 和 `publish`**，附加 `previewHash` 与 `confirm:true`。服务端会重新检查每个 slug。重复的 URL 标识跳过，绝不会直接覆盖已有文章；任何一个文件无效则整批在开始写入前拒绝。
+4. 查看返回的 `created`、`skipped`、`failed` 和逐篇 ID。处理过程中若发生数据库错误，之前成功导入的文章保留，返回逐篇错误报告；重试同一批会跳过已导入的文章。
+
+映射规则：优先采用 Front Matter 的 `title` / `date` / `tags` / `categories` / `slug` / `description` / `draft`，缺少分类时回退到源文件夹首层名称。默认从相对路径生成稳定 slug，Markdown 正文保存为原文（去掉 Front Matter）。标签和分类会自动创建、关联文章。Hexo 不带时区的 `2024-06-22 00:00:00` 按 **UTC+08:00** 解释；显式时间偏移以原始偏移为准。未标日期的文章如果明确选择发布则使用导入时的发布时间。
+
+目前**不会下载或转存图片**。远程图片 URL 原样保留；相对路径图片/文件会在预览时提示人工核对。源文件中的 `draft: true` 即使勾选批量发布，也保持为草稿。未来的媒体迁移应单独实现 URL 解析和去重，避免导入时发生不受控外链请求。
+
+`posts_batch_taxonomy` 适合后续整理旧文章：先传 `ids` 和 `addTags` / `removeTags` / `addCategories` / `removeCategories`，不传 `confirm` 先返回每篇修改前后的标签；确认后设置 `confirm:true`。也支持 `replaceTags` / `replaceCategories`，但不能和同类增删一起使用。批量操作会先检查全部文章 ID 是否存在，若中途某篇保存失败，结果会列出逐条错误。
 
 ## 后续阶段
 
