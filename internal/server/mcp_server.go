@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wanstu/know_me/internal/blog"
@@ -82,12 +83,21 @@ type mcpID struct {
 	ID int64 `json:"id" jsonschema:"ID of an existing record"`
 }
 type mcpPostList struct {
-	Query string `json:"query,omitempty" jsonschema:"Optional title or content filter"`
-	Limit int    `json:"limit,omitempty" jsonschema:"Maximum results, defaults to 30 and capped at 100"`
+	Query         string `json:"query,omitempty" jsonschema:"Optional title or content search"`
+	Status        string `json:"status,omitempty" jsonschema:"Optional draft, published, scheduled or all (default)"`
+	Tag           string `json:"tag,omitempty" jsonschema:"Filter by a tag name"`
+	Category      string `json:"category,omitempty" jsonschema:"Filter by a category name"`
+	PublishedFrom *int64 `json:"publishedFrom,omitempty" jsonschema:"Inclusive publication date in Unix milliseconds"`
+	PublishedTo   *int64 `json:"publishedTo,omitempty" jsonschema:"Inclusive publication date in Unix milliseconds"`
+	Page          int    `json:"page,omitempty" jsonschema:"One-based page number, defaults to 1"`
+	Limit         int    `json:"limit,omitempty" jsonschema:"Page size, defaults to 30 and capped at 100"`
 }
 
 func registerMCPRead(m *mcp.Server, s *Server) {
-	addMCPTool(m, "posts_list", "List article summaries, including drafts; optional text query", true, func(ctx context.Context, in mcpPostList) (any, error) {
+	addMCPTool(m, "posts_list", "Search and filter all posts (including drafts) by status, tag, category and publication dates; paginated summaries", true, func(ctx context.Context, in mcpPostList) (any, error) {
+		if in.Status != "" && in.Status != "all" && in.Status != "draft" && in.Status != "published" && in.Status != "scheduled" {
+			return nil, errors.New("invalid_status")
+		}
 		posts, err := s.blog.ListAdmin(ctx)
 		if err != nil {
 			return nil, err
@@ -96,19 +106,44 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 		if limit < 1 || limit > 100 {
 			limit = 30
 		}
-		query := strings.ToLower(strings.TrimSpace(in.Query))
+		page := in.Page
+		if page < 1 {
+			page = 1
+		}
+		query, tag, category := strings.ToLower(strings.TrimSpace(in.Query)), strings.TrimSpace(in.Tag), strings.TrimSpace(in.Category)
 		matches := make([]blog.Post, 0)
 		for _, p := range posts {
 			if query != "" && !strings.Contains(strings.ToLower(p.Title+" "+p.Excerpt+" "+p.ContentMD), query) {
 				continue
 			}
+			if in.Status != "" && in.Status != "all" && string(p.Status) != in.Status {
+				continue
+			}
+			if tag != "" && !containsMCPName(p.Tags, tag) {
+				continue
+			}
+			if category != "" && !containsMCPName(p.Categories, category) {
+				continue
+			}
+			if in.PublishedFrom != nil && (p.PublishedAt == nil || *p.PublishedAt < *in.PublishedFrom) {
+				continue
+			}
+			if in.PublishedTo != nil && (p.PublishedAt == nil || *p.PublishedAt > *in.PublishedTo) {
+				continue
+			}
 			p.ContentMD = ""
 			matches = append(matches, p)
-			if len(matches) >= limit {
-				break
-			}
 		}
-		return map[string]any{"posts": matches}, nil
+		total := len(matches)
+		if total == 0 || page-1 > (total-1)/limit {
+			return map[string]any{"posts": []blog.Post{}, "total": total, "page": page, "pageSize": limit}, nil
+		}
+		start := (page - 1) * limit
+		end := start + limit
+		if end > total {
+			end = total
+		}
+		return map[string]any{"posts": matches[start:end], "total": total, "page": page, "pageSize": limit}, nil
 	})
 	addMCPTool(m, "posts_get", "Read one article by ID with complete Markdown content", true, func(ctx context.Context, in mcpID) (any, error) {
 		if in.ID <= 0 {
@@ -120,6 +155,7 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 		}
 		return map[string]any{"post": p}, nil
 	})
+	registerMCPPostReadExtras(m, s)
 	addMCPTool(m, "taxonomy_list", "List all categories and tags with IDs and article counts", true, func(ctx context.Context, _ struct{}) (any, error) {
 		v, err := s.blog.ListTaxonomyDetails(ctx)
 		if err != nil {
@@ -148,15 +184,20 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 }
 
 type mcpPostCreate struct {
-	Title            string   `json:"title" jsonschema:"Article title"`
-	ContentMD        string   `json:"contentMd" jsonschema:"Markdown body"`
-	Slug             string   `json:"slug,omitempty"`
-	Excerpt          string   `json:"excerpt,omitempty"`
-	Status           string   `json:"status,omitempty" jsonschema:"draft (default), published or scheduled"`
-	PublishedAt      *int64   `json:"publishedAt,omitempty" jsonschema:"Unix milliseconds"`
-	FirstPublishedAt *int64   `json:"firstPublishedAt,omitempty" jsonschema:"Original publication Unix milliseconds"`
-	Tags             []string `json:"tags,omitempty"`
-	Categories       []string `json:"categories,omitempty"`
+	Title                string   `json:"title" jsonschema:"Article title"`
+	ContentMD            string   `json:"contentMd" jsonschema:"Markdown body"`
+	Slug                 string   `json:"slug,omitempty"`
+	Excerpt              string   `json:"excerpt,omitempty"`
+	Status               string   `json:"status,omitempty" jsonschema:"draft (default), published or scheduled"`
+	Pinned               bool     `json:"pinned,omitempty"`
+	SEOTitle             string   `json:"seoTitle,omitempty"`
+	SEODescription       string   `json:"seoDescription,omitempty"`
+	PublishedAt          *int64   `json:"publishedAt,omitempty" jsonschema:"Unix milliseconds"`
+	PublishedAtDate      *string  `json:"publishedAtDate,omitempty" jsonschema:"Publication date as RFC3339 with timezone or YYYY-MM-DD (UTC)"`
+	FirstPublishedAtDate *string  `json:"firstPublishedAtDate,omitempty" jsonschema:"Original publication date RFC3339 with timezone or YYYY-MM-DD (UTC)"`
+	FirstPublishedAt     *int64   `json:"firstPublishedAt,omitempty" jsonschema:"Original publication Unix milliseconds"`
+	Tags                 []string `json:"tags,omitempty"`
+	Categories           []string `json:"categories,omitempty"`
 }
 
 func validPostStatus(value string) (blog.Status, error) {
@@ -173,15 +214,22 @@ func validPostStatus(value string) (blog.Status, error) {
 }
 
 type mcpPostUpdate struct {
-	ID          int64     `json:"id"`
-	Title       *string   `json:"title,omitempty"`
-	Slug        *string   `json:"slug,omitempty"`
-	ContentMD   *string   `json:"contentMd,omitempty"`
-	Excerpt     *string   `json:"excerpt,omitempty"`
-	Status      *string   `json:"status,omitempty"`
-	PublishedAt *int64    `json:"publishedAt,omitempty"`
-	Tags        *[]string `json:"tags,omitempty"`
-	Categories  *[]string `json:"categories,omitempty"`
+	ID                   int64     `json:"id"`
+	Title                *string   `json:"title,omitempty"`
+	Slug                 *string   `json:"slug,omitempty"`
+	ContentMD            *string   `json:"contentMd,omitempty"`
+	Excerpt              *string   `json:"excerpt,omitempty"`
+	Status               *string   `json:"status,omitempty"`
+	PublishedAt          *int64    `json:"publishedAt,omitempty" jsonschema:"Publication date in Unix milliseconds"`
+	FirstPublishedAt     *int64    `json:"firstPublishedAt,omitempty" jsonschema:"Original publication date in Unix milliseconds"`
+	PublishedAtDate      *string   `json:"publishedAtDate,omitempty" jsonschema:"RFC3339 with timezone or YYYY-MM-DD (UTC); alternative to publishedAt"`
+	FirstPublishedAtDate *string   `json:"firstPublishedAtDate,omitempty" jsonschema:"RFC3339 with timezone or YYYY-MM-DD (UTC); alternative to firstPublishedAt"`
+	Pinned               *bool     `json:"pinned,omitempty"`
+	SEOTitle             *string   `json:"seoTitle,omitempty"`
+	SEODescription       *string   `json:"seoDescription,omitempty"`
+	ExpectedUpdatedAt    *int64    `json:"expectedUpdatedAt,omitempty" jsonschema:"Last seen updatedAt timestamp in Unix milliseconds; rejects stale edits"`
+	Tags                 *[]string `json:"tags,omitempty" jsonschema:"Full replacement tag names; [] removes all tags"`
+	Categories           *[]string `json:"categories,omitempty" jsonschema:"Full replacement category names; [] removes all categories"`
 }
 type mcpDelete struct {
 	ID      int64 `json:"id"`
@@ -262,7 +310,18 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		if err != nil {
 			return nil, err
 		}
-		p, err := s.blog.Save(ctx, blog.SaveInput{Title: in.Title, Slug: in.Slug, ContentMD: in.ContentMD, Excerpt: in.Excerpt, Status: st, PublishedAt: in.PublishedAt, FirstPublishedAt: in.FirstPublishedAt, Tags: in.Tags, Categories: in.Categories}, nil)
+		publishedAt, err := resolveMCPDate(in.PublishedAt, in.PublishedAtDate)
+		if err != nil {
+			return nil, err
+		}
+		firstPublishedAt, err := resolveMCPDate(in.FirstPublishedAt, in.FirstPublishedAtDate)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateMCPPostDates(st, publishedAt, firstPublishedAt); err != nil {
+			return nil, err
+		}
+		p, err := s.blog.Save(ctx, blog.SaveInput{Title: in.Title, Slug: in.Slug, ContentMD: in.ContentMD, Excerpt: in.Excerpt, Status: st, PublishedAt: publishedAt, FirstPublishedAt: firstPublishedAt, Pinned: in.Pinned, SEOTitle: in.SEOTitle, SEODescription: in.SEODescription, Tags: in.Tags, Categories: in.Categories}, nil)
 		return map[string]any{"post": p}, err
 	})
 	addMCPTool(m, "posts_update", "Partially update article by ID, preserving unspecified fields and revision history", false, func(ctx context.Context, in mcpPostUpdate) (any, error) {
@@ -273,6 +332,10 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		if err != nil {
 			return nil, err
 		}
+		if in.ExpectedUpdatedAt != nil && p.UpdatedAt != *in.ExpectedUpdatedAt {
+			return nil, errors.New("post_modified_since_read")
+		}
+		previousStatus := p.Status
 		if in.Title != nil {
 			p.Title = *in.Title
 		}
@@ -291,8 +354,41 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 				return nil, err
 			}
 		}
-		if in.PublishedAt != nil {
-			p.PublishedAt = in.PublishedAt
+		publishedAt, err := resolveMCPDate(in.PublishedAt, in.PublishedAtDate)
+		if err != nil {
+			return nil, err
+		}
+		firstPublishedAt, err := resolveMCPDate(in.FirstPublishedAt, in.FirstPublishedAtDate)
+		if err != nil {
+			return nil, err
+		}
+		if publishedAt != nil && p.Status == blog.StatusDraft {
+			return nil, errors.New("draft_cannot_have_publishedAt")
+		}
+		if publishedAt != nil {
+			p.PublishedAt = publishedAt
+		} else if in.Status != nil && p.Status == blog.StatusPublished && previousStatus != blog.StatusPublished {
+			// Publishing a scheduled/draft article now must not retain a future date.
+			now := time.Now().UnixMilli()
+			p.PublishedAt = &now
+		}
+		if p.Status == blog.StatusDraft {
+			p.PublishedAt = nil
+		}
+		if firstPublishedAt != nil {
+			p.FirstPublishedAt = firstPublishedAt
+		}
+		if in.Pinned != nil {
+			p.Pinned = *in.Pinned
+		}
+		if in.SEOTitle != nil {
+			p.SEOTitle = *in.SEOTitle
+		}
+		if in.SEODescription != nil {
+			p.SEODescription = *in.SEODescription
+		}
+		if err := validateMCPPostDates(p.Status, p.PublishedAt, p.FirstPublishedAt); err != nil {
+			return nil, err
 		}
 		if in.Tags != nil {
 			p.Tags = *in.Tags
@@ -307,11 +403,15 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		if in.ID <= 0 || !in.Confirm {
 			return nil, errors.New("explicit_confirmation_required")
 		}
+		if _, err := s.blog.GetByID(ctx, in.ID); err != nil {
+			return nil, err
+		}
 		if err := s.blog.Delete(ctx, in.ID); err != nil {
 			return nil, err
 		}
 		return map[string]any{"deleted": in.ID}, nil
 	})
+	registerMCPPostWriteExtras(m, s)
 	addMCPTool(m, "taxonomy_change", "Create, rename or delete one category/tag. Deletion requires confirm=true", false, func(ctx context.Context, in mcpTaxonomy) (any, error) {
 		var kind blog.TaxonomyKind
 		switch in.Kind {
