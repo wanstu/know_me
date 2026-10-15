@@ -12,6 +12,7 @@ import { MediaManager } from "./admin/media-manager";
 import { NavigationManager } from "./admin/navigation-manager";
 import { PostEditor } from "./admin/post-editor";
 import { TaxonomyManager } from "./admin/taxonomy-manager";
+import { MCPManager } from "./admin/mcp-manager";
 
 export function AdminPage({
   settings,
@@ -46,6 +47,7 @@ export function AdminPage({
     content = <PostEditor id={Number(postMatch[1])} />;
   } else if (path === "/admin/posts") content = <PostsAdmin />;
   else if (path === "/admin/taxonomy") content = <TaxonomyManager />;
+  else if (path === "/admin/mcp") content = <MCPManager />;
   else if (path === "/admin/media") content = <MediaManager />;
   else if (path === "/admin/backup") content = <BackupAdmin />;
   else if (path === "/admin/about") content = <AboutAdmin />;

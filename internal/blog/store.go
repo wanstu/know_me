@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -101,6 +102,23 @@ func relationNames(ctx context.Context, q dbq, table, joinTable, foreignKey stri
 }
 
 func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, error) {
+	return s.save(ctx, input, id, false, nil)
+}
+
+// CreateWithExactSlug creates an imported article only with its requested URL.
+// Unlike interactive article creation it must NEVER auto-suffix a collision.
+func (s *Store) CreateWithExactSlug(ctx context.Context, input SaveInput) (Post, error) {
+	if strings.TrimSpace(input.Slug) == "" {
+		return Post{}, errors.New("slug_required")
+	}
+	return s.save(ctx, input, nil, true, nil)
+}
+
+// SaveIfUnchanged enforces the version within the same write transaction.
+func (s *Store) SaveIfUnchanged(ctx context.Context, input SaveInput, id int64, expectedUpdatedAt *int64) (Post, error) {
+	return s.save(ctx, input, &id, false, expectedUpdatedAt)
+}
+func (s *Store) save(ctx context.Context, input SaveInput, id *int64, exactSlug bool, expectedUpdatedAt *int64) (Post, error) {
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
 		return Post{}, errors.New("title_required")
@@ -123,7 +141,13 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 		if err != nil {
 			return Post{}, err
 		}
+		if expectedUpdatedAt != nil && row.UpdatedAt != *expectedUpdatedAt {
+			return Post{}, errors.New("post_modified_since_read")
+		}
 		existing = &row
+		if now <= row.UpdatedAt {
+			now = row.UpdatedAt + 1
+		}
 	}
 
 	requested := strings.TrimSpace(input.Slug)
@@ -133,6 +157,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 	slug, err := uniqueSlug(ctx, tx, requested, id)
 	if err != nil {
 		return Post{}, err
+	}
+	if exactSlug && slug != NormalizeSlug(requested) {
+		return Post{}, errors.New("slug_already_exists")
 	}
 
 	excerpt := strings.TrimSpace(input.Excerpt)
@@ -163,6 +190,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 	}
 	if firstPublishedAt == nil && input.Status == StatusPublished {
 		value := now
+		if publishedAt != nil {
+			value = *publishedAt
+		}
 		firstPublishedAt = &value
 	}
 	if firstPublishedAt == nil && input.Status == StatusScheduled && publishedAt != nil && *publishedAt <= now {
@@ -172,18 +202,37 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 
 	var postID int64
 	if existing != nil && id != nil {
-		if existing.ContentMD != input.ContentMD || existing.Title != title {
+		// Preserve a full snapshot for meaningful changes, including dates,
+		// category/tag associations and publication state.
+		previous, err := s.mapPost(ctx, tx, *existing)
+		if err != nil {
+			return Post{}, err
+		}
+		changed := previous.ContentMD != input.ContentMD || previous.Title != title ||
+			previous.Slug != slug || previous.Excerpt != excerpt ||
+			previous.Status != input.Status || previous.Pinned != input.Pinned ||
+			previous.SEOTitle != strings.TrimSpace(input.SEOTitle) ||
+			previous.SEODescription != strings.TrimSpace(input.SEODescription) ||
+			!sameTimestamp(previous.PublishedAt, publishedAt) ||
+			!sameTimestamp(previous.FirstPublishedAt, firstPublishedAt) ||
+			(input.Tags != nil && !slices.Equal(normalizeNames(input.Tags), normalizeNames(previous.Tags))) ||
+			(input.Categories != nil && !slices.Equal(normalizeNames(input.Categories), normalizeNames(previous.Categories)))
+		if changed {
 			metadata, _ := json.Marshal(map[string]any{
-				"title": existing.Title, "slug": existing.Slug, "excerpt": existing.Excerpt,
-				"status": existing.Status, "publishedAt": nullableNullInt(existing.PublishedAt), "firstPublishedAt": nullableNullInt(existing.FirstPublishedAt),
+				"title": previous.Title, "slug": previous.Slug, "excerpt": previous.Excerpt,
+				"status": previous.Status, "publishedAt": previous.PublishedAt,
+				"firstPublishedAt": previous.FirstPublishedAt, "pinned": previous.Pinned,
+				"seoTitle": previous.SEOTitle, "seoDescription": previous.SEODescription,
+				"tags": previous.Tags, "categories": previous.Categories,
 			})
 			if _, err := tx.ExecContext(ctx,
 				"INSERT INTO post_revisions (post_id, content_md, metadata_json, created_at) VALUES (?, ?, ?, ?)",
-				*id, existing.ContentMD, string(metadata), now,
+				*id, previous.ContentMD, string(metadata), now,
 			); err != nil {
 				return Post{}, err
 			}
 		}
+
 		_, err = tx.ExecContext(ctx,
 			"UPDATE posts SET slug = ?, title = ?, excerpt = ?, content_md = ?, status = ?, pinned = ?, seo_title = ?, seo_description = ?, published_at = ?, first_published_at = ?, updated_at = ? WHERE id = ?",
 			slug, title, excerpt, input.ContentMD, input.Status, boolInt(input.Pinned),
@@ -233,6 +282,13 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// HasSlug checks the public URL identifier without loading all article bodies.
+func (s *Store) HasSlug(ctx context.Context, slug string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM posts WHERE slug = ?)", slug).Scan(&exists)
+	return exists, err
 }
 
 func (s *Store) GetByID(ctx context.Context, id int64) (Post, error) {
@@ -497,6 +553,25 @@ func (s *Store) ListRevisions(ctx context.Context, postID int64, limit int) ([]R
 	return result, rows.Err()
 }
 
+// GetRevision ensures a revision belongs to the requested article.
+func (s *Store) GetRevision(ctx context.Context, postID, revisionID int64) (Revision, error) {
+	var revision Revision
+	var metadata string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, post_id, content_md, metadata_json, created_at FROM post_revisions WHERE post_id = ? AND id = ? LIMIT 1",
+		postID, revisionID,
+	).Scan(&revision.ID, &revision.PostID, &revision.ContentMD, &metadata, &revision.CreatedAt)
+	if err == sql.ErrNoRows {
+		return Revision{}, errors.New("revision_not_found")
+	}
+	if err != nil {
+		return Revision{}, err
+	}
+	revision.Metadata = map[string]any{}
+	_ = json.Unmarshal([]byte(metadata), &revision.Metadata)
+	return revision, nil
+}
+
 func (s *Store) RestoreRevision(ctx context.Context, postID, revisionID int64) (Post, error) {
 	current, err := s.GetByID(ctx, postID)
 	if err != nil {
@@ -542,12 +617,48 @@ func (s *Store) RestoreRevision(ctx context.Context, postID, revisionID int64) (
 	if value, ok := metadata["excerpt"].(string); ok {
 		excerpt = value
 	}
+	pinned := current.Pinned
+	if value, ok := metadata["pinned"].(bool); ok {
+		pinned = value
+	}
+	seoTitle, seoDescription := current.SEOTitle, current.SEODescription
+	if value, ok := metadata["seoTitle"].(string); ok {
+		seoTitle = value
+	}
+	if value, ok := metadata["seoDescription"].(string); ok {
+		seoDescription = value
+	}
+	tags, categories := current.Tags, current.Categories
+	if value, ok := revisionNames(metadata["tags"]); ok {
+		tags = value
+	}
+	if value, ok := revisionNames(metadata["categories"]); ok {
+		categories = value
+	}
 	id := postID
 	return s.Save(ctx, SaveInput{
 		Title: title, Slug: slug, Excerpt: excerpt, ContentMD: content, Status: status,
-		Pinned: current.Pinned, SEOTitle: current.SEOTitle, SEODescription: current.SEODescription,
-		PublishedAt: publishedAt, FirstPublishedAt: firstPublishedAt, Tags: current.Tags, Categories: current.Categories,
+		Pinned: pinned, SEOTitle: seoTitle, SEODescription: seoDescription,
+		PublishedAt: publishedAt, FirstPublishedAt: firstPublishedAt, Tags: tags, Categories: categories,
 	}, &id)
+}
+
+// revisionNames accepts historical revision metadata without requiring a
+// schema migration. Missing fields in legacy revisions preserve current values.
+func revisionNames(raw any) ([]string, bool) {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, false
+	}
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		value, ok := item.(string)
+		if !ok {
+			return nil, false
+		}
+		values = append(values, value)
+	}
+	return values, true
 }
 
 func uniqueSlug(ctx context.Context, q dbq, requested string, exceptID *int64) (string, error) {
@@ -664,6 +775,13 @@ func nullableNullInt(value sql.NullInt64) any {
 }
 
 func nullableInt(_ *int64, value *int64) any { return ptrValue(value) }
+
+func sameTimestamp(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
 
 func ptrValue(value *int64) any {
 	if value == nil {

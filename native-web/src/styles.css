@@ -3497,3 +3497,20 @@ select:focus-visible {
   .km-media-field-row { grid-template-columns: minmax(0, 1fr) auto; }
   .km-media-field-row > input { grid-column: 1 / -1; }
 }
+
+/* MCP access management */
+.km-mcp-panel { margin-bottom: 18px; }
+.km-mcp-panel h2 { font-size: 17px; margin: 0 0 12px; }
+.km-mcp-panel .km-muted { color: var(--dk-text-secondary); line-height: 1.6; }
+.km-mcp-create { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) auto; gap: 12px; align-items: end; }
+.km-mcp-create .dk-field { min-width: 0; }
+.km-mcp-create input, .km-mcp-create select { width: 100%; min-height: 40px; }
+.km-mcp-endpoint { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.km-mcp-endpoint code { flex: 1 1 250px; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--dk-border); border-radius: 9px; }
+.km-mcp-secret { display: grid; gap: 12px; margin-top: 15px; padding: 14px; border: 1px solid var(--dk-border); border-radius: 12px; }
+.km-mcp-secret > .dk-button { justify-self: start; }
+.km-mcp-list { display: grid; gap: 10px; }
+.km-mcp-row { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--dk-border); border-radius: 10px; }
+.km-mcp-row > div { display: grid; gap: 7px; min-width: 0; }
+.km-mcp-row small { color: var(--dk-text-secondary); line-height: 1.5; }
+@media (max-width: 850px) { .km-mcp-create { grid-template-columns: 1fr; } }
