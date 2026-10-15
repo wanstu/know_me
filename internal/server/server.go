@@ -18,6 +18,7 @@ import (
 	"github.com/wanstu/know_me/internal/blog"
 	"github.com/wanstu/know_me/internal/database"
 	"github.com/wanstu/know_me/internal/media"
+	"github.com/wanstu/know_me/internal/mcpaccess"
 	"github.com/wanstu/know_me/internal/navigation"
 	runtimeconfig "github.com/wanstu/know_me/internal/runtimeconfig"
 	"github.com/wanstu/know_me/internal/settings"
@@ -49,6 +50,7 @@ type Server struct {
 	desktopUpdate      DesktopUpdateService
 	desktopBrowserOpen func(string) error
 	networkAccess      *networkAccessStore
+	mcpTokens           *mcpaccess.Store
 }
 
 type ServerOptions struct {
@@ -118,9 +120,12 @@ func NewWithOptions(config runtimeconfig.Config, build BuildInfo, options Server
 		desktopUpdate:      options.DesktopUpdate,
 		desktopBrowserOpen: options.DesktopBrowserOpen,
 		networkAccess:      networkAccess,
+		mcpTokens:           mcpaccess.NewStore(db.SQL),
 	}
 	mux := http.NewServeMux()
 	s.registerAPI(mux)
+	s.registerMCPManagement(mux)
+	s.registerMCP(mux)
 	s.registerDesktopUpdateAPI(mux)
 	s.registerDesktopBrowserAPI(mux)
 	s.registerNetworkAccessAPI(mux)
