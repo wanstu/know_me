@@ -359,7 +359,7 @@ func registerMCPImportWrite(m *mcp.Server, s *Server) {
 				plan.Skip++
 				continue
 			}
-			p, err := s.blog.Save(ctx, target.input, nil)
+			p, err := s.blog.CreateWithExactSlug(ctx, target.input)
 			if err != nil {
 				plan.Items[idx].Action = "error"
 				plan.Items[idx].Reason = err.Error()

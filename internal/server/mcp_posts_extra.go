@@ -200,7 +200,7 @@ func registerMCPPostWriteExtras(m *mcp.Server, s *Server) {
 		if err := validateMCPPostDates(p.Status, p.PublishedAt, p.FirstPublishedAt); err != nil {
 			return nil, err
 		}
-		updated, err := s.blog.Save(ctx, blog.SaveInput{Title: p.Title, Slug: p.Slug, Excerpt: p.Excerpt, ContentMD: p.ContentMD, Status: p.Status, Pinned: p.Pinned, SEOTitle: p.SEOTitle, SEODescription: p.SEODescription, PublishedAt: p.PublishedAt, FirstPublishedAt: p.FirstPublishedAt, Tags: p.Tags, Categories: p.Categories}, &in.ID)
+		updated, err := s.blog.SaveIfUnchanged(ctx, blog.SaveInput{Title: p.Title, Slug: p.Slug, Excerpt: p.Excerpt, ContentMD: p.ContentMD, Status: p.Status, Pinned: p.Pinned, SEOTitle: p.SEOTitle, SEODescription: p.SEODescription, PublishedAt: p.PublishedAt, FirstPublishedAt: p.FirstPublishedAt, Tags: p.Tags, Categories: p.Categories}, in.ID, in.ExpectedUpdatedAt)
 		return map[string]any{"post": updated}, err
 	})
 	addMCPTool(m, "posts_taxonomy_update", "Add, remove or replace categories and tags on an article without touching its Markdown and unrelated metadata", false, func(ctx context.Context, in mcpPostTaxonomy) (any, error) {
@@ -220,11 +220,11 @@ func registerMCPPostWriteExtras(m *mcp.Server, s *Server) {
 		}
 		post.Tags = updateMCPNames(post.Tags, in.AddTags, in.RemoveTags, in.ReplaceTags)
 		post.Categories = updateMCPNames(post.Categories, in.AddCategories, in.RemoveCategories, in.ReplaceCategories)
-		updated, err := s.blog.Save(ctx, blog.SaveInput{
+		updated, err := s.blog.SaveIfUnchanged(ctx, blog.SaveInput{
 			Title: post.Title, Slug: post.Slug, Excerpt: post.Excerpt, ContentMD: post.ContentMD,
 			Status: post.Status, Pinned: post.Pinned, SEOTitle: post.SEOTitle, SEODescription: post.SEODescription,
 			PublishedAt: post.PublishedAt, FirstPublishedAt: post.FirstPublishedAt, Tags: post.Tags, Categories: post.Categories,
-		}, &in.ID)
+		}, in.ID, in.ExpectedUpdatedAt)
 		return map[string]any{"post": updated}, err
 	})
 	addMCPTool(m, "posts_revision_restore", "Restore a historical article revision including original tags, categories and metadata when present; confirmation required", false, func(ctx context.Context, in mcpRevisionRestore) (any, error) {

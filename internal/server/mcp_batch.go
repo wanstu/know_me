@@ -60,24 +60,19 @@ func registerMCPBatchTools(m *mcp.Server, s *Server) {
 		if !in.Confirm {
 			return map[string]any{"preview": true, "items": preview, "updated": 0}, nil
 		}
-		results := make([]map[string]any, 0, len(preview))
-		updated := 0
+		edits := make([]blog.TaxonomyBatchEdit, 0, len(entries))
 		for i, post := range entries {
-			p := preview[i]
-			saved, err := s.blog.Save(ctx, blog.SaveInput{
-				Title: post.Title, Slug: post.Slug, Excerpt: post.Excerpt,
-				ContentMD: post.ContentMD, Status: post.Status, Pinned: post.Pinned,
-				SEOTitle: post.SEOTitle, SEODescription: post.SEODescription,
-				PublishedAt: post.PublishedAt, FirstPublishedAt: post.FirstPublishedAt,
-				Tags: p.Tags, Categories: p.Categories,
-			}, &post.ID)
-			if err != nil {
-				results = append(results, map[string]any{"id": post.ID, "error": err.Error()})
-				continue
-			}
-			updated++
-			results = append(results, map[string]any{"id": saved.ID, "tags": saved.Tags, "categories": saved.Categories})
+			item := preview[i]
+			edits = append(edits, blog.TaxonomyBatchEdit{
+				ID: post.ID, ExpectedUpdatedAt: post.UpdatedAt,
+				Tags: item.Tags, Categories: item.Categories,
+			})
 		}
-		return map[string]any{"preview": false, "updated": updated, "failed": len(results) - updated, "items": results}, nil
+		// Both the revision snapshots and all association changes are atomic.
+		saved, err := s.blog.BatchUpdateTaxonomy(ctx, edits)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"preview": false, "updated": len(saved), "failed": 0, "items": saved}, nil
 	})
 }

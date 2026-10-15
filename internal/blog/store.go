@@ -102,6 +102,23 @@ func relationNames(ctx context.Context, q dbq, table, joinTable, foreignKey stri
 }
 
 func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, error) {
+	return s.save(ctx, input, id, false, nil)
+}
+
+// CreateWithExactSlug creates an imported article only with its requested URL.
+// Unlike interactive article creation it must NEVER auto-suffix a collision.
+func (s *Store) CreateWithExactSlug(ctx context.Context, input SaveInput) (Post, error) {
+	if strings.TrimSpace(input.Slug) == "" {
+		return Post{}, errors.New("slug_required")
+	}
+	return s.save(ctx, input, nil, true, nil)
+}
+
+// SaveIfUnchanged enforces the version within the same write transaction.
+func (s *Store) SaveIfUnchanged(ctx context.Context, input SaveInput, id int64, expectedUpdatedAt *int64) (Post, error) {
+	return s.save(ctx, input, &id, false, expectedUpdatedAt)
+}
+func (s *Store) save(ctx context.Context, input SaveInput, id *int64, exactSlug bool, expectedUpdatedAt *int64) (Post, error) {
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
 		return Post{}, errors.New("title_required")
@@ -124,7 +141,13 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 		if err != nil {
 			return Post{}, err
 		}
+		if expectedUpdatedAt != nil && row.UpdatedAt != *expectedUpdatedAt {
+			return Post{}, errors.New("post_modified_since_read")
+		}
 		existing = &row
+		if now <= row.UpdatedAt {
+			now = row.UpdatedAt + 1
+		}
 	}
 
 	requested := strings.TrimSpace(input.Slug)
@@ -134,6 +157,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput, id *int64) (Post, err
 	slug, err := uniqueSlug(ctx, tx, requested, id)
 	if err != nil {
 		return Post{}, err
+	}
+	if exactSlug && slug != NormalizeSlug(requested) {
+		return Post{}, errors.New("slug_already_exists")
 	}
 
 	excerpt := strings.TrimSpace(input.Excerpt)

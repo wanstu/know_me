@@ -79,7 +79,7 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 - 所有日期优先支持 `publishedAtDate` / `firstPublishedAtDate`（RFC3339 且自带时区，如 `2026-10-15T14:30:00+08:00`）。`YYYY-MM-DD` 按 **UTC 零点** 解释；需要严格本地时区时，务必写时区偏移。或者使用 `publishedAt` / `firstPublishedAt` 传 Unix **毫秒**。同一日期不能同时传字符串与毫秒值，传秒数会报错。
 - `firstPublishedAt` 保存最初发表时间；撤回、重发时默认保留，允许在文章更新中明确更正。创建时间 `createdAt` 和修改时间 `updatedAt` 是系统审计时间，不接受 MCP 手动篡改。旧日期导入应填写 `publishedAtDate`。
 - `posts_list` 支持 `status`、`tag`、`category`、`publishedFrom`、`publishedTo`、`page`、`limit`。返回分页总数，不返回全文；需要正文调用 `posts_get`。
-- 编辑前建议使用 `posts_get`，并带 `expectedUpdatedAt` 防止基于明显过期的文章版本覆盖数据。此检查是预检，不代替事务级并发编辑锁。
+- 编辑前建议使用 `posts_get`，并带 `expectedUpdatedAt` 防止基于明显过期的文章版本覆盖数据。此检查已在同一写事务内验证版本，发生冲突会直接拒绝覆盖；仍建议编辑前先读取最新版。
 - 修订快照现在涵盖正文、标题、URL、摘要、发布状态与日期、SEO、置顶、分类与标签。较老的历史修订如果不含新字段，恢复时对应属性仍保留当前值。历史修订恢复需 `confirm=true`，恢复可能同时使文章变为公开。
 - `posts_delete` 为**永久删除**，不会建立可恢复的回收站；操作前应确认文章 ID 和备份，再明确传 `confirm=true`。
 
@@ -105,15 +105,15 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 3. 确认无误后调用 `posts_import_apply`，**原样再次传入相同的 `documents` 和 `publish`**，附加 `previewHash` 与 `confirm:true`。服务端会重新检查每个 slug。重复的 URL 标识跳过，绝不会直接覆盖已有文章；任何一个文件无效则整批在开始写入前拒绝。
 4. 查看返回的 `created`、`skipped`、`failed` 和逐篇 ID。处理过程中若发生数据库错误，之前成功导入的文章保留，返回逐篇错误报告；重试同一批会跳过已导入的文章。
 
-映射规则：优先采用 Front Matter 的 `title` / `date` / `tags` / `categories` / `slug` / `description` / `draft`，缺少分类时回退到源文件夹首层名称。默认从相对路径生成稳定 slug，Markdown 正文保存为原文（去掉 Front Matter）。标签和分类会自动创建、关联文章。Hexo 不带时区的 `2024-06-22 00:00:00` 按 **UTC+08:00** 解释；显式时间偏移以原始偏移为准。未标日期的文章如果明确选择发布则使用导入时的发布时间。
+映射规则：优先采用 Front Matter 的 `title` / `date` / `tags` / `categories` / `slug` / `description` / `draft`，缺少分类时回退到源文件夹首层名称。默认从相对路径生成稳定 slug，Markdown 正文保存为原文（去掉 Front Matter）。即使多个客户端并发导入，也不允许将冲突的 slug 自动改为 `-2` 等后缀。标签和分类会自动创建、关联文章。Hexo 不带时区的 `2024-06-22 00:00:00` 按 **UTC+08:00** 解释；显式时间偏移以原始偏移为准。未标日期的文章如果明确选择发布则使用导入时的发布时间。
 
 目前**不会下载或转存图片**。远程图片 URL 原样保留；相对路径图片/文件会在预览时提示人工核对。源文件中的 `draft: true` 即使勾选批量发布，也保持为草稿。未来的媒体迁移应单独实现 URL 解析和去重，避免导入时发生不受控外链请求。
 
-`posts_batch_taxonomy` 适合后续整理旧文章：先传 `ids` 和 `addTags` / `removeTags` / `addCategories` / `removeCategories`，不传 `confirm` 先返回每篇修改前后的标签；确认后设置 `confirm:true`。也支持 `replaceTags` / `replaceCategories`，但不能和同类增删一起使用。批量操作会先检查全部文章 ID 是否存在，若中途某篇保存失败，结果会列出逐条错误。
+`posts_batch_taxonomy` 适合后续整理旧文章：先传 `ids` 和 `addTags` / `removeTags` / `addCategories` / `removeCategories`，不传 `confirm` 先返回每篇修改前后的标签；确认后设置 `confirm:true`。也支持 `replaceTags` / `replaceCategories`，但不能和同类增删一起使用。批量操作会先检查全部文章 ID 是否存在，本批分类标签修改使用同一数据库事务，发生任何错误会整体回滚，不会留下半批已修改的数据。
 
 ## 后续阶段
 
-- 批量 Markdown / GitHub 文章导入、资源 URL 转存与去重预览；以 `wanstu/wanstu.github.io` 的 33 篇 Markdown 文章作为首个实际迁移验收
+- 让 AI 客户端实际完成 `wanstu/wanstu.github.io` 的 33 篇文章迁移并验收（当前已逐篇审阅 Front Matter；其中一篇无 Front Matter，使用文件名兜底）；资源 URL 转存、远程图片去重预览后续实现
 - 媒体上传及修改、批量文章操作、更加细粒度的工具权限与后台调用日志
 - Next.js/Docker 部署形态的兼容方案
 

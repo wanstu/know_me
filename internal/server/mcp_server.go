@@ -397,7 +397,7 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		if in.Categories != nil {
 			p.Categories = *in.Categories
 		}
-		updated, err := s.blog.Save(ctx, blog.SaveInput{Title: p.Title, Slug: p.Slug, ContentMD: p.ContentMD, Excerpt: p.Excerpt, Status: p.Status, Pinned: p.Pinned, SEOTitle: p.SEOTitle, SEODescription: p.SEODescription, PublishedAt: p.PublishedAt, FirstPublishedAt: p.FirstPublishedAt, Tags: p.Tags, Categories: p.Categories}, &in.ID)
+		updated, err := s.blog.SaveIfUnchanged(ctx, blog.SaveInput{Title: p.Title, Slug: p.Slug, ContentMD: p.ContentMD, Excerpt: p.Excerpt, Status: p.Status, Pinned: p.Pinned, SEOTitle: p.SEOTitle, SEODescription: p.SEODescription, PublishedAt: p.PublishedAt, FirstPublishedAt: p.FirstPublishedAt, Tags: p.Tags, Categories: p.Categories}, in.ID, in.ExpectedUpdatedAt)
 		return map[string]any{"post": updated}, err
 	})
 	addMCPTool(m, "posts_delete", "Delete an article by ID (requires confirm=true)", false, func(ctx context.Context, in mcpDelete) (any, error) {
