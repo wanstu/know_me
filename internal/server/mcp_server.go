@@ -25,9 +25,11 @@ func addMCPTool[In any](server *mcp.Server, name, description string, readOnly b
 				return nil, nil, errors.New("unauthorized")
 			}
 			if !readOnly && token.Scope != "write" {
+				mcpRecordTool(ctx, token, name, in, nil, nil, readOnly, true)
 				return nil, nil, errors.New("write_permission_required")
 			}
 			out, err := handle(ctx, in)
+			mcpRecordTool(ctx, token, name, in, out, err, readOnly, false)
 			if err != nil {
 				slog.Warn("know-me mcp tool failed", "tool", name, "token", token.ID, "error", err)
 			} else {
@@ -59,23 +61,48 @@ func (s *Server) registerMCP(mux *http.ServeMux) {
 	}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 4 << 20})
 	mux.Handle("/mcp", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		// The MCP transport never accepts a browser session cookie as credentials.
+		peer := mcpRemotePeer(r)
+		reject := func(status int, reason string) {
+			s.recordMCPEvent(mcpaccess.AuditEvent{
+				EventType: "authentication", Result: "denied", Reason: reason,
+				HTTPMethod: r.Method, RemotePeer: peer,
+			})
+			if status == http.StatusUnauthorized {
+				if reason == "authorization_missing" || reason == "authorization_invalid_scheme" {
+					w.Header().Set("WWW-Authenticate", `Bearer realm="Know Me MCP"`)
+				}
+				http.Error(w, "unauthorized", status)
+			} else {
+				http.Error(w, "forbidden", status)
+			}
+		}
+		// Browser login cookies are never MCP credentials.
 		if !sameOrigin(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			reject(http.StatusForbidden, "origin_mismatch")
 			return
 		}
 		header := strings.TrimSpace(r.Header.Get("Authorization"))
+		if header == "" {
+			reject(http.StatusUnauthorized, "authorization_missing")
+			return
+		}
 		if len(header) < 8 || !strings.EqualFold(header[:7], "Bearer ") {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="Know Me MCP"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			reject(http.StatusUnauthorized, "authorization_invalid_scheme")
 			return
 		}
 		token, err := s.mcpTokens.Resolve(r.Context(), strings.TrimSpace(header[7:]))
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			reject(http.StatusUnauthorized, "token_invalid_or_revoked")
 			return
 		}
-		handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mcpContextKey{}, token)))
+		s.recordMCPEvent(mcpaccess.AuditEvent{
+			EventType: "authentication", Result: "success", Reason: "token_accepted",
+			TokenID: token.ID, TokenName: token.Name, TokenScope: token.Scope,
+			HTTPMethod: r.Method, RemotePeer: peer,
+		})
+		ctx := context.WithValue(r.Context(), mcpContextKey{}, token)
+		ctx = context.WithValue(ctx, mcpAuditContextKey{}, mcpAuditContext{store: s.mcpAudit, remotePeer: peer})
+		handler.ServeHTTP(w, r.WithContext(ctx))
 	}))
 }
 

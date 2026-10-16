@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/wanstu/know_me/internal/mcpaccess"
 )
 
 func (s *Server) registerMCPManagement(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/mcp/tokens", s.handleMCPTokensList)
 	mux.HandleFunc("POST /api/mcp/tokens", s.handleMCPTokensCreate)
 	mux.HandleFunc("DELETE /api/mcp/tokens/{id}", s.handleMCPTokensRevoke)
+	mux.HandleFunc("GET /api/mcp/audit", s.handleMCPAuditList)
 }
 
 func (s *Server) handleMCPTokensList(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +45,8 @@ func (s *Server) handleMCPTokensCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
+	s.recordMCPEvent(mcpaccess.AuditEvent{EventType: "token_management", Action: "create", Result: "success",
+		TokenID: token.ID, TokenName: token.Name, TokenScope: token.Scope, TargetType: "token", TargetID: token.ID})
 	writeJSON(w, 201, map[string]any{"token": token, "secret": secret})
 }
 func (s *Server) handleMCPTokensRevoke(w http.ResponseWriter, r *http.Request) {
@@ -58,5 +63,7 @@ func (s *Server) handleMCPTokensRevoke(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]string{"error": "not_found"})
 		return
 	}
+	s.recordMCPEvent(mcpaccess.AuditEvent{EventType: "token_management", Action: "revoke", Result: "success",
+		TokenID: id, TargetType: "token", TargetID: id})
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }

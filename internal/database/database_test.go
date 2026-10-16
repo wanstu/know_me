@@ -19,7 +19,7 @@ func TestOpenAppliesCompatibleMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 4 || ids[0] != "001_initial" || ids[1] != "002_fts_delete_support" || ids[2] != "003_post_first_published_at" || ids[3] != "004_mcp_tokens" {
+	if len(ids) != 5 || ids[0] != "001_initial" || ids[1] != "002_fts_delete_support" || ids[2] != "003_post_first_published_at" || ids[3] != "004_mcp_tokens" || ids[4] != "005_mcp_audit" {
 		t.Fatalf("migration ids = %#v", ids)
 	}
 
