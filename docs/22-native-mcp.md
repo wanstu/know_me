@@ -127,6 +127,8 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 诊断 `know_me` 的认证故障时，先在 MCP Center 刷新服务，再在 Know Me 日志筛选「拒绝」：无记录提示请求可能根本没有到达这个 Know Me 实例；`authorization_missing` 说明请求没有 Authorization；`token_invalid_or_revoked` 说明已收到 Bearer，但令牌未通过当前数据库校验。如果显示 `token_accepted`，说明已经通过令牌认证，应继续排查 MCP 握手或代理行为。
 
+**诊断 HTTP 协议后续结果：** Know Me 对每次已认证的 `/mcp` 请求另外记录一条 `MCP 协议 POST`（或 GET 等）日志，显示**最终 HTTP 状态码**，例如 `HTTP 200`、`HTTP 400`、`HTTP 403`。这条日志与 `token_accepted` 相互独立，防止认证成功被误认成整个连接成功。不会读取或记录 HTTP 请求/响应正文、Token 明文、工具参数或用户内容。HTTP 200 只能说明传输层成功，**不代表 JSON-RPC 方法一定成功**；MCP Center 如果仍显示 `auth_failure`，则应继续检查它的底层握手错误，而不是反复更换已通过的 Token。
+
 ## 后续阶段
 
 - 让 AI 客户端实际完成 `wanstu/wanstu.github.io` 的 33 篇文章迁移并验收（当前已逐篇审阅 Front Matter；其中一篇无 Front Matter，使用文件名兜底）；资源 URL 转存、远程图片去重预览后续实现
