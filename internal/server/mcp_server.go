@@ -58,7 +58,16 @@ func (s *Server) registerMCP(mux *http.ServeMux) {
 			return writeServer
 		}
 		return readServer
-	}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 4 << 20})
+	}, &mcp.StreamableHTTPOptions{
+		Stateless:           true,
+		JSONResponse:        true,
+		MaxRequestBodyBytes: 4 << 20,
+		// Know Me performs Bearer authentication and browser Origin checks before
+		// dispatching to the SDK. Public deployments commonly reverse-proxy to a
+		// loopback listener while preserving the public Host header, which the SDK's
+		// generic localhost DNS-rebinding guard otherwise rejects with HTTP 403.
+		DisableLocalhostProtection: true,
+	})
 	mux.Handle("/mcp", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		peer := mcpRemotePeer(r)

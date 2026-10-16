@@ -35,6 +35,50 @@ func TestMCPResponseRecorderPreservesHTTP(t *testing.T) {
 	}
 }
 
+type reverseProxyBearerTransport struct {
+	secret string
+	host   string
+}
+
+func (t reverseProxyBearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	clone := r.Clone(r.Context())
+	clone.Header = clone.Header.Clone()
+	clone.Header.Set("Authorization", "Bearer "+t.secret)
+	clone.Host = t.host
+	return http.DefaultTransport.RoundTrip(clone)
+}
+
+func TestMCPAllowsAuthenticatedReverseProxyHost(t *testing.T) {
+	root := t.TempDir()
+	srv, err := New(runtimeconfig.Config{Listen: "127.0.0.1:0", DataDir: filepath.Join(root, "data"), UploadsDir: filepath.Join(root, "uploads")}, BuildInfo{Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+	upstream := httptest.NewServer(srv.http.Handler)
+	defer upstream.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, secret, err := srv.mcpTokens.Create(ctx, "Reverse proxy test", "read")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "reverse-proxy-test", Version: "1"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint: upstream.URL + "/mcp", DisableStandaloneSSE: true,
+		HTTPClient: &http.Client{Transport: reverseProxyBearerTransport{secret: secret, host: "index.wanstu.cn"}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("reverse-proxied MCP initialize failed: %v", err)
+	}
+	defer session.Close()
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil || len(tools.Tools) == 0 {
+		t.Fatalf("reverse-proxied tools/list failed: %v %+v", err, tools)
+	}
+}
+
 func TestMCPAuditsHTTPStatusAfterAuthentication(t *testing.T) {
 	root := t.TempDir()
 	srv, err := New(runtimeconfig.Config{Listen: "127.0.0.1:0", DataDir: filepath.Join(root, "data"), UploadsDir: filepath.Join(root, "uploads")}, BuildInfo{Version: "test"})
