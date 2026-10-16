@@ -102,7 +102,9 @@ func (s *Server) registerMCP(mux *http.ServeMux) {
 		})
 		ctx := context.WithValue(r.Context(), mcpContextKey{}, token)
 		ctx = context.WithValue(ctx, mcpAuditContextKey{}, mcpAuditContext{store: s.mcpAudit, remotePeer: peer})
-		handler.ServeHTTP(w, r.WithContext(ctx))
+		response := &mcpResponseRecorder{ResponseWriter: w}
+		handler.ServeHTTP(response, r.WithContext(ctx))
+		s.recordMCPResponse(token, r.Method, peer, response.Status())
 	}))
 }
 

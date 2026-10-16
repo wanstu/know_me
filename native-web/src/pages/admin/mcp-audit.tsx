@@ -74,7 +74,7 @@ export function MCPAuditPanel({tokens}:{tokens:AuditToken[]}) {
           <tbody>{items.map(item=><tr key={item.id}>
             <td>{new Date(item.occurredAt).toLocaleString("zh-CN")}</td>
             <td>{item.tokenName||"未认证"}<small>{item.remotePeer||""}</small></td>
-            <td><code>{item.toolName||(item.eventType==="token_management"?"Token "+(item.action||"管理"):"认证 "+(item.httpMethod||""))}</code>
+            <td><code>{item.toolName||(item.eventType==="token_management"?"Token "+(item.action||"管理"):item.eventType==="protocol_http"?"MCP 协议 "+(item.httpMethod||""):"认证 "+(item.httpMethod||""))}</code>
               {item.requiredPermission?<small>{item.requiredPermission}</small>:null}</td>
             <td>{item.targetId?item.targetType+" #"+item.targetId:"—"}{item.action?<small>{item.action}</small>:null}</td>
             <td><strong>{label(item.result)}</strong><small>{reasons[item.reason||""]||item.reason||"—"}</small></td>
