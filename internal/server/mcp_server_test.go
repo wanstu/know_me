@@ -80,14 +80,20 @@ func TestMCPAuthenticationAndBusinessTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var writeHasCreate bool
+	var writeHasCreate, writeHasMediaUpload bool
 	for _, tool := range writeList.Tools {
-		if tool.Name == "posts_create" {
+		switch tool.Name {
+		case "posts_create":
 			writeHasCreate = true
+		case "media_upload":
+			writeHasMediaUpload = true
 		}
 	}
 	if !writeHasCreate {
 		t.Fatal("write token missing post creation")
+	}
+	if !writeHasMediaUpload {
+		t.Fatal("write token missing media upload")
 	}
 	create, err := write.CallTool(ctx, &mcp.CallToolParams{Name: "posts_create", Arguments: map[string]any{"title": "MCP test post", "contentMd": "# Hello", "status": "draft", "categories": []string{"MCP tests"}, "tags": []string{"mcp"}}})
 	if err != nil || create.IsError {
@@ -101,6 +107,19 @@ func TestMCPAuthenticationAndBusinessTools(t *testing.T) {
 	if err != nil || len(posts) != 1 || posts[0].Title != "MCP test post" {
 		t.Fatalf("created post not persisted: %v %+v", err, posts)
 	}
+	mediaUpload, err := write.CallTool(ctx, &mcp.CallToolParams{Name: "media_upload", Arguments: map[string]any{
+		"filename":   "pixel.png",
+		"mime":       "image/png",
+		"dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlTScsAAAAASUVORK5CYII=",
+		"alt":        "pixel",
+	}})
+	if err != nil || mediaUpload.IsError {
+		t.Fatalf("media_upload: %v result: %#v", err, mediaUpload)
+	}
+	mediaItems, err := s.media.List(ctx, 10)
+	if err != nil || len(mediaItems) != 1 || !strings.HasPrefix(mediaItems[0].URL, "/media/") {
+		t.Fatalf("uploaded media not persisted: %v %+v", err, mediaItems)
+	}
 	taxonomy, err := read.CallTool(ctx, &mcp.CallToolParams{Name: "taxonomy_list", Arguments: map[string]any{}})
 	if err != nil || taxonomy.IsError {
 		t.Fatalf("taxonomy_list: %v %#v", err, taxonomy)
@@ -108,6 +127,10 @@ func TestMCPAuthenticationAndBusinessTools(t *testing.T) {
 	_, err = read.CallTool(ctx, &mcp.CallToolParams{Name: "posts_create", Arguments: map[string]any{"title": "Unauthorized"}})
 	if err == nil {
 		t.Fatal("read client unexpectedly invoked write-only tool")
+	}
+	_, err = read.CallTool(ctx, &mcp.CallToolParams{Name: "media_upload", Arguments: map[string]any{}})
+	if err == nil {
+		t.Fatal("read client unexpectedly invoked media upload")
 	}
 	_, err = write.CallTool(ctx, &mcp.CallToolParams{Name: "navigation_create_group", Arguments: map[string]any{"name": "MCP group", "visibility": "private"}})
 	if err != nil {

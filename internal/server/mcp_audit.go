@@ -66,6 +66,8 @@ func mcpRecordTool(ctx context.Context, token mcpaccess.Token, name string, inpu
 		domain = "start"
 	case strings.HasPrefix(name, "navigation_"):
 		domain = "navigation"
+	case strings.HasPrefix(name, "media_"):
+		domain = "media"
 	}
 	event := mcpaccess.AuditEvent{
 		EventType: "tool", TokenID: token.ID, TokenName: token.Name, TokenScope: token.Scope,
@@ -104,6 +106,8 @@ func mcpToolTarget(name string, input any, output any) (kind, id, action string)
 		kind = "taxonomy"
 	case strings.HasPrefix(name, "navigation_"):
 		kind = "navigation"
+	case strings.HasPrefix(name, "media_"):
+		kind = "media"
 	case strings.HasPrefix(name, "site_"):
 		kind = "site"
 	case strings.HasPrefix(name, "start_"):

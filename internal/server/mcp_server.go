@@ -59,9 +59,11 @@ func (s *Server) registerMCP(mux *http.ServeMux) {
 		}
 		return readServer
 	}, &mcp.StreamableHTTPOptions{
-		Stateless:           true,
-		JSONResponse:        true,
-		MaxRequestBodyBytes: 4 << 20,
+		Stateless:    true,
+		JSONResponse: true,
+		// Base64 expands a 10 MiB media upload to roughly 13.4 MiB. Keep the
+		// transport bounded while allowing media_upload to match the Web media limit.
+		MaxRequestBodyBytes: 16 << 20,
 		// Know Me performs Bearer authentication and browser Origin checks before
 		// dispatching to the SDK. Public deployments commonly reverse-proxy to a
 		// loopback listener while preserving the public Host header, which the SDK's
@@ -453,6 +455,7 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 	registerMCPPostWriteExtras(m, s)
 	registerMCPImportWrite(m, s)
 	registerMCPBatchTools(m, s)
+	registerMCPMediaWrite(m, s)
 	addMCPTool(m, "taxonomy_change", "Create, rename or delete one category/tag. Deletion requires confirm=true", false, func(ctx context.Context, in mcpTaxonomy) (any, error) {
 		var kind blog.TaxonomyKind
 		switch in.Kind {
