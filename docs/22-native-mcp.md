@@ -111,6 +111,22 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 `posts_batch_taxonomy` 适合后续整理旧文章：先传 `ids` 和 `addTags` / `removeTags` / `addCategories` / `removeCategories`，不传 `confirm` 先返回每篇修改前后的标签；确认后设置 `confirm:true`。也支持 `replaceTags` / `replaceCategories`，但不能和同类增删一起使用。批量操作会先检查全部文章 ID 是否存在，本批分类标签修改使用同一数据库事务，发生任何错误会整体回滚，不会留下半批已修改的数据。
 
+## MCP 审计日志（新增）
+
+进入 **后台 → AI 接入 → MCP 操作与鉴权日志**，可查看近期 MCP 认证和操作记录，按 Token 和结果筛选、分页加载。管理员也可以调用 `GET /api/mcp/audit?limit=50&tokenId=...&result=denied&beforeId=...`（需要已有后台登录会话）。
+
+记录包括：
+
+- **认证结果**：`authorization_missing`（未携带 Header）、`authorization_invalid_scheme`（非 Bearer）、`token_invalid_or_revoked`（Token 无效/已撤销）、`origin_mismatch`（跨域请求被拒）、`token_accepted`（令牌通过）
+- **工具调用**：工具名、关联 Token ID/名称、权限类别（如 `posts.write`）、涉及文章或导航记录 ID、操作类型、成功/失败及脱敏的失败原因
+- **Token 管理**：创建、吊销事件；使用令牌的记录与被拒绝的匿名请求可分别筛选
+
+日志写入单独的 SQLite 审计表 `mcp_audit_events`，定期清理约 30 天前和最新 20,000 条之外的记录。审计写入失败不会改变正常 MCP 的认证或工具调用结果。仅存最小化元数据，不保存 Bearer 密钥、请求正文、工具完整参数、文章正文或工具响应；`remotePeer` 是 TCP 对端地址，在 OpenResty 等反向代理后通常为代理地址，不等于真实用户 IP。
+
+未来的 Token 细粒度权限可基于日志中的 `requiredPermission` 字段扩展成 `posts.read`、`posts.write`、`site.write` 等范围。**目前并未改变现有只读/读写的授权规则**；不要将审计字段误认为已经实现了按工具授权。
+
+诊断 `know_me` 的认证故障时，先在 MCP Center 刷新服务，再在 Know Me 日志筛选「拒绝」：无记录提示请求可能根本没有到达这个 Know Me 实例；`authorization_missing` 说明请求没有 Authorization；`token_invalid_or_revoked` 说明已收到 Bearer，但令牌未通过当前数据库校验。如果显示 `token_accepted`，说明已经通过令牌认证，应继续排查 MCP 握手或代理行为。
+
 ## 后续阶段
 
 - 让 AI 客户端实际完成 `wanstu/wanstu.github.io` 的 33 篇文章迁移并验收（当前已逐篇审阅 Front Matter；其中一篇无 Front Matter，使用文件名兜底）；资源 URL 转存、远程图片去重预览后续实现

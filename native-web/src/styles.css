@@ -3514,3 +3514,15 @@ select:focus-visible {
 .km-mcp-row > div { display: grid; gap: 7px; min-width: 0; }
 .km-mcp-row small { color: var(--dk-text-secondary); line-height: 1.5; }
 @media (max-width: 850px) { .km-mcp-create { grid-template-columns: 1fr; } }
+
+.km-mcp-audit-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 14px 0; }
+.km-mcp-audit-filters .dk-field { min-width: 150px; flex: 1 1 150px; max-width: 260px; }
+.km-mcp-audit-filters select { min-height: 40px; width: 100%; }
+.km-mcp-audit-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--dk-border); border-radius: 10px; }
+.km-mcp-audit-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 12px; }
+.km-mcp-audit-table th,.km-mcp-audit-table td { padding: 11px 13px; border-bottom: 1px solid var(--dk-border); text-align: left; vertical-align: top; }
+.km-mcp-audit-table th { font-size: 12px; white-space: nowrap; }
+.km-mcp-audit-table td small { display: block; color: var(--dk-text-secondary); line-height: 1.5; margin-top: 3px; overflow-wrap: anywhere; }
+.km-mcp-audit-table td code { overflow-wrap: anywhere; }
+.km-mcp-audit-table tr:last-child td { border-bottom: 0; }
+.km-mcp-audit-scroll + button { margin-top: 12px; }

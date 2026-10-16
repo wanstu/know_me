@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { requestJSON } from "../../api";
 import { AdminTitle } from "../../ui";
+import { MCPAuditPanel } from "./mcp-audit";
 
 type Token = { id: string; name: string; scope: "read" | "write"; createdAt: number; lastUsedAt: number | null };
 type ListResponse = { endpoint: string; tokens: Token[] };
@@ -92,6 +93,7 @@ export function MCPManager() {
           ))}</div>
         )}
       </section>
+      <MCPAuditPanel tokens={tokens} />
     </>
   );
 }
