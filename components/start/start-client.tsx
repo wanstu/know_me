@@ -159,12 +159,16 @@ export function StartClient({
   initialTree,
   defaultEngine = "Bing",
   authenticated = true,
-  density = "comfortable"
+  density = "comfortable",
+  rememberLastTab = false,
+  wheelSwitchTabs = false
 }: {
   initialTree: NavigationTree;
   defaultEngine?: keyof typeof engines;
   authenticated?: boolean;
   density?: StartDensity;
+  rememberLastTab?: boolean;
+  wheelSwitchTabs?: boolean;
 }) {
   const [activeGroupId, setActiveGroupId] = useState(initialTree.groups[0]?.id ?? 0);
   const [folder, setFolder] = useState<NavItem | null>(null);
@@ -173,6 +177,19 @@ export function StartClient({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [toast, setToast] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const wheelIntentRef = useRef({ delta: 0, lastAt: 0 });
+  const wheelCooldownUntilRef = useRef(0);
+
+  function selectGroup(groupId: number, scrollTop = false) {
+    setActiveGroupId(groupId);
+    setQuery("");
+    setFolder(null);
+    setContextMenu(null);
+    if (rememberLastTab) {
+      try { window.localStorage.setItem("knowme:start:last-group", String(groupId)); } catch { /* Private mode remains usable. */ }
+    }
+    if (scrollTop) window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const activeGroup = initialTree.groups.find((group) => group.id === activeGroupId) ?? initialTree.groups[0];
   const allEntries = useMemo(() => flattenNavigation(initialTree.groups), [initialTree.groups]);
@@ -191,6 +208,49 @@ export function StartClient({
   const visibleEntries = normalizedQuery
     ? searchResults
     : (activeGroup?.items ?? []).map((item) => ({ item, group: activeGroup!, parent: null }));
+
+  useEffect(() => {
+    if (!rememberLastTab) {
+      try { window.localStorage.removeItem("knowme:start:last-group"); } catch { /* Private mode remains usable. */ }
+      return;
+    }
+    try {
+      const stored = Number(window.localStorage.getItem("knowme:start:last-group"));
+      if (Number.isInteger(stored) && initialTree.groups.some((group) => group.id === stored)) setActiveGroupId(stored);
+    } catch { /* Private mode remains usable. */ }
+  }, [initialTree.groups, rememberLastTab]);
+
+  useEffect(() => {
+    if (!wheelSwitchTabs || initialTree.groups.length < 2) return;
+    const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0 }; };
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY <= 0 || normalizedQuery || folder || contextMenu) {
+        resetIntent();
+        return;
+      }
+      const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      if (!atBottom) {
+        resetIntent();
+        return;
+      }
+      const now = performance.now();
+      const intent = wheelIntentRef.current;
+      if (now - intent.lastAt > 450) intent.delta = 0;
+      intent.lastAt = now;
+      const normalizedDelta = event.deltaMode === 1
+        ? event.deltaY * 16
+        : event.deltaMode === 2 ? event.deltaY * window.innerHeight : event.deltaY;
+      intent.delta += normalizedDelta;
+      if (intent.delta < 180 || now < wheelCooldownUntilRef.current) return;
+      resetIntent();
+      wheelCooldownUntilRef.current = now + 700;
+      const index = initialTree.groups.findIndex((group) => group.id === activeGroupId);
+      const next = initialTree.groups[(index >= 0 ? index + 1 : 0) % initialTree.groups.length];
+      if (next && next.id !== activeGroupId) selectGroup(next.id, true);
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [activeGroupId, contextMenu, folder, initialTree.groups, normalizedQuery, wheelSwitchTabs]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -231,9 +291,7 @@ export function StartClient({
         const group = initialTree.groups[index];
         if (group) {
           event.preventDefault();
-          setActiveGroupId(group.id);
-          setQuery("");
-          setFolder(null);
+          selectGroup(group.id);
         }
       }
     }
@@ -347,11 +405,7 @@ export function StartClient({
             type="button"
             title={group.name + (index < 9 ? " · Alt+" + (index + 1) : "")}
             aria-label={group.name}
-            onClick={() => {
-              setActiveGroupId(group.id);
-              setQuery("");
-              setFolder(null);
-            }}
+            onClick={() => selectGroup(group.id)}
           >
             {groupMark(group)}
           </button>

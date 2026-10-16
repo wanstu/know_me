@@ -32,12 +32,16 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 	preset := ThemePreset("midnight")
 	opacity := 101
 	public := true
+	rememberLastTab := true
+	wheelSwitchTabs := true
 	value, err = store.UpdateSite(ctx, SitePatch{
 		ProfileName:      &name,
 		ThemeMode:        &mode,
 		ThemePreset:      &preset,
 		StartCardOpacity: &opacity,
 		StartPublic:      &public,
+		StartRememberTab: &rememberLastTab,
+		StartWheelTabs:   &wheelSwitchTabs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +49,7 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 	if value.ProfileName != name || value.ThemeMode != ThemeLight || value.ThemePreset != ThemePreset("midnight") {
 		t.Fatalf("patch not applied: %#v", value)
 	}
-	if value.StartCardOpacity != 95 || !value.StartPublic {
+	if value.StartCardOpacity != 95 || !value.StartPublic || !value.StartRememberTab || !value.StartWheelTabs {
 		t.Fatalf("normalization failed: %#v", value)
 	}
 
@@ -53,7 +57,7 @@ func TestDefaultsAndPatchPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.ProfileName != name || again.ThemePreset != ThemePreset("midnight") {
+	if again.ProfileName != name || again.ThemePreset != ThemePreset("midnight") || !again.StartRememberTab || !again.StartWheelTabs {
 		t.Fatalf("settings not persisted: %#v", again)
 	}
 }

@@ -320,6 +320,8 @@ type mcpStartPatch struct {
 	StartCardOpacity    *int                       `json:"startCardOpacity,omitempty"`
 	StartCardRadius     *int                       `json:"startCardRadius,omitempty"`
 	StartBackgroundDim  *int                       `json:"startBackgroundDim,omitempty"`
+	StartRememberTab    *bool                      `json:"startRememberLastTab,omitempty"`
+	StartWheelTabs      *bool                      `json:"startWheelSwitchTabs,omitempty"`
 }
 type mcpNavigationGroup struct {
 	Name       string `json:"name"`
@@ -491,7 +493,7 @@ func registerMCPWrite(m *mcp.Server, s *Server) {
 		return map[string]any{"settings": v}, err
 	})
 	addMCPTool(m, "start_update", "Patch Start search engines and layout; omitted fields remain unchanged", false, func(ctx context.Context, in mcpStartPatch) (any, error) {
-		patch := settings.SitePatch{StartBackgroundURL: in.StartBackgroundURL, DefaultSearchEngine: in.DefaultSearchEngine, SearchEngines: in.SearchEngines, StartDensity: in.StartDensity, StartCardOpacity: in.StartCardOpacity, StartCardRadius: in.StartCardRadius, StartBackgroundDim: in.StartBackgroundDim}
+		patch := settings.SitePatch{StartBackgroundURL: in.StartBackgroundURL, DefaultSearchEngine: in.DefaultSearchEngine, SearchEngines: in.SearchEngines, StartDensity: in.StartDensity, StartCardOpacity: in.StartCardOpacity, StartCardRadius: in.StartCardRadius, StartBackgroundDim: in.StartBackgroundDim, StartRememberTab: in.StartRememberTab, StartWheelTabs: in.StartWheelTabs}
 		v, err := s.settings.UpdateSite(ctx, patch)
 		return map[string]any{"settings": v}, err
 	})

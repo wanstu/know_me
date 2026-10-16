@@ -1021,6 +1021,8 @@ function SettingsAdmin({ settings, onChange }: { settings: SiteSettings; onChang
               <label className="dk-field">卡片透明度 <b>{draft.startCardOpacity}%</b><input type="range" min={30} max={95} value={draft.startCardOpacity} onChange={(event) => update("startCardOpacity", Number(event.target.value))} /></label>
               <label className="dk-field">卡片圆角 <b>{draft.startCardRadius}px</b><input type="range" min={12} max={32} value={draft.startCardRadius} onChange={(event) => update("startCardRadius", Number(event.target.value))} /></label>
               <label className="dk-field">背景压暗 <b>{draft.startBackgroundDim}%</b><input type="range" min={0} max={90} value={draft.startBackgroundDim} onChange={(event) => update("startBackgroundDim", Number(event.target.value))} /></label>
+              <label className="km-check"><input type="checkbox" checked={draft.startRememberLastTab} onChange={(event) => update("startRememberLastTab", event.target.checked)} /><span><strong>记录上次 Tab</strong><small>开启后，当前浏览器下次打开 Start 时自动回到上次使用的导航分组。</small></span></label>
+              <label className="km-check"><input type="checkbox" checked={draft.startWheelSwitchTabs} onChange={(event) => update("startWheelSwitchTabs", event.target.checked)} /><span><strong>滚轮切换 Tab</strong><small>滚动到底后继续明显向下滚动，会切换到下一个导航分组并回到顶部。</small></span></label>
             </div>
             <section className="km-settings-collection km-search-engines-editor">
               <header>

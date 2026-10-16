@@ -284,6 +284,8 @@ type SiteSettings struct {
 	StartCardOpacity    int                            `json:"startCardOpacity"`
 	StartCardRadius     int                            `json:"startCardRadius"`
 	StartBackgroundDim  int                            `json:"startBackgroundDim"`
+	StartRememberTab    bool                           `json:"startRememberLastTab"`
+	StartWheelTabs      bool                           `json:"startWheelSwitchTabs"`
 	SocialLinks         []SocialLink                   `json:"socialLinks"`
 	HomeTagsVersion     int                            `json:"homeTagsVersion"`
 	HomeEntries         []HomeEntry                    `json:"homeEntries"`
@@ -327,6 +329,8 @@ type SitePatch struct {
 	StartCardOpacity    *int                            `json:"startCardOpacity"`
 	StartCardRadius     *int                            `json:"startCardRadius"`
 	StartBackgroundDim  *int                            `json:"startBackgroundDim"`
+	StartRememberTab    *bool                           `json:"startRememberLastTab"`
+	StartWheelTabs      *bool                           `json:"startWheelSwitchTabs"`
 	SocialLinks         *[]SocialLink                   `json:"socialLinks"`
 	HomeEntries         *[]HomeEntry                    `json:"homeEntries"`
 	Projects            *[]ProjectEntry                 `json:"projects"`
@@ -370,6 +374,8 @@ func Defaults() SiteSettings {
 		StartCardOpacity:    64,
 		StartCardRadius:     22,
 		StartBackgroundDim:  62,
+		StartRememberTab:    false,
+		StartWheelTabs:      false,
 		SocialLinks:         migratedHomeTags([]SocialLink{}),
 		HomeTagsVersion:     homeTagsVersion,
 		HomeEntries: []HomeEntry{
@@ -538,6 +544,12 @@ func applyPatch(v *SiteSettings, p SitePatch) {
 	}
 	if p.StartBackgroundDim != nil {
 		v.StartBackgroundDim = *p.StartBackgroundDim
+	}
+	if p.StartRememberTab != nil {
+		v.StartRememberTab = *p.StartRememberTab
+	}
+	if p.StartWheelTabs != nil {
+		v.StartWheelTabs = *p.StartWheelTabs
 	}
 	if p.SocialLinks != nil {
 		v.SocialLinks = *p.SocialLinks

@@ -361,6 +361,14 @@ export function SettingsManager({
             <input type="range" min="0" max="90" value={settings.startBackgroundDim} onChange={(event) => update("startBackgroundDim", Number(event.target.value))} />
           </label>
           <label className="settings-check">
+            <input type="checkbox" checked={settings.startRememberLastTab} onChange={(event) => update("startRememberLastTab", event.target.checked)} />
+            <span><strong>记录上次 Tab</strong><small>开启后，当前浏览器下次打开 Start 时自动回到上次使用的导航分组。</small></span>
+          </label>
+          <label className="settings-check">
+            <input type="checkbox" checked={settings.startWheelSwitchTabs} onChange={(event) => update("startWheelSwitchTabs", event.target.checked)} />
+            <span><strong>滚轮切换 Tab</strong><small>滚动到底后继续明显向下滚动，会切换到下一个导航分组并回到顶部。</small></span>
+          </label>
+          <label className="settings-check">
             <input type="checkbox" checked={settings.startPublic} onChange={(event) => update("startPublic", event.target.checked)} />
             <span>
               <strong>允许未登录访问起始页</strong>

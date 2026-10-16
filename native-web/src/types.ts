@@ -36,6 +36,8 @@ export type SiteSettings = {
   startCardOpacity: number;
   startCardRadius: number;
   startBackgroundDim: number;
+  startRememberLastTab: boolean;
+  startWheelSwitchTabs: boolean;
   socialLinks: SocialLink[];
   homeEntries: HomeEntry[];
   projects: ProjectEntry[];

@@ -36,6 +36,8 @@ export type SiteSettings = {
   startCardOpacity: number;
   startCardRadius: number;
   startBackgroundDim: number;
+  startRememberLastTab: boolean;
+  startWheelSwitchTabs: boolean;
   socialLinks: SocialLink[];
   homeEntries: HomeEntry[];
   projects: ProjectEntry[];
@@ -74,6 +76,8 @@ const defaults: SiteSettings = {
   startCardOpacity: 64,
   startCardRadius: 22,
   startBackgroundDim: 62,
+  startRememberLastTab: false,
+  startWheelSwitchTabs: false,
   socialLinks: [],
   homeEntries: [
     { id: "blog", name: "Blog", description: "文章与笔记", url: "/blog", newTab: false },
@@ -227,6 +231,8 @@ export function getSiteSettings(): SiteSettings {
     startCardOpacity: typeof stored.startCardOpacity === "number" ? clamp(stored.startCardOpacity, 30, 95) : defaults.startCardOpacity,
     startCardRadius: typeof stored.startCardRadius === "number" ? clamp(stored.startCardRadius, 12, 32) : defaults.startCardRadius,
     startBackgroundDim: typeof stored.startBackgroundDim === "number" ? clamp(stored.startBackgroundDim, 0, 90) : defaults.startBackgroundDim,
+    startRememberLastTab: stored.startRememberLastTab === true,
+    startWheelSwitchTabs: stored.startWheelSwitchTabs === true,
     socialLinks: normalizeSocialLinks(stored.socialLinks, legacySocialLinks),
     homeEntries: normalizeHomeEntries(stored.homeEntries, defaults.homeEntries),
     projects: normalizeProjects(stored.projects, defaults.projects),
@@ -281,6 +287,8 @@ export function updateSiteSettings(input: Partial<SiteSettings>) {
     startCardOpacity: typeof input.startCardOpacity === "number" ? clamp(input.startCardOpacity, 30, 95) : current.startCardOpacity,
     startCardRadius: typeof input.startCardRadius === "number" ? clamp(input.startCardRadius, 12, 32) : current.startCardRadius,
     startBackgroundDim: typeof input.startBackgroundDim === "number" ? clamp(input.startBackgroundDim, 0, 90) : current.startBackgroundDim,
+    startRememberLastTab: input.startRememberLastTab ?? current.startRememberLastTab,
+    startWheelSwitchTabs: input.startWheelSwitchTabs ?? current.startWheelSwitchTabs,
     socialLinks: input.socialLinks === undefined ? current.socialLinks : normalizeSocialLinks(input.socialLinks, current.socialLinks),
     homeEntries: input.homeEntries === undefined ? current.homeEntries : normalizeHomeEntries(input.homeEntries, current.homeEntries),
     projects: input.projects === undefined ? current.projects : normalizeProjects(input.projects, current.projects),

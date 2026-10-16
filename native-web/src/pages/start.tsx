@@ -134,6 +134,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const wheelIntentRef = useRef({ delta: 0, lastAt: 0 });
+  const wheelCooldownUntilRef = useRef(0);
 
   // The Start page owns search shortcuts while mounted.
   // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
@@ -196,14 +198,23 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       .then((payload) => {
         const nextGroups = payload.groups ?? [];
         setGroups(nextGroups);
-        setActiveGroup((current) => current && nextGroups.some((item) => item.id === current) ? current : nextGroups[0]?.id ?? null);
+        setActiveGroup((current) => {
+          if (current && nextGroups.some((item) => item.id === current)) return current;
+          if (settings.startRememberLastTab) {
+            try {
+              const stored = Number(window.localStorage.getItem("knowme:start:last-group"));
+              if (Number.isInteger(stored) && nextGroups.some((item) => item.id === stored)) return stored;
+            } catch { /* Private mode remains usable. */ }
+          }
+          return nextGroups[0]?.id ?? null;
+        });
         setLoaded(true);
       })
       .catch((reason) => {
         setError(reason instanceof Error ? reason.message : "navigation_failed");
         setLoaded(true);
       });
-  }, [settings.startPublic, user]);
+  }, [settings.startPublic, settings.startRememberLastTab, user]);
 
   const flat = useMemo(() => flattenItems(groups), [groups]);
   const matches = useMemo(() => {
@@ -297,6 +308,62 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   }, [folder, folderSelectedIndex, query, contextMenu]);
 
   const group = groups.find((item) => item.id === activeGroup) ?? groups[0];
+
+  function selectGroup(groupID: number, scrollTop = false) {
+    setActiveGroup(groupID);
+    setQuery("");
+    setFolder(null);
+    setFolderHistory([]);
+    setFolderSelectedIndex(0);
+    setContextMenu(null);
+    setEngineMenuOpen(false);
+    setSearchFocused(false);
+    if (scrollTop) window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  useEffect(() => {
+    if (!settings.startRememberLastTab) {
+      try { window.localStorage.removeItem("knowme:start:last-group"); } catch { /* Private mode remains usable. */ }
+      return;
+    }
+    if (activeGroup == null) return;
+    try { window.localStorage.setItem("knowme:start:last-group", String(activeGroup)); } catch { /* Private mode remains usable. */ }
+  }, [activeGroup, settings.startRememberLastTab]);
+
+  useEffect(() => {
+    if (!settings.startWheelSwitchTabs || groups.length < 2) return;
+    const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0 }; };
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY <= 0 || query.trim() || folder || contextMenu || engineMenuOpen) {
+        resetIntent();
+        return;
+      }
+      const root = document.documentElement;
+      const atBottom = window.scrollY + window.innerHeight >= root.scrollHeight - 2;
+      if (!atBottom) {
+        resetIntent();
+        return;
+      }
+
+      const now = performance.now();
+      const intent = wheelIntentRef.current;
+      if (now - intent.lastAt > 450) intent.delta = 0;
+      intent.lastAt = now;
+      const normalizedDelta = event.deltaMode === 1
+        ? event.deltaY * 16
+        : event.deltaMode === 2 ? event.deltaY * window.innerHeight : event.deltaY;
+      intent.delta += normalizedDelta;
+      if (intent.delta < 180 || now < wheelCooldownUntilRef.current) return;
+
+      resetIntent();
+      wheelCooldownUntilRef.current = now + 700;
+      const currentIndex = groups.findIndex((item) => item.id === activeGroup);
+      const next = groups[(currentIndex >= 0 ? currentIndex + 1 : 0) % groups.length];
+      if (next && next.id !== activeGroup) selectGroup(next.id, true);
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
@@ -491,7 +558,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <a className="km-start-logo" href="/">K</a>
         <nav>
           {groups.map((item) => (
-            <button key={item.id} className={item.id === group?.id ? "is-active" : ""} onClick={() => { setActiveGroup(item.id); setQuery(""); setFolder(null); setFolderHistory([]); }} title={item.name}>
+            <button key={item.id} className={item.id === group?.id ? "is-active" : ""} onClick={() => selectGroup(item.id)} title={item.name}>
               <span aria-hidden="true">{groupMark(item)}</span><small>{item.name}</small>
             </button>
           ))}

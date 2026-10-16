@@ -40,6 +40,8 @@ export async function PATCH(request: NextRequest) {
     if (typeof body.startCardOpacity === "number") input.startCardOpacity = body.startCardOpacity;
     if (typeof body.startCardRadius === "number") input.startCardRadius = body.startCardRadius;
     if (typeof body.startBackgroundDim === "number") input.startBackgroundDim = body.startBackgroundDim;
+    if (body.startRememberLastTab !== undefined) input.startRememberLastTab = body.startRememberLastTab === true;
+    if (body.startWheelSwitchTabs !== undefined) input.startWheelSwitchTabs = body.startWheelSwitchTabs === true;
     if (Array.isArray(body.socialLinks)) input.socialLinks = body.socialLinks as SiteSettings["socialLinks"];
     if (Array.isArray(body.homeEntries)) input.homeEntries = body.homeEntries as SiteSettings["homeEntries"];
     if (Array.isArray(body.projects)) input.projects = body.projects as SiteSettings["projects"];
