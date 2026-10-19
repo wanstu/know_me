@@ -2564,39 +2564,47 @@ select:focus-visible {
 .km-start-rail nav button small { font-size: 13px; font-weight: 600; }
 .km-start-admin { text-align: left; padding: 12px 15px; font-size: 12px; }
 .km-start-main { width: min(1280px, calc(100% - 72px)); padding: 40px 0 90px; }
-.km-start-main.km-start-tab-motion {
-  will-change: transform, opacity;
-  pointer-events: none;
+.km-start-rail { view-transition-name: km-start-rail; }
+html.km-start-view-transition::view-transition-old(root),
+html.km-start-view-transition::view-transition-new(root) {
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
 }
-.km-start-main.km-start-tab-motion.is-exit {
-  opacity: .24;
-  transition: transform 150ms cubic-bezier(.4, 0, .6, 1), opacity 125ms ease;
+html.km-start-view-transition.is-click::view-transition-old(root),
+html.km-start-view-transition.is-click::view-transition-new(root) {
+  animation-duration: 260ms;
 }
-.km-start-main.km-start-tab-motion.is-exit.is-next.is-wheel { transform: translate3d(0, -32px, 0); }
-.km-start-main.km-start-tab-motion.is-exit.is-previous.is-wheel { transform: translate3d(0, 32px, 0); }
-.km-start-main.km-start-tab-motion.is-exit.is-next.is-click { transform: translate3d(0, -12px, 0); }
-.km-start-main.km-start-tab-motion.is-exit.is-previous.is-click { transform: translate3d(0, 12px, 0); }
-.km-start-main.km-start-tab-motion.is-enter-ready {
-  opacity: .18;
-  transition: none;
+html.km-start-view-transition.is-next::view-transition-old(root) { animation-name: km-start-page-out-up; }
+html.km-start-view-transition.is-next::view-transition-new(root) { animation-name: km-start-page-in-up; }
+html.km-start-view-transition.is-previous::view-transition-old(root) { animation-name: km-start-page-out-down; }
+html.km-start-view-transition.is-previous::view-transition-new(root) { animation-name: km-start-page-in-down; }
+html.km-start-view-transition::view-transition-old(km-start-rail),
+html.km-start-view-transition::view-transition-new(km-start-rail) {
+  animation: none;
+  mix-blend-mode: normal;
 }
-.km-start-main.km-start-tab-motion.is-enter-ready.is-next.is-wheel { transform: translate3d(0, 32px, 0); }
-.km-start-main.km-start-tab-motion.is-enter-ready.is-previous.is-wheel { transform: translate3d(0, -32px, 0); }
-.km-start-main.km-start-tab-motion.is-enter-ready.is-next.is-click { transform: translate3d(0, 12px, 0); }
-.km-start-main.km-start-tab-motion.is-enter-ready.is-previous.is-click { transform: translate3d(0, -12px, 0); }
-.km-start-main.km-start-tab-motion.is-enter {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-  transition: transform 260ms cubic-bezier(.16, 1, .3, 1), opacity 190ms ease-out;
+@keyframes km-start-page-out-up {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -100vh, 0); }
 }
-.km-start-main.km-start-tab-motion.is-enter.is-click {
-  transition-duration: 210ms, 165ms;
+@keyframes km-start-page-in-up {
+  from { transform: translate3d(0, 100vh, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes km-start-page-out-down {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 100vh, 0); }
+}
+@keyframes km-start-page-in-down {
+  from { transform: translate3d(0, -100vh, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .km-start-main.km-start-tab-motion {
-    opacity: 1 !important;
-    transform: none !important;
-    transition: none !important;
+  html.km-start-view-transition::view-transition-old(root),
+  html.km-start-view-transition::view-transition-new(root) {
+    animation: none !important;
   }
 }
 .km-start-top { align-items: center; margin-bottom: 24px; }
