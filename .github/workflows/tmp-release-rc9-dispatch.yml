@@ -1,0 +1,33 @@
+name: Temporary dispatch v0.1.17-rc.9
+
+on:
+  push:
+    branches:
+      - "tmp/release-v0.1.17-rc.8-dispatch"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create rc.9 tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa v0.1.17-rc.9 9cbf756fc5dfcdb0bf342722c7244ce41527c20d -m "Know Me v0.1.17-rc.9: seamless Start wheel switching"
+          git push --force origin refs/tags/v0.1.17-rc.9
+      - name: Dispatch Release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref v0.1.17-rc.9
