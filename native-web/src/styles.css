@@ -2571,14 +2571,8 @@ select:focus-visible {
 }
 .km-start-main { width: min(1280px, calc(100% - 72px)); padding: 40px 0 90px; }
 .km-start-stack.is-continuous .km-start-main {
-  padding-top: 34px;
-  padding-bottom: 34px;
-}
-.km-start-stack.is-continuous .km-start-stack-item + .km-start-stack-item {
-  border-top: 1px solid color-mix(in srgb, var(--dk-border, #dde2ea) 58%, transparent);
-}
-.km-start-stack.is-continuous .km-start-stack-item + .km-start-stack-item .km-start-main {
-  padding-top: 34px;
+  padding-top: 20px;
+  padding-bottom: 20px;
 }
 
 .km-start-top { align-items: center; margin-bottom: 24px; }
