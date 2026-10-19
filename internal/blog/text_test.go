@@ -32,3 +32,33 @@ func TestMarkdownToTextStripsFrontMatterHTMLAndMath(t *testing.T) {
 		t.Fatal("manual excerpt was misdetected")
 	}
 }
+
+func TestMarkdownToTextDropsEmptyFormulaListMarkers(t *testing.T) {
+	t.Parallel()
+
+	source := `# 导数
+## 常见求导公式
+
+1. *<mark>$c$</mark>
+2. *<mark>$x^a$</mark>
+4. *<mark>$\\ln x$</mark>
+   > $\\ln C$ **ln常数的导数为0**
+9.  \*$\\tan x$
+
+> 特殊的公式
+
+17. \*<mark>$Cu$</mark>
+   > 常数可以提取出来
+
+## 运算法则
+- <mark>和差的导数等于导数的和差</mark>
+  $u \\pm v$
+`
+
+	got := MarkdownToText(source)
+	want := "导数 常见求导公式 ln常数的导数为0 特殊的公式 常数可以提取出来 运算法则 和差的导数等于导数的和差"
+	if got != want {
+		t.Fatalf("MarkdownToText() = %q, want %q", got, want)
+	}
+}
+

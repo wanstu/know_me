@@ -185,6 +185,8 @@ export function markdownToText(source: string) {
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/<[^>]+>/g, "")
     .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[ \t]*(?:[-+*]|\d+[.)])[ \t]+/gm, "")
+    .replace(/\\[*_~>|-]/g, " ")
     .replace(/[*_~>|-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
