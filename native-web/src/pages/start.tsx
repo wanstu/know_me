@@ -330,7 +330,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     resetGroupTransientState();
 
     if (settings.startWheelSwitchTabs) {
-      setActiveGroup(groupID);
       const target = groupSectionRefs.current.get(groupID);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -358,7 +357,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     const target = groupSectionRefs.current.get(activeGroup);
     if (!target) return;
     continuousInitialScrollDoneRef.current = true;
-    window.requestAnimationFrame(() => target.scrollIntoView({ behavior: "auto", block: "start" }));
+    target.scrollIntoView({ behavior: "auto", block: "start" });
   }, [activeGroup, groups, loaded, settings.startWheelSwitchTabs]);
 
   useEffect(() => {
