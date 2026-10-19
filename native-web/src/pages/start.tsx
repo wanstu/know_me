@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
-import { flushSync } from "react-dom";
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
@@ -11,8 +10,6 @@ import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 type FlatItem = { item: NavItem; group: string; folder?: string };
 type FolderSize = "small" | "medium" | "large";
 type StartContextMenu = { item: NavItem | null; x: number; y: number };
-type StartTabDirection = "next" | "previous";
-type StartViewTransition = { finished: Promise<void> };
 
 function folderSize(item: NavItem): FolderSize {
   return item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large"
@@ -137,9 +134,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const wheelIntentRef = useRef({ delta: 0, lastAt: 0, direction: 0 });
-  const wheelCooldownUntilRef = useRef(0);
-  const switchingGroupRef = useRef(false);
+  const groupSectionRefs = useRef(new Map<number, HTMLElement>());
+  const scrollSyncRAFRef = useRef<number | null>(null);
+  const continuousInitialScrollDoneRef = useRef(false);
 
   // The Start page owns search shortcuts while mounted.
   // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
@@ -323,70 +320,23 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     setSearchFocused(false);
   }
 
-  function scrollToGroupEdge(direction: StartTabDirection, source: "wheel" | "click") {
-    const landingAtBottom = source === "wheel" && direction === "previous";
-    const top = landingAtBottom
-      ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-      : 0;
-    window.scrollTo({ top, behavior: "auto" });
-  }
-
-  function applyGroupSwitch(groupID: number, direction: StartTabDirection, source: "wheel" | "click") {
-    flushSync(() => {
-      setActiveGroup(groupID);
-      resetGroupTransientState();
-    });
-    scrollToGroupEdge(direction, source);
-  }
-
-  function switchGroup(groupID: number, direction: StartTabDirection, source: "wheel" | "click") {
-    if (groupID === activeGroup || switchingGroupRef.current) return;
-
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const transitionDocument = document as Document & {
-      startViewTransition?: (update: () => void | Promise<void>) => StartViewTransition;
-    };
-    if (reducedMotion || !transitionDocument.startViewTransition) {
-      applyGroupSwitch(groupID, direction, source);
-      return;
-    }
-
-    switchingGroupRef.current = true;
-    const root = document.documentElement;
-    root.classList.add("km-start-view-transition", "is-" + direction, "is-" + source);
-
-    let transition: StartViewTransition;
-    try {
-      transition = transitionDocument.startViewTransition(() => {
-        applyGroupSwitch(groupID, direction, source);
-      });
-    } catch {
-      root.classList.remove("km-start-view-transition", "is-" + direction, "is-" + source);
-      switchingGroupRef.current = false;
-      applyGroupSwitch(groupID, direction, source);
-      return;
-    }
-
-    void transition.finished
-      .catch(() => {})
-      .finally(() => {
-        root.classList.remove("km-start-view-transition", "is-" + direction, "is-" + source);
-        switchingGroupRef.current = false;
-      });
+  function setGroupSectionRef(groupID: number, node: HTMLElement | null) {
+    if (node) groupSectionRefs.current.set(groupID, node);
+    else groupSectionRefs.current.delete(groupID);
   }
 
   function selectGroup(groupID: number) {
-    if (groupID === activeGroup || groups.length < 2 || switchingGroupRef.current) return;
-    const currentIndex = groups.findIndex((item) => item.id === activeGroup);
-    const targetIndex = groups.findIndex((item) => item.id === groupID);
-    if (targetIndex < 0) return;
-    if (currentIndex < 0) {
-      switchGroup(groupID, "next", "click");
+    if (!groups.some((item) => item.id === groupID)) return;
+    resetGroupTransientState();
+
+    if (settings.startWheelSwitchTabs) {
+      const target = groupSectionRefs.current.get(groupID);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const forward = (targetIndex - currentIndex + groups.length) % groups.length;
-    const backward = (currentIndex - targetIndex + groups.length) % groups.length;
-    switchGroup(groupID, forward <= backward ? "next" : "previous", "click");
+
+    setActiveGroup(groupID);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   useEffect(() => {
@@ -399,49 +349,59 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   }, [activeGroup, settings.startRememberLastTab]);
 
   useEffect(() => {
+    if (!settings.startWheelSwitchTabs) {
+      continuousInitialScrollDoneRef.current = false;
+      return;
+    }
+    if (!loaded || activeGroup == null || continuousInitialScrollDoneRef.current) return;
+    const target = groupSectionRefs.current.get(activeGroup);
+    if (!target) return;
+    continuousInitialScrollDoneRef.current = true;
+    target.scrollIntoView({ behavior: "auto", block: "start" });
+  }, [activeGroup, groups, loaded, settings.startWheelSwitchTabs]);
+
+  useEffect(() => {
     if (!settings.startWheelSwitchTabs || groups.length < 2) return;
-    const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0, direction: 0 }; };
-    const onWheel = (event: WheelEvent) => {
-      const direction = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0;
-      if (!direction || query.trim() || folder || contextMenu || engineMenuOpen || switchingGroupRef.current) {
-        resetIntent();
-        return;
+
+    const syncActiveGroup = () => {
+      scrollSyncRAFRef.current = null;
+      const anchor = Math.max(96, Math.min(window.innerHeight * 0.32, 320));
+      let candidate: number | null = null;
+      let nearest = Number.POSITIVE_INFINITY;
+
+      for (const item of groups) {
+        const node = groupSectionRefs.current.get(item.id);
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.top <= anchor && rect.bottom > anchor) {
+          candidate = item.id;
+          break;
+        }
+        const distance = Math.abs(rect.top - anchor);
+        if (distance < nearest) {
+          nearest = distance;
+          candidate = item.id;
+        }
       }
 
-      const root = document.documentElement;
-      const atTop = window.scrollY <= 2;
-      const atBottom = window.scrollY + window.innerHeight >= root.scrollHeight - 2;
-      if ((direction > 0 && !atBottom) || (direction < 0 && !atTop)) {
-        resetIntent();
-        return;
-      }
+      if (candidate != null && candidate !== activeGroup) setActiveGroup(candidate);
+    };
 
-      const now = performance.now();
-      const intent = wheelIntentRef.current;
-      if (now - intent.lastAt > 450 || intent.direction !== direction) {
-        intent.delta = 0;
-        intent.direction = direction;
-      }
-      intent.lastAt = now;
-      const rawDelta = event.deltaMode === 1
-        ? event.deltaY * 16
-        : event.deltaMode === 2 ? event.deltaY * window.innerHeight : event.deltaY;
-      intent.delta += Math.abs(rawDelta);
-      if (intent.delta < 180 || now < wheelCooldownUntilRef.current) return;
+    const onScroll = () => {
+      if (scrollSyncRAFRef.current != null) return;
+      scrollSyncRAFRef.current = window.requestAnimationFrame(syncActiveGroup);
+    };
 
-      resetIntent();
-      wheelCooldownUntilRef.current = now + 700;
-      const currentIndex = groups.findIndex((item) => item.id === activeGroup);
-      const baseIndex = currentIndex >= 0 ? currentIndex : 0;
-      const targetIndex = (baseIndex + direction + groups.length) % groups.length;
-      const target = groups[targetIndex];
-      if (target && target.id !== activeGroup) {
-        switchGroup(target.id, direction > 0 ? "next" : "previous", "wheel");
+    syncActiveGroup();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollSyncRAFRef.current != null) {
+        window.cancelAnimationFrame(scrollSyncRAFRef.current);
+        scrollSyncRAFRef.current = null;
       }
     };
-    window.addEventListener("wheel", onWheel, { passive: true });
-    return () => window.removeEventListener("wheel", onWheel);
-  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs]);
+  }, [activeGroup, groups, settings.startWheelSwitchTabs]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
@@ -522,16 +482,16 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     }
   }
 
-  async function saveShortcutOrder(ordered: NavItem[]) {
-    if (!user || !group || sortBusy) return;
+  async function saveShortcutOrder(targetGroup: NavGroup, ordered: NavItem[]) {
+    if (!user || sortBusy) return;
     setSortBusy(true);
     setContextError("");
     try {
-      const ids = replaceLinkOrder(group.items ?? [], ordered);
+      const ids = replaceLinkOrder(targetGroup.items ?? [], ordered);
       const result = await requestJSON<{ tree: { groups: NavGroup[] } }>("/api/navigation", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "reorder_items", data: { groupId: group.id, parentId: null, ids } })
+        body: JSON.stringify({ action: "reorder_items", data: { groupId: targetGroup.id, parentId: null, ids } })
       });
       setGroups(result.tree.groups);
     } catch (reason) {
@@ -541,21 +501,21 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     }
   }
 
-  function quickSortShortcuts(mode: ShortcutSortMode) {
+  function quickSortShortcuts(targetGroup: NavGroup, mode: ShortcutSortMode) {
     sortMenuRef.current?.removeAttribute("open");
-    if (!group || !user || sortBusy) return;
-    void saveShortcutOrder(quickSortStandaloneLinks(group.items ?? [], mode));
+    if (!user || sortBusy) return;
+    void saveShortcutOrder(targetGroup, quickSortStandaloneLinks(targetGroup.items ?? [], mode));
   }
 
-  function onShortcutDrop(event: ReactDragEvent<HTMLButtonElement>, target: NavItem) {
+  function onShortcutDrop(event: ReactDragEvent<HTMLButtonElement>, targetGroup: NavGroup, target: NavItem) {
     event.preventDefault();
     const sourceID = dragLinkID;
     setDragLinkID(null);
     setDragTargetID(null);
     lastDragAt.current = Date.now();
-    if (!group || !user || sortBusy || sourceID == null || sourceID === target.id) return;
-    const ordered = moveStandaloneLink(group.items ?? [], sourceID, target.id);
-    if (ordered) void saveShortcutOrder(ordered);
+    if (!user || sortBusy || sourceID == null || sourceID === target.id) return;
+    const ordered = moveStandaloneLink(targetGroup.items ?? [], sourceID, target.id);
+    if (ordered) void saveShortcutOrder(targetGroup, ordered);
   }
 
   function copyLink(item: NavItem) {
@@ -603,57 +563,19 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
-  const startBackground = safeHref(settings.startBackgroundUrl);
-  const style = {
-    "--km-start-card-alpha": String(Math.max(30, Math.min(95, settings.startCardOpacity)) / 100),
-    "--km-start-radius": Math.max(12, Math.min(32, settings.startCardRadius)) + "px",
-    "--km-start-dim": String(Math.max(0, Math.min(90, settings.startBackgroundDim)) / 100),
-    ...(settings.startBackgroundUrl && startBackground !== "#" ? { backgroundImage: `linear-gradient(rgba(5,10,20,var(--km-start-dim)), rgba(5,10,20,var(--km-start-dim))), url("${startBackground.replace(/"/g, "%22")}")` } : {})
-  } as CSSProperties;
-
-  if (!loaded) {
-    return <PageFrame settings={settings} user={user}><LoadingCard text="正在加载起始页…" /></PageFrame>;
-  }
-  if (error) {
-    return <PageFrame settings={settings} user={user}><ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /></PageFrame>;
-  }
-  if (!user && !settings.startPublic) {
+  function renderGroupPage(displayGroup: NavGroup) {
+    const groupIsActive = displayGroup.id === group?.id;
     return (
-      <PageFrame settings={settings} user={user}>
-        <section className="km-panel km-empty km-start-private">
-          <span className="km-eyebrow">PRIVATE START</span>
-          <h1>这个起始页是私有的</h1>
-          <p>登录后可以访问完整导航和浏览器本地链接。</p>
-          <a className="dk-button dk-button-primary" href="/login?next=%2Fstart">登录后继续</a>
-        </section>
-      </PageFrame>
-    );
-  }
-
-  return (
-    <div className={"km-start-page is-" + settings.startDensity} style={style} onContextMenu={(event) => showContextMenu(event)}>
-      <aside className="km-start-rail">
-        <a className="km-start-logo" href="/">K</a>
-        <nav>
-          {groups.map((item) => (
-            <button key={item.id} className={item.id === group?.id ? "is-active" : ""} onClick={() => selectGroup(item.id)} title={item.name}>
-              <span aria-hidden="true">{groupMark(item)}</span><small>{item.name}</small>
-            </button>
-          ))}
-        </nav>
-        <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
-      </aside>
-
-      <main className="km-start-main">
+      <main className="km-start-main km-start-group-page" ref={(node) => setGroupSectionRef(displayGroup.id, node)} data-start-group={displayGroup.id}>
         <header className="km-start-top">
           <div>
             <span className="km-eyebrow">我的工作台</span>
-            <h1>{group?.name || "我的导航"}</h1>
+            <h1>{displayGroup.name || "我的导航"}</h1>
           </div>
           <a href="/">返回个人主页 <span aria-hidden="true">↗</span></a>
         </header>
 
-        <div className="km-start-search-shell" ref={searchShellRef}>
+        <div className="km-start-search-shell" ref={groupIsActive ? searchShellRef : undefined}>
           <form className="km-start-search" onSubmit={submitSearch} role="search">
             <div className="km-start-engine-anchor">
               <button
@@ -661,14 +583,14 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 className="km-start-engine-trigger"
                 aria-label={"选择搜索引擎，当前：" + selectedEngine.name}
                 aria-haspopup="menu"
-                aria-expanded={engineMenuOpen}
+                aria-expanded={groupIsActive && engineMenuOpen}
                 onClick={() => { setEngineMenuOpen((value) => !value); setSearchFocused(false); }}
               >
                 <EngineBadge engine={selectedEngine} />
                 <span className="km-start-engine-name">{selectedEngine.name}</span>
                 <span className="km-start-engine-chevron" aria-hidden="true">⌄</span>
               </button>
-              {engineMenuOpen ? (
+              {groupIsActive && engineMenuOpen ? (
                 <div className="km-start-engine-menu" role="menu" aria-label="搜索引擎">
                   <p>选择搜索引擎</p>
                   {engines.map((engine) => (
@@ -693,12 +615,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
             </div>
             <span className="km-start-search-divider" aria-hidden="true" />
             <input
-              ref={searchRef}
+              ref={groupIsActive ? searchRef : undefined}
               value={query}
               aria-label="搜索网站和导航"
               aria-autocomplete="list"
               aria-controls="km-start-search-suggestions"
-              aria-expanded={searchFocused && Boolean(query.trim()) && !engineMenuOpen}
+              aria-expanded={groupIsActive && searchFocused && Boolean(query.trim()) && !engineMenuOpen}
               onFocus={() => { setSearchFocused(true); setEngineMenuOpen(false); }}
               onChange={(event) => { setQuery(event.target.value); setSearchFocused(true); }}
               onKeyDown={(event) => {
@@ -733,7 +655,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               <button type="submit" className="km-start-search-submit" title={"使用 " + selectedEngine.name + " 搜索"} aria-label={"使用 " + selectedEngine.name + " 搜索"} onClick={(event) => { if (event.detail > 0) { event.preventDefault(); searchWeb(); } }}>搜索 <span aria-hidden="true">↗</span></button>
             </div>
           </form>
-          {searchFocused && query.trim() && !engineMenuOpen ? (
+          {groupIsActive && searchFocused && query.trim() && !engineMenuOpen ? (
             <div id="km-start-search-suggestions" className="km-start-search-suggestions" role="listbox" aria-label="搜索建议">
               <button type="button" className="km-start-suggestion-web" onClick={searchWeb}>
                 <EngineBadge engine={selectedEngine} />
@@ -768,7 +690,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
         {contextError ? <div className="dk-message is-danger km-start-context-error" role="alert">{contextError}</div> : null}
         <div className="km-start-sections">
-            {(group?.items ?? []).filter((item) => item.type === "folder").map((item) => {
+            {(displayGroup.items ?? []).filter((item) => item.type === "folder").map((item) => {
               const children = item.children ?? [];
               const size = folderSize(item);
               const capacity = previewCapacity(size, viewportWidth);
@@ -822,28 +744,28 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 </section>
               );
             })}
-            {(group?.items ?? []).some((item) => item.type !== "folder") ? (
-              <section className="km-start-quick-section" aria-labelledby="km-start-quick-title">
+            {(displayGroup.items ?? []).some((item) => item.type !== "folder") ? (
+              <section className="km-start-quick-section" aria-labelledby={"km-start-quick-title-" + displayGroup.id}>
                 <header className="km-start-section-head">
                   <div>
-                    <h2 id="km-start-quick-title">快捷访问</h2>
+                    <h2 id={"km-start-quick-title-" + displayGroup.id}>快捷访问</h2>
                     <p>{user ? "拖动卡片调整顺序 · 右键修改大小" : "点击图标直接打开网站 · 登录后可调整布局"}</p>
                   </div>
                   <div className="km-start-quick-head-actions">
-                    <span>{(group?.items ?? []).filter((item) => item.type !== "folder").length} 个快捷入口</span>
-                    <details className="km-start-sort-menu" ref={sortMenuRef}>
+                    <span>{(displayGroup.items ?? []).filter((item) => item.type !== "folder").length} 个快捷入口</span>
+                    <details className="km-start-sort-menu" ref={groupIsActive ? sortMenuRef : undefined}>
                       <summary aria-label="快捷排序" aria-haspopup="menu">快捷排序 <span aria-hidden="true">⌄</span></summary>
                       <div className="km-start-sort-options" role="group" aria-label="快捷排序方式">
-                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("name")}>按名称排序 A–Z</button>
-                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("visits")}>按访问次数排序</button>
-                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts("reverse")}>反转当前顺序</button>
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts(displayGroup, "name")}>按名称排序 A–Z</button>
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts(displayGroup, "visits")}>按访问次数排序</button>
+                        <button type="button" disabled={!user || sortBusy} onClick={() => quickSortShortcuts(displayGroup, "reverse")}>反转当前顺序</button>
                         {!user ? <a href="/login?next=%2Fstart">登录后可保存排序</a> : <small>排序结果自动保存</small>}
                       </div>
                     </details>
                   </div>
                 </header>
                 <div className="km-start-grid km-start-quick-grid">
-                  {(group?.items ?? []).filter((item) => item.type !== "folder").map((item) => (
+                  {(displayGroup.items ?? []).filter((item) => item.type !== "folder").map((item) => (
                     <button
                       key={item.id}
                       className={"km-start-card size-" + item.size
@@ -865,7 +787,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                         setDragTargetID(item.id);
                       }}
                       onDragLeave={() => setDragTargetID((current) => current === item.id ? null : current)}
-                      onDrop={(event) => onShortcutDrop(event, item)}
+                      onDrop={(event) => onShortcutDrop(event, displayGroup, item)}
                       onDragEnd={() => { setDragLinkID(null); setDragTargetID(null); lastDragAt.current = Date.now(); }}
                       onClick={() => { if (Date.now() - lastDragAt.current > 250) void openItem(item); }}
                       onContextMenu={(event) => showContextMenu(event, item)}
@@ -886,8 +808,59 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
           </div>
 
-        {!(group?.items ?? []).length ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
+        {!(displayGroup.items ?? []).length ? <section className="km-panel km-empty">这个分组还没有导航项。</section> : null}
       </main>
+    );
+  }
+
+  const startBackground = safeHref(settings.startBackgroundUrl);
+  const style = {
+    "--km-start-card-alpha": String(Math.max(30, Math.min(95, settings.startCardOpacity)) / 100),
+    "--km-start-radius": Math.max(12, Math.min(32, settings.startCardRadius)) + "px",
+    "--km-start-dim": String(Math.max(0, Math.min(90, settings.startBackgroundDim)) / 100),
+    ...(settings.startBackgroundUrl && startBackground !== "#" ? { backgroundImage: `linear-gradient(rgba(5,10,20,var(--km-start-dim)), rgba(5,10,20,var(--km-start-dim))), url("${startBackground.replace(/"/g, "%22")}")` } : {})
+  } as CSSProperties;
+
+  if (!loaded) {
+    return <PageFrame settings={settings} user={user}><LoadingCard text="正在加载起始页…" /></PageFrame>;
+  }
+  if (error) {
+    return <PageFrame settings={settings} user={user}><ErrorCard message={error} retryLabel="重新加载" onRetry={() => window.location.reload()} /></PageFrame>;
+  }
+  if (!user && !settings.startPublic) {
+    return (
+      <PageFrame settings={settings} user={user}>
+        <section className="km-panel km-empty km-start-private">
+          <span className="km-eyebrow">PRIVATE START</span>
+          <h1>这个起始页是私有的</h1>
+          <p>登录后可以访问完整导航和浏览器本地链接。</p>
+          <a className="dk-button dk-button-primary" href="/login?next=%2Fstart">登录后继续</a>
+        </section>
+      </PageFrame>
+    );
+  }
+
+  return (
+    <div className={"km-start-page is-" + settings.startDensity} style={style} onContextMenu={(event) => showContextMenu(event)}>
+      <aside className="km-start-rail">
+        <a className="km-start-logo" href="/">K</a>
+        <nav>
+          {groups.map((item) => (
+            <button key={item.id} className={item.id === group?.id ? "is-active" : ""} onClick={() => selectGroup(item.id)} title={item.name}>
+              <span aria-hidden="true">{groupMark(item)}</span><small>{item.name}</small>
+            </button>
+          ))}
+        </nav>
+        <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
+      </aside>
+
+      <div className={"km-start-stack" + (settings.startWheelSwitchTabs ? " is-continuous" : " is-single")}>
+        {(settings.startWheelSwitchTabs ? groups : (group ? [group] : [])).map((item) => (
+          <div className="km-start-stack-item" key={item.id}>
+            {renderGroupPage(item)}
+          </div>
+        ))}
+      </div>
 
       {folder ? (
         <div className="km-modal-backdrop" onMouseDown={() => { setFolder(null); setFolderHistory([]); setFolderSelectedIndex(0); }}>
