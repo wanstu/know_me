@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
+import { flushSync } from "react-dom";
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
@@ -11,7 +12,7 @@ type FlatItem = { item: NavItem; group: string; folder?: string };
 type FolderSize = "small" | "medium" | "large";
 type StartContextMenu = { item: NavItem | null; x: number; y: number };
 type StartTabDirection = "next" | "previous";
-type StartTabMotion = { direction: StartTabDirection; phase: "exit" | "enter-ready" | "enter"; source: "wheel" | "click" };
+type StartViewTransition = { finished: Promise<void> };
 
 function folderSize(item: NavItem): FolderSize {
   return item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large"
@@ -138,10 +139,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const searchRef = useRef<HTMLInputElement | null>(null);
   const wheelIntentRef = useRef({ delta: 0, lastAt: 0, direction: 0 });
   const wheelCooldownUntilRef = useRef(0);
-  const [tabMotion, setTabMotion] = useState<StartTabMotion | null>(null);
-  const tabMotionExitTimerRef = useRef<number | null>(null);
-  const tabMotionFinishTimerRef = useRef<number | null>(null);
-  const tabMotionRAFRef = useRef<number | null>(null);
+  const switchingGroupRef = useRef(false);
 
   // The Start page owns search shortcuts while mounted.
   // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
@@ -333,36 +331,52 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     window.scrollTo({ top, behavior: "auto" });
   }
 
+  function applyGroupSwitch(groupID: number, direction: StartTabDirection, source: "wheel" | "click") {
+    flushSync(() => {
+      setActiveGroup(groupID);
+      resetGroupTransientState();
+    });
+    scrollToGroupEdge(direction, source);
+  }
+
   function switchGroup(groupID: number, direction: StartTabDirection, source: "wheel" | "click") {
-    if (groupID === activeGroup || tabMotion) return;
-    resetGroupTransientState();
+    if (groupID === activeGroup || switchingGroupRef.current) return;
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    if (reducedMotion) {
-      setActiveGroup(groupID);
-      window.requestAnimationFrame(() => scrollToGroupEdge(direction, source));
+    const transitionDocument = document as Document & {
+      startViewTransition?: (update: () => void | Promise<void>) => StartViewTransition;
+    };
+    if (reducedMotion || !transitionDocument.startViewTransition) {
+      applyGroupSwitch(groupID, direction, source);
       return;
     }
 
-    const exitDuration = source === "wheel" ? 150 : 105;
-    const enterDuration = source === "wheel" ? 260 : 210;
-    setTabMotion({ direction, phase: "exit", source });
+    switchingGroupRef.current = true;
+    const root = document.documentElement;
+    root.classList.add("km-start-view-transition", "is-" + direction, "is-" + source);
 
-    tabMotionExitTimerRef.current = window.setTimeout(() => {
-      setActiveGroup(groupID);
-      setTabMotion({ direction, phase: "enter-ready", source });
-      tabMotionRAFRef.current = window.requestAnimationFrame(() => {
-        scrollToGroupEdge(direction, source);
-        tabMotionRAFRef.current = window.requestAnimationFrame(() => {
-          setTabMotion({ direction, phase: "enter", source });
-          tabMotionFinishTimerRef.current = window.setTimeout(() => setTabMotion(null), enterDuration);
-        });
+    let transition: StartViewTransition;
+    try {
+      transition = transitionDocument.startViewTransition(() => {
+        applyGroupSwitch(groupID, direction, source);
       });
-    }, exitDuration);
+    } catch {
+      root.classList.remove("km-start-view-transition", "is-" + direction, "is-" + source);
+      switchingGroupRef.current = false;
+      applyGroupSwitch(groupID, direction, source);
+      return;
+    }
+
+    void transition.finished
+      .catch(() => {})
+      .finally(() => {
+        root.classList.remove("km-start-view-transition", "is-" + direction, "is-" + source);
+        switchingGroupRef.current = false;
+      });
   }
 
   function selectGroup(groupID: number) {
-    if (groupID === activeGroup || groups.length < 2) return;
+    if (groupID === activeGroup || groups.length < 2 || switchingGroupRef.current) return;
     const currentIndex = groups.findIndex((item) => item.id === activeGroup);
     const targetIndex = groups.findIndex((item) => item.id === groupID);
     if (targetIndex < 0) return;
@@ -374,12 +388,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     const backward = (currentIndex - targetIndex + groups.length) % groups.length;
     switchGroup(groupID, forward <= backward ? "next" : "previous", "click");
   }
-
-  useEffect(() => () => {
-    if (tabMotionExitTimerRef.current != null) window.clearTimeout(tabMotionExitTimerRef.current);
-    if (tabMotionFinishTimerRef.current != null) window.clearTimeout(tabMotionFinishTimerRef.current);
-    if (tabMotionRAFRef.current != null) window.cancelAnimationFrame(tabMotionRAFRef.current);
-  }, []);
 
   useEffect(() => {
     if (!settings.startRememberLastTab) {
@@ -395,7 +403,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0, direction: 0 }; };
     const onWheel = (event: WheelEvent) => {
       const direction = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0;
-      if (!direction || query.trim() || folder || contextMenu || engineMenuOpen || tabMotion) {
+      if (!direction || query.trim() || folder || contextMenu || engineMenuOpen || switchingGroupRef.current) {
         resetIntent();
         return;
       }
@@ -433,7 +441,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     };
     window.addEventListener("wheel", onWheel, { passive: true });
     return () => window.removeEventListener("wheel", onWheel);
-  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs, tabMotion]);
+  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
@@ -596,9 +604,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
   const startBackground = safeHref(settings.startBackgroundUrl);
-  const tabMotionClass = tabMotion
-    ? ` km-start-tab-motion is-${tabMotion.phase} is-${tabMotion.direction} is-${tabMotion.source}`
-    : "";
   const style = {
     "--km-start-card-alpha": String(Math.max(30, Math.min(95, settings.startCardOpacity)) / 100),
     "--km-start-radius": Math.max(12, Math.min(32, settings.startCardRadius)) + "px",
@@ -639,7 +644,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
       </aside>
 
-      <main className={"km-start-main" + tabMotionClass}>
+      <main className="km-start-main">
         <header className="km-start-top">
           <div>
             <span className="km-eyebrow">我的工作台</span>
