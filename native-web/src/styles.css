@@ -2565,9 +2565,26 @@ select:focus-visible {
 .km-start-admin { text-align: left; padding: 12px 15px; font-size: 12px; }
 .km-start-stack { min-width: 0; }
 .km-start-stack.is-single .km-start-stack-item { min-width: 0; }
+.km-start-stack.is-continuous {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-height: 0;
+  height: auto;
+  gap: 0;
+}
 .km-start-stack.is-continuous .km-start-stack-item {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
   min-width: 0;
   scroll-margin-top: 0;
+}
+.km-start-stack.is-continuous .km-start-group-page {
+  min-height: 0;
+  height: auto;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 .km-start-main { width: min(1280px, calc(100% - 72px)); padding: 40px 0 90px; }
 .km-start-stack.is-continuous .km-start-main {
