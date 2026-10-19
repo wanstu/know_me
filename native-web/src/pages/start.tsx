@@ -10,6 +10,8 @@ import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
 type FlatItem = { item: NavItem; group: string; folder?: string };
 type FolderSize = "small" | "medium" | "large";
 type StartContextMenu = { item: NavItem | null; x: number; y: number };
+type StartTabDirection = "next" | "previous";
+type StartTabMotion = { direction: StartTabDirection; phase: "exit" | "enter-ready" | "enter"; source: "wheel" | "click" };
 
 function folderSize(item: NavItem): FolderSize {
   return item.extra?.startFolderSize === "small" || item.extra?.startFolderSize === "large"
@@ -134,8 +136,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const wheelIntentRef = useRef({ delta: 0, lastAt: 0 });
+  const wheelIntentRef = useRef({ delta: 0, lastAt: 0, direction: 0 });
   const wheelCooldownUntilRef = useRef(0);
+  const [tabMotion, setTabMotion] = useState<StartTabMotion | null>(null);
+  const tabMotionExitTimerRef = useRef<number | null>(null);
+  const tabMotionFinishTimerRef = useRef<number | null>(null);
+  const tabMotionRAFRef = useRef<number | null>(null);
 
   // The Start page owns search shortcuts while mounted.
   // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
@@ -309,8 +315,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   const group = groups.find((item) => item.id === activeGroup) ?? groups[0];
 
-  function selectGroup(groupID: number, scrollTop = false) {
-    setActiveGroup(groupID);
+  function resetGroupTransientState() {
     setQuery("");
     setFolder(null);
     setFolderHistory([]);
@@ -318,8 +323,63 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     setContextMenu(null);
     setEngineMenuOpen(false);
     setSearchFocused(false);
-    if (scrollTop) window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  function scrollToGroupEdge(direction: StartTabDirection, source: "wheel" | "click") {
+    const landingAtBottom = source === "wheel" && direction === "previous";
+    const top = landingAtBottom
+      ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      : 0;
+    window.scrollTo({ top, behavior: "auto" });
+  }
+
+  function switchGroup(groupID: number, direction: StartTabDirection, source: "wheel" | "click") {
+    if (groupID === activeGroup || tabMotion) return;
+    resetGroupTransientState();
+
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reducedMotion) {
+      setActiveGroup(groupID);
+      window.requestAnimationFrame(() => scrollToGroupEdge(direction, source));
+      return;
+    }
+
+    const exitDuration = source === "wheel" ? 150 : 105;
+    const enterDuration = source === "wheel" ? 260 : 210;
+    setTabMotion({ direction, phase: "exit", source });
+
+    tabMotionExitTimerRef.current = window.setTimeout(() => {
+      setActiveGroup(groupID);
+      setTabMotion({ direction, phase: "enter-ready", source });
+      tabMotionRAFRef.current = window.requestAnimationFrame(() => {
+        scrollToGroupEdge(direction, source);
+        tabMotionRAFRef.current = window.requestAnimationFrame(() => {
+          setTabMotion({ direction, phase: "enter", source });
+          tabMotionFinishTimerRef.current = window.setTimeout(() => setTabMotion(null), enterDuration);
+        });
+      });
+    }, exitDuration);
+  }
+
+  function selectGroup(groupID: number) {
+    if (groupID === activeGroup || groups.length < 2) return;
+    const currentIndex = groups.findIndex((item) => item.id === activeGroup);
+    const targetIndex = groups.findIndex((item) => item.id === groupID);
+    if (targetIndex < 0) return;
+    if (currentIndex < 0) {
+      switchGroup(groupID, "next", "click");
+      return;
+    }
+    const forward = (targetIndex - currentIndex + groups.length) % groups.length;
+    const backward = (currentIndex - targetIndex + groups.length) % groups.length;
+    switchGroup(groupID, forward <= backward ? "next" : "previous", "click");
+  }
+
+  useEffect(() => () => {
+    if (tabMotionExitTimerRef.current != null) window.clearTimeout(tabMotionExitTimerRef.current);
+    if (tabMotionFinishTimerRef.current != null) window.clearTimeout(tabMotionFinishTimerRef.current);
+    if (tabMotionRAFRef.current != null) window.cancelAnimationFrame(tabMotionRAFRef.current);
+  }, []);
 
   useEffect(() => {
     if (!settings.startRememberLastTab) {
@@ -332,38 +392,48 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   useEffect(() => {
     if (!settings.startWheelSwitchTabs || groups.length < 2) return;
-    const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0 }; };
+    const resetIntent = () => { wheelIntentRef.current = { delta: 0, lastAt: 0, direction: 0 }; };
     const onWheel = (event: WheelEvent) => {
-      if (event.deltaY <= 0 || query.trim() || folder || contextMenu || engineMenuOpen) {
+      const direction = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0;
+      if (!direction || query.trim() || folder || contextMenu || engineMenuOpen || tabMotion) {
         resetIntent();
         return;
       }
+
       const root = document.documentElement;
+      const atTop = window.scrollY <= 2;
       const atBottom = window.scrollY + window.innerHeight >= root.scrollHeight - 2;
-      if (!atBottom) {
+      if ((direction > 0 && !atBottom) || (direction < 0 && !atTop)) {
         resetIntent();
         return;
       }
 
       const now = performance.now();
       const intent = wheelIntentRef.current;
-      if (now - intent.lastAt > 450) intent.delta = 0;
+      if (now - intent.lastAt > 450 || intent.direction !== direction) {
+        intent.delta = 0;
+        intent.direction = direction;
+      }
       intent.lastAt = now;
-      const normalizedDelta = event.deltaMode === 1
+      const rawDelta = event.deltaMode === 1
         ? event.deltaY * 16
         : event.deltaMode === 2 ? event.deltaY * window.innerHeight : event.deltaY;
-      intent.delta += normalizedDelta;
+      intent.delta += Math.abs(rawDelta);
       if (intent.delta < 180 || now < wheelCooldownUntilRef.current) return;
 
       resetIntent();
       wheelCooldownUntilRef.current = now + 700;
       const currentIndex = groups.findIndex((item) => item.id === activeGroup);
-      const next = groups[(currentIndex >= 0 ? currentIndex + 1 : 0) % groups.length];
-      if (next && next.id !== activeGroup) selectGroup(next.id, true);
+      const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+      const targetIndex = (baseIndex + direction + groups.length) % groups.length;
+      const target = groups[targetIndex];
+      if (target && target.id !== activeGroup) {
+        switchGroup(target.id, direction > 0 ? "next" : "previous", "wheel");
+      }
     };
     window.addEventListener("wheel", onWheel, { passive: true });
     return () => window.removeEventListener("wheel", onWheel);
-  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs]);
+  }, [activeGroup, contextMenu, engineMenuOpen, folder, groups, query, settings.startWheelSwitchTabs, tabMotion]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
@@ -526,6 +596,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
   const startBackground = safeHref(settings.startBackgroundUrl);
+  const tabMotionClass = tabMotion
+    ? ` km-start-tab-motion is-${tabMotion.phase} is-${tabMotion.direction} is-${tabMotion.source}`
+    : "";
   const style = {
     "--km-start-card-alpha": String(Math.max(30, Math.min(95, settings.startCardOpacity)) / 100),
     "--km-start-radius": Math.max(12, Math.min(32, settings.startCardRadius)) + "px",
@@ -566,7 +639,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
       </aside>
 
-      <main className="km-start-main">
+      <main className={"km-start-main" + tabMotionClass}>
         <header className="km-start-top">
           <div>
             <span className="km-eyebrow">我的工作台</span>
