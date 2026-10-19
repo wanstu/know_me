@@ -1,0 +1,35 @@
+name: Temporary Start wheel transition build
+
+on:
+  push:
+    branches:
+      - "feat/start-wheel-transition-build"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run native:web:build
+      - run: go test ./...
+      - run: go vet ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-web-static-start-wheel-transition
+          path: internal/webassets/static
+          if-no-files-found: error
+          retention-days: 1
