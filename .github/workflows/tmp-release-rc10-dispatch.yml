@@ -1,0 +1,33 @@
+name: Temporary dispatch v0.1.17-rc.10
+
+on:
+  push:
+    branches:
+      - "tmp/release-v0.1.17-rc.10-dispatch"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create rc.10 tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa v0.1.17-rc.10 357c46beea4eac4f89a2d7b5cf7db4371cd91df7 -m "Know Me v0.1.17-rc.10: true continuous Start scrolling"
+          git push --force origin refs/tags/v0.1.17-rc.10
+      - name: Dispatch Release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref v0.1.17-rc.10
