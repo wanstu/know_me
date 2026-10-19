@@ -1,0 +1,25 @@
+name: Temporary release v0.1.17-rc.8
+
+on:
+  push:
+    branches:
+      - "tmp/release-v0.1.17-rc.8"
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create and push tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a v0.1.17-rc.8 dbdb3bbce6ab63a2d8cee30c3309aa41fb268ba8 -m "Know Me v0.1.17-rc.8: smooth Start wheel transitions"
+          git push origin refs/tags/v0.1.17-rc.8
