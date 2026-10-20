@@ -49,10 +49,11 @@ jobs:
           npm run route:ui-smoke
           npm run settings:layout-smoke
 
-      - name: Navigation smoke tests
+      - name: Navigation and Start smoke tests
         run: |
           npm run itab:smoke
           npm run navigation:smoke
+          npm run start:loop-test
 
       - name: Blog smoke tests
         run: |

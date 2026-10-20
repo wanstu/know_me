@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
+import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
 import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
@@ -62,6 +63,7 @@ function groupMark(group: NavGroup) {
   const key = group.icon?.toLowerCase() ?? "";
   return marks[key] ?? (group.icon && group.icon.length <= 2 ? group.icon : group.name.slice(0, 1));
 }
+
 
 function iconTextColor(value: string) {
   const hex = value.trim().replace(/^#/, "");
@@ -135,8 +137,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const [error, setError] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
   const groupSectionRefs = useRef(new Map<number, HTMLElement>());
+  const loopSectionRefs = useRef(new Map<number, HTMLElement>());
   const scrollSyncRAFRef = useRef<number | null>(null);
-  const continuousInitialScrollDoneRef = useRef(false);
+  const [loopCenterVirtual, setLoopCenterVirtual] = useState<number | null>(null);
+  const loopPreserveRef = useRef<{ virtual: number; top: number } | null>(null);
+  const loopInitialPositionedRef = useRef(false);
+  const loopGroupsKeyRef = useRef("");
 
   // The Start page owns search shortcuts while mounted.
   // The search input's own keydown handler cycles engines on Tab/Shift+Tab.
@@ -320,14 +326,77 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     setSearchFocused(false);
   }
 
+  const loopEnabled = settings.startWheelSwitchTabs && groups.length > 1;
+  const loopGroupsKey = groups.map((item) => item.id).join(",");
+  const loopCenter = loopCenterVirtual ?? Math.max(0, groups.findIndex((item) => item.id === group?.id));
+  const loopEntries = useMemo(() => {
+    if (!loopEnabled) return [];
+    return startLoopSlots(loopCenter, groups.length).map(({ virtual, index }) => ({
+      virtual,
+      item: groups[index]
+    }));
+  }, [groups, loopCenter, loopEnabled]);
+
   function setGroupSectionRef(groupID: number, node: HTMLElement | null) {
     if (node) groupSectionRefs.current.set(groupID, node);
     else groupSectionRefs.current.delete(groupID);
   }
 
+  function setLoopSectionRef(virtual: number, node: HTMLElement | null) {
+    if (node) loopSectionRefs.current.set(virtual, node);
+    else loopSectionRefs.current.delete(virtual);
+  }
+
+  function scrollByImmediately(delta: number) {
+    if (Math.abs(delta) < .5) return;
+    const root = document.documentElement;
+    const body = document.body;
+    const rootBehavior = root.style.scrollBehavior;
+    const bodyBehavior = body.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    body.style.scrollBehavior = "auto";
+    window.scrollBy(0, delta);
+    root.style.scrollBehavior = rootBehavior;
+    body.style.scrollBehavior = bodyBehavior;
+  }
+
+  function scrollNodeImmediately(node: HTMLElement) {
+    const root = document.documentElement;
+    const body = document.body;
+    const rootBehavior = root.style.scrollBehavior;
+    const bodyBehavior = body.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    body.style.scrollBehavior = "auto";
+    node.scrollIntoView({ behavior: "auto", block: "start" });
+    root.style.scrollBehavior = rootBehavior;
+    body.style.scrollBehavior = bodyBehavior;
+  }
+
   function selectGroup(groupID: number) {
-    if (!groups.some((item) => item.id === groupID)) return;
+    const targetIndex = groups.findIndex((item) => item.id === groupID);
+    if (targetIndex < 0) return;
     resetGroupTransientState();
+    setActiveGroup(groupID);
+
+    if (loopEnabled) {
+      const rendered = [...loopSectionRefs.current.entries()]
+        .filter(([virtual]) => groups[wrapLoopIndex(virtual, groups.length)]?.id === groupID)
+        .sort(([a], [b]) => Math.abs(a - loopCenter) - Math.abs(b - loopCenter));
+      const visibleTarget = rendered[0]?.[1];
+      if (visibleTarget) {
+        visibleTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      const currentIndex = wrapIndex(loopCenter, groups.length);
+      let delta = targetIndex - currentIndex;
+      if (delta > groups.length / 2) delta -= groups.length;
+      if (delta < -groups.length / 2) delta += groups.length;
+      loopPreserveRef.current = null;
+      loopInitialPositionedRef.current = false;
+      setLoopCenterVirtual(loopCenter + delta);
+      return;
+    }
 
     if (settings.startWheelSwitchTabs) {
       const target = groupSectionRefs.current.get(groupID);
@@ -335,7 +404,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       return;
     }
 
-    setActiveGroup(groupID);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -349,42 +417,83 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   }, [activeGroup, settings.startRememberLastTab]);
 
   useEffect(() => {
-    if (!settings.startWheelSwitchTabs) {
-      continuousInitialScrollDoneRef.current = false;
+    if (!loopEnabled) {
+      loopGroupsKeyRef.current = "";
+      loopInitialPositionedRef.current = false;
+      loopPreserveRef.current = null;
+      loopSectionRefs.current.clear();
+      if (loopCenterVirtual != null) setLoopCenterVirtual(null);
       return;
     }
-    if (!loaded || activeGroup == null || continuousInitialScrollDoneRef.current) return;
-    const target = groupSectionRefs.current.get(activeGroup);
+    if (!loaded || activeGroup == null) return;
+
+    const groupsChanged = loopGroupsKeyRef.current !== loopGroupsKey;
+    if (groupsChanged) loopGroupsKeyRef.current = loopGroupsKey;
+    if (loopCenterVirtual == null || groupsChanged) {
+      const activeIndex = groups.findIndex((item) => item.id === activeGroup);
+      loopPreserveRef.current = null;
+      loopInitialPositionedRef.current = false;
+      setLoopCenterVirtual(activeIndex >= 0 ? activeIndex : 0);
+    }
+  }, [activeGroup, groups, loaded, loopCenterVirtual, loopEnabled, loopGroupsKey]);
+
+  useLayoutEffect(() => {
+    if (!loopEnabled) return;
+
+    const preserve = loopPreserveRef.current;
+    if (preserve) {
+      const node = loopSectionRefs.current.get(preserve.virtual);
+      if (node) {
+        const nextTop = node.getBoundingClientRect().top;
+        scrollByImmediately(nextTop - preserve.top);
+      }
+      loopPreserveRef.current = null;
+      return;
+    }
+
+    if (loopInitialPositionedRef.current) return;
+    const target = loopSectionRefs.current.get(loopCenter);
     if (!target) return;
-    continuousInitialScrollDoneRef.current = true;
-    target.scrollIntoView({ behavior: "auto", block: "start" });
-  }, [activeGroup, groups, loaded, settings.startWheelSwitchTabs]);
+    loopInitialPositionedRef.current = true;
+    scrollNodeImmediately(target);
+  }, [loopCenter, loopEnabled, loopEntries]);
 
   useEffect(() => {
-    if (!settings.startWheelSwitchTabs || groups.length < 2) return;
+    if (!loopEnabled) return;
 
     const syncActiveGroup = () => {
       scrollSyncRAFRef.current = null;
       const anchor = Math.max(96, Math.min(window.innerHeight * 0.32, 320));
-      let candidate: number | null = null;
+      let candidateVirtual: number | null = null;
+      let candidateNode: HTMLElement | null = null;
       let nearest = Number.POSITIVE_INFINITY;
 
-      for (const item of groups) {
-        const node = groupSectionRefs.current.get(item.id);
-        if (!node) continue;
+      for (const [virtual, node] of loopSectionRefs.current.entries()) {
         const rect = node.getBoundingClientRect();
         if (rect.top <= anchor && rect.bottom > anchor) {
-          candidate = item.id;
+          candidateVirtual = virtual;
+          candidateNode = node;
           break;
         }
         const distance = Math.abs(rect.top - anchor);
         if (distance < nearest) {
           nearest = distance;
-          candidate = item.id;
+          candidateVirtual = virtual;
+          candidateNode = node;
         }
       }
 
-      if (candidate != null && candidate !== activeGroup) setActiveGroup(candidate);
+      if (candidateVirtual == null || !candidateNode) return;
+      const candidateGroup = groups[wrapIndex(candidateVirtual, groups.length)];
+      if (candidateGroup && candidateGroup.id !== activeGroup) setActiveGroup(candidateGroup.id);
+
+      if (candidateVirtual !== loopCenter && Math.abs(candidateVirtual - loopCenter) === 1) {
+        loopPreserveRef.current = {
+          virtual: candidateVirtual,
+          top: candidateNode.getBoundingClientRect().top
+        };
+        setLoopCenterVirtual(candidateVirtual);
+      }
     };
 
     const onScroll = () => {
@@ -401,7 +510,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         scrollSyncRAFRef.current = null;
       }
     };
-  }, [activeGroup, groups, settings.startWheelSwitchTabs]);
+  }, [activeGroup, groups, loopCenter, loopEnabled]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
@@ -563,10 +672,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
-  function renderGroupPage(displayGroup: NavGroup) {
-    const groupIsActive = displayGroup.id === group?.id;
+  function renderGroupPage(displayGroup: NavGroup, options: { active?: boolean; trackSection?: boolean; instanceKey?: string } = {}) {
+    const groupIsActive = options.active ?? displayGroup.id === group?.id;
+    const instanceSuffix = options.instanceKey ? "-" + options.instanceKey : "";
+    const quickTitleID = "km-start-quick-title-" + displayGroup.id + instanceSuffix;
     return (
-      <main className="km-start-main km-start-group-page" ref={(node) => setGroupSectionRef(displayGroup.id, node)} data-start-group={displayGroup.id}>
+      <main className="km-start-main km-start-group-page" ref={options.trackSection === false ? undefined : (node) => setGroupSectionRef(displayGroup.id, node)} data-start-group={displayGroup.id}>
         <header className="km-start-top">
           <div>
             <span className="km-eyebrow">我的工作台</span>
@@ -745,10 +856,10 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               );
             })}
             {(displayGroup.items ?? []).some((item) => item.type !== "folder") ? (
-              <section className="km-start-quick-section" aria-labelledby={"km-start-quick-title-" + displayGroup.id}>
+              <section className="km-start-quick-section" aria-labelledby={quickTitleID}>
                 <header className="km-start-section-head">
                   <div>
-                    <h2 id={"km-start-quick-title-" + displayGroup.id}>快捷访问</h2>
+                    <h2 id={quickTitleID}>快捷访问</h2>
                     <p>{user ? "拖动卡片调整顺序 · 右键修改大小" : "点击图标直接打开网站 · 登录后可调整布局"}</p>
                   </div>
                   <div className="km-start-quick-head-actions">
@@ -854,8 +965,21 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
       </aside>
 
-      <div className={"km-start-stack" + (settings.startWheelSwitchTabs ? " is-continuous" : " is-single")}>
-        {(settings.startWheelSwitchTabs ? groups : (group ? [group] : [])).map((item) => (
+      <div className={"km-start-stack" + (settings.startWheelSwitchTabs ? " is-continuous" : " is-single") + (loopEnabled ? " is-loop" : "")}>
+        {loopEnabled ? loopEntries.map(({ virtual, item }) => (
+          <div
+            className="km-start-stack-item"
+            key={virtual}
+            ref={(node) => setLoopSectionRef(virtual, node)}
+            data-start-virtual={virtual}
+          >
+            {renderGroupPage(item, {
+              active: virtual === loopCenter,
+              trackSection: false,
+              instanceKey: String(virtual)
+            })}
+          </div>
+        )) : (settings.startWheelSwitchTabs ? groups : (group ? [group] : [])).map((item) => (
           <div className="km-start-stack-item" key={item.id}>
             {renderGroupPage(item)}
           </div>
