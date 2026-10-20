@@ -388,13 +388,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         return;
       }
 
-      const currentIndex = wrapIndex(loopCenter, groups.length);
-      let delta = targetIndex - currentIndex;
-      if (delta > groups.length / 2) delta -= groups.length;
-      if (delta < -groups.length / 2) delta += groups.length;
       loopPreserveRef.current = null;
       loopInitialPositionedRef.current = false;
-      setLoopCenterVirtual(loopCenter + delta);
+      setLoopCenterVirtual(nearestLoopVirtual(loopCenter, targetIndex, groups.length));
       return;
     }
 
@@ -484,7 +480,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       }
 
       if (candidateVirtual == null || !candidateNode) return;
-      const candidateGroup = groups[wrapIndex(candidateVirtual, groups.length)];
+      const candidateGroup = groups[wrapLoopIndex(candidateVirtual, groups.length)];
       if (candidateGroup && candidateGroup.id !== activeGroup) setActiveGroup(candidateGroup.id);
 
       if (candidateVirtual !== loopCenter && Math.abs(candidateVirtual - loopCenter) === 1) {
