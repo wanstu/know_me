@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -278,5 +279,103 @@ func TestMCPGranularTokenToolVisibility(t *testing.T) {
 		if navigationTools[name] {
 			t.Fatalf("navigation.write token unexpectedly exposed %s", name)
 		}
+	}
+}
+
+func TestMCPGranularReadPayloadIsolation(t *testing.T) {
+	s, err := New(runtimeconfig.Config{Listen: "127.0.0.1:0", DataDir: filepath.Join(t.TempDir(), "data"), UploadsDir: filepath.Join(t.TempDir(), "uploads")}, BuildInfo{Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	server := httptest.NewServer(s.http.Handler)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	connect := func(permissions ...string) *mcp.ClientSession {
+		t.Helper()
+		_, secret, err := s.mcpTokens.CreateWithPermissions(ctx, "Payload test", permissions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := mcp.NewClient(&mcp.Implementation{Name: "payload-permission-test", Version: "1"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint: server.URL + "/mcp",
+			HTTPClient: &http.Client{Transport: bearerTransport{secret}},
+			DisableStandaloneSSE: true,
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
+		return session
+	}
+	asMap := func(result *mcp.CallToolResult) map[string]any {
+		t.Helper()
+		if result == nil || result.IsError {
+			t.Fatalf("unexpected tool result: %#v", result)
+		}
+		body, err := json.Marshal(result.StructuredContent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]any
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	startOnly := connect("start.read")
+	startResult, err := startOnly.CallTool(ctx, &mcp.CallToolParams{Name: "start_get", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	startPayload := asMap(startResult)
+	if _, ok := startPayload["navigation"]; ok {
+		t.Fatal("start.read leaked navigation without navigation.read")
+	}
+
+	startWithNavigation := connect("start.read", "navigation.read")
+	startNavigationResult, err := startWithNavigation.CallTool(ctx, &mcp.CallToolParams{Name: "start_get", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := asMap(startNavigationResult)["navigation"]; !ok {
+		t.Fatal("start_get omitted navigation when navigation.read was granted")
+	}
+
+	siteOnly := connect("site.read")
+	siteResult, err := siteOnly.CallTool(ctx, &mcp.CallToolParams{Name: "site_get", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sitePayload := asMap(siteResult)
+	settingsPayload, ok := sitePayload["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("site_get settings payload=%#v", sitePayload["settings"])
+	}
+	for _, key := range []string{"startBackgroundUrl", "defaultSearchEngine", "searchEngines", "startDensity", "startCardOpacity", "startCardRadius", "startBackgroundDim", "startRememberLastTab", "startWheelSwitchTabs"} {
+		if _, ok := settingsPayload[key]; ok {
+			t.Fatalf("site.read leaked Start setting %s", key)
+		}
+	}
+	if _, ok := settingsPayload["profileName"]; !ok {
+		t.Fatal("site.read omitted ordinary site settings")
+	}
+
+	siteWithStart := connect("site.read", "start.read")
+	siteStartResult, err := siteWithStart.CallTool(ctx, &mcp.CallToolParams{Name: "site_get", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	siteStartPayload := asMap(siteStartResult)
+	siteStartSettings, ok := siteStartPayload["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("site+start settings payload=%#v", siteStartPayload["settings"])
+	}
+	if _, ok := siteStartSettings["defaultSearchEngine"]; !ok {
+		t.Fatal("site_get omitted Start settings when start.read was granted")
 	}
 }
