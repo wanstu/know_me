@@ -3555,7 +3555,6 @@ select:focus-visible {
 .km-mcp-audit-table tr:last-child td { border-bottom: 0; }
 .km-mcp-audit-scroll + button { margin-top: 12px; }
 
-
 /* MCP granular token permissions */
 .km-mcp-permission-editor {
   margin-top: 14px;
