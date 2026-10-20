@@ -2576,6 +2576,18 @@ select:focus-visible {
 .km-start-stack.is-continuous.is-loop {
   overflow-anchor: none;
 }
+
+html.km-start-loop-scrollbar-hidden,
+body.km-start-loop-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html.km-start-loop-scrollbar-hidden::-webkit-scrollbar,
+body.km-start-loop-scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
 .km-start-stack.is-continuous .km-start-stack-item {
   flex: 0 0 auto;
   min-height: 0;
