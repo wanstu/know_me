@@ -204,3 +204,79 @@ func TestMCPAuthenticationAndBusinessTools(t *testing.T) {
 		t.Fatalf("foreign origin status=%d", res.StatusCode)
 	}
 }
+
+func TestMCPGranularTokenToolVisibility(t *testing.T) {
+	s, err := New(runtimeconfig.Config{Listen: "127.0.0.1:0", DataDir: filepath.Join(t.TempDir(), "data"), UploadsDir: filepath.Join(t.TempDir(), "uploads")}, BuildInfo{Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	server := httptest.NewServer(s.http.Handler)
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, postsSecret, err := s.mcpTokens.CreateWithPermissions(ctx, "Posts reader", []string{"posts.read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, navigationSecret, err := s.mcpTokens.CreateWithPermissions(ctx, "Navigation editor", []string{"navigation.write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connect := func(secret string) *mcp.ClientSession {
+		t.Helper()
+		client := mcp.NewClient(&mcp.Implementation{Name: "permission-test", Version: "1"}, nil)
+		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint: server.URL + "/mcp",
+			HTTPClient: &http.Client{Transport: bearerTransport{secret}},
+			DisableStandaloneSSE: true,
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
+		return session
+	}
+	toolNames := func(session *mcp.ClientSession) map[string]bool {
+		t.Helper()
+		list, err := session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]bool{}
+		for _, tool := range list.Tools {
+			out[tool.Name] = true
+		}
+		return out
+	}
+
+	posts := connect(postsSecret)
+	postTools := toolNames(posts)
+	for _, name := range []string{"posts_list", "posts_get", "posts_revisions_list", "posts_revision_get", "posts_import_preview"} {
+		if !postTools[name] {
+			t.Fatalf("posts.read token missing %s: %+v", name, postTools)
+		}
+	}
+	for _, name := range []string{"posts_create", "taxonomy_list", "site_get", "start_get", "navigation_tree", "media_upload"} {
+		if postTools[name] {
+			t.Fatalf("posts.read token unexpectedly exposed %s", name)
+		}
+	}
+	if _, err := posts.CallTool(ctx, &mcp.CallToolParams{Name: "site_get", Arguments: map[string]any{}}); err == nil {
+		t.Fatal("hidden site_get tool was callable")
+	}
+
+	navigation := connect(navigationSecret)
+	navigationTools := toolNames(navigation)
+	for _, name := range []string{"navigation_tree", "navigation_create_group", "navigation_create_item", "navigation_update_item", "navigation_delete_group"} {
+		if !navigationTools[name] {
+			t.Fatalf("navigation.write token missing %s: %+v", name, navigationTools)
+		}
+	}
+	for _, name := range []string{"posts_list", "site_get", "start_get", "taxonomy_list", "media_upload"} {
+		if navigationTools[name] {
+			t.Fatalf("navigation.write token unexpectedly exposed %s", name)
+		}
+	}
+}

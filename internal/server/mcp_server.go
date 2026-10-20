@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,19 +18,46 @@ import (
 
 type mcpContextKey struct{}
 
+var mcpToolPermissions sync.Map
+
+func mcpRequiredPermission(name string, readOnly bool) string {
+	domain := "mcp"
+	switch {
+	case strings.HasPrefix(name, "posts_"):
+		domain = "posts"
+	case strings.HasPrefix(name, "taxonomy_"):
+		domain = "taxonomy"
+	case strings.HasPrefix(name, "site_"):
+		domain = "site"
+	case strings.HasPrefix(name, "start_"):
+		domain = "start"
+	case strings.HasPrefix(name, "navigation_"):
+		domain = "navigation"
+	case strings.HasPrefix(name, "media_"):
+		domain = "media"
+	}
+	access := "write"
+	if readOnly {
+		access = "read"
+	}
+	return domain + "." + access
+}
+
 func addMCPTool[In any](server *mcp.Server, name, description string, readOnly bool, handle func(context.Context, In) (any, error)) {
+	permission := mcpRequiredPermission(name, readOnly)
+	mcpToolPermissions.Store(name, permission)
 	mcp.AddTool(server, &mcp.Tool{Name: name, Description: description, Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly}},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			token, ok := ctx.Value(mcpContextKey{}).(mcpaccess.Token)
 			if !ok {
 				return nil, nil, errors.New("unauthorized")
 			}
-			if !readOnly && token.Scope != "write" {
-				mcpRecordTool(ctx, token, name, in, nil, nil, readOnly, true)
-				return nil, nil, errors.New("write_permission_required")
+			if !token.HasPermission(permission) {
+				mcpRecordTool(ctx, token, name, in, nil, nil, permission, true)
+				return nil, nil, errors.New("permission_denied")
 			}
 			out, err := handle(ctx, in)
-			mcpRecordTool(ctx, token, name, in, out, err, readOnly, false)
+			mcpRecordTool(ctx, token, name, in, out, err, permission, false)
 			if err != nil {
 				slog.Warn("know-me mcp tool failed", "tool", name, "token", token.ID, "error", err)
 			} else {
@@ -40,24 +68,36 @@ func addMCPTool[In any](server *mcp.Server, name, description string, readOnly b
 }
 
 func (s *Server) registerMCP(mux *http.ServeMux) {
-	makeServer := func(write bool) *mcp.Server {
+	var serverCache sync.Map
+	makeServer := func(token mcpaccess.Token) *mcp.Server {
 		m := mcp.NewServer(&mcp.Implementation{Name: "know-me", Title: "Know Me", Version: s.build.Version}, nil)
 		registerMCPRead(m, s)
-		if write {
-			registerMCPWrite(m, s)
-		}
+		registerMCPWrite(m, s)
+		mcpToolPermissions.Range(func(key, value any) bool {
+			name, okName := key.(string)
+			permission, okPermission := value.(string)
+			if okName && okPermission && !token.HasPermission(permission) {
+				m.RemoveTools(name)
+			}
+			return true
+		})
 		return m
 	}
-	readServer, writeServer := makeServer(false), makeServer(true)
+	serverForToken := func(token mcpaccess.Token) *mcp.Server {
+		key := token.PermissionKey()
+		if cached, ok := serverCache.Load(key); ok {
+			return cached.(*mcp.Server)
+		}
+		built := makeServer(token)
+		actual, _ := serverCache.LoadOrStore(key, built)
+		return actual.(*mcp.Server)
+	}
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
-		t, ok := r.Context().Value(mcpContextKey{}).(mcpaccess.Token)
+		token, ok := r.Context().Value(mcpContextKey{}).(mcpaccess.Token)
 		if !ok {
 			return nil
 		}
-		if t.Scope == "write" {
-			return writeServer
-		}
-		return readServer
+		return serverForToken(token)
 	}, &mcp.StreamableHTTPOptions{
 		Stateless:    true,
 		JSONResponse: true,

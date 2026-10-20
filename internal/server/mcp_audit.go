@@ -36,7 +36,7 @@ func (s *Server) recordMCPEvent(event mcpaccess.AuditEvent) {
 		slog.Warn("Know Me MCP audit write failed", "error", err)
 	}
 }
-func mcpRecordTool(ctx context.Context, token mcpaccess.Token, name string, input any, output any, callErr error, readOnly bool, denied bool) {
+func mcpRecordTool(ctx context.Context, token mcpaccess.Token, name string, input any, output any, callErr error, requiredPermission string, denied bool) {
 	audit, ok := ctx.Value(mcpAuditContextKey{}).(mcpAuditContext)
 	if !ok || audit.store == nil {
 		return
@@ -50,28 +50,9 @@ func mcpRecordTool(ctx context.Context, token mcpaccess.Token, name string, inpu
 		reason = mcpAuditErrorReason(callErr)
 	}
 	kind, target, action := mcpToolTarget(name, input, output)
-	permission := "read"
-	if !readOnly {
-		permission = "write"
-	}
-	domain := "mcp"
-	switch {
-	case strings.HasPrefix(name, "posts_"):
-		domain = "posts"
-	case strings.HasPrefix(name, "taxonomy_"):
-		domain = "taxonomy"
-	case strings.HasPrefix(name, "site_"):
-		domain = "site"
-	case strings.HasPrefix(name, "start_"):
-		domain = "start"
-	case strings.HasPrefix(name, "navigation_"):
-		domain = "navigation"
-	case strings.HasPrefix(name, "media_"):
-		domain = "media"
-	}
 	event := mcpaccess.AuditEvent{
 		EventType: "tool", TokenID: token.ID, TokenName: token.Name, TokenScope: token.Scope,
-		ToolName: name, RequiredPermission: domain + "." + permission, TargetType: kind, TargetID: target,
+		ToolName: name, RequiredPermission: requiredPermission, TargetType: kind, TargetID: target,
 		Action: action, Result: result, Reason: reason, RemotePeer: audit.remotePeer,
 	}
 	if err := audit.store.Record(event); err != nil {

@@ -53,7 +53,7 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 删除和合并相关工具需要显式 `confirm=true`。写入均调用原有 Go 业务 Store，保留文章修订记录、字段校验和分类标签关联。不开放任意 SQL 或文件系统执行。
 
-**权限与隔离：** MCP API 只接受 Bearer 令牌；只读和读写令牌在 `tools/list` 看到不同的工具列表。服务器仅保存令牌 SHA-256 哈希，并保存创建时间、最近使用时间、名称及权限。Token 管理 REST API 使用现有管理员网页登录认证及同源保护。带跨域 Origin 的 MCP 请求被拒绝。
+**权限与隔离：** MCP API 只接受 Bearer 令牌；每个 Token 在 `tools/list` 只看到自己被授权的工具。服务器仅保存令牌 SHA-256 哈希，并保存创建时间、最近使用时间、名称及权限。管理员可以在不更换 Token 密钥的情况下收紧或调整权限。升级前创建的旧 Token 保持原“只读/读写”行为，直到管理员主动调整权限后才迁移为细粒度模式。Token 管理 REST API 使用现有管理员网页登录认证及同源保护。带跨域 Origin 的 MCP 请求被拒绝。
 
 ## 文章管理流程和日期约定
 
@@ -123,7 +123,7 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 日志写入单独的 SQLite 审计表 `mcp_audit_events`，定期清理约 30 天前和最新 20,000 条之外的记录。审计写入失败不会改变正常 MCP 的认证或工具调用结果。仅存最小化元数据，不保存 Bearer 密钥、请求正文、工具完整参数、文章正文或工具响应；`remotePeer` 是 TCP 对端地址，在 OpenResty 等反向代理后通常为代理地址，不等于真实用户 IP。
 
-未来的 Token 细粒度权限可基于日志中的 `requiredPermission` 字段扩展成 `posts.read`、`posts.write`、`site.write` 等范围。**目前并未改变现有只读/读写的授权规则**；不要将审计字段误认为已经实现了按工具授权。
+Token 细粒度权限已经直接使用日志中的 `requiredPermission` 字段（如 `posts.read`、`posts.write`、`site.write`）进行授权。权限不足时工具不会出现在该 Token 的工具列表中；工具执行入口仍保留二次权限校验。
 
 诊断 `know_me` 的认证故障时，先在 MCP Center 刷新服务，再在 Know Me 日志筛选「拒绝」：无记录提示请求可能根本没有到达这个 Know Me 实例；`authorization_missing` 说明请求没有 Authorization；`token_invalid_or_revoked` 说明已收到 Bearer，但令牌未通过当前数据库校验。如果显示 `token_accepted`，说明已经通过令牌认证，应继续排查 MCP 握手或代理行为。
 
@@ -132,11 +132,11 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 ## 后续阶段
 
 - 让 AI 客户端实际完成 `wanstu/wanstu.github.io` 的 33 篇文章迁移并验收（当前已逐篇审阅 Front Matter；其中一篇无 Front Matter，使用文件名兜底）；资源 URL 转存、远程图片去重预览后续实现
-- 媒体上传及修改、批量文章操作、更加细粒度的工具权限与后台调用日志
+- 媒体读取与修改能力、更细的单工具/危险操作权限（如需要）、后台调用日志增强
 - Next.js/Docker 部署形态的兼容方案
 
 ## 测试
 
-`go test ./internal/server -run TestMCP -count=1 -v` 会启动真实 MCP HTTP 客户端，验证握手、`tools/list`、创建文章、分类查询、设置修改、导航创建、只读权限、Origin 限制与令牌吊销。`go test ./...` 会同时验证数据库迁移兼容性与所有现有业务测试。
+`go test ./internal/server -run TestMCP -count=1 -v` 会启动真实 MCP HTTP 客户端，验证握手、`tools/list`、创建文章、分类查询、设置修改、导航创建、细粒度工具可见性与权限更新、旧 Token 兼容、Origin 限制与令牌吊销。`go test ./...` 会同时验证数据库迁移兼容性与所有现有业务测试。
 
 本功能不会自动导入任何现有文章，不修改线上站点，也不在首次启动时自动创建 MCP Token。
