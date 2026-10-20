@@ -280,6 +280,11 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 			"defaultSearchEngine": v.DefaultSearchEngine,
 			"backgroundUrl": v.StartBackgroundURL,
 			"density": v.StartDensity,
+			"cardOpacity": v.StartCardOpacity,
+			"cardRadius": v.StartCardRadius,
+			"backgroundDim": v.StartBackgroundDim,
+			"rememberLastTab": v.StartRememberTab,
+			"wheelSwitchTabs": v.StartWheelTabs,
 		}
 		token, _ := ctx.Value(mcpContextKey{}).(mcpaccess.Token)
 		if token.HasPermission(mcpaccess.PermissionNavigationRead) {
