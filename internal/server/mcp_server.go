@@ -248,16 +248,26 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 		v, err := s.settings.GetSite(ctx)
 		return map[string]any{"settings": v}, err
 	})
-	addMCPTool(m, "start_get", "Read Start search engines and navigation tree", true, func(ctx context.Context, _ struct{}) (any, error) {
+	addMCPTool(m, "start_get", "Read Start search engines and layout settings; includes navigation only when navigation.read is also granted", true, func(ctx context.Context, _ struct{}) (any, error) {
 		v, err := s.settings.GetSite(ctx)
 		if err != nil {
 			return nil, err
 		}
-		tree, err := s.navigation.Tree(ctx, true)
-		if err != nil {
-			return nil, err
+		result := map[string]any{
+			"searchEngines": v.SearchEngines,
+			"defaultSearchEngine": v.DefaultSearchEngine,
+			"backgroundUrl": v.StartBackgroundURL,
+			"density": v.StartDensity,
 		}
-		return map[string]any{"searchEngines": v.SearchEngines, "defaultSearchEngine": v.DefaultSearchEngine, "backgroundUrl": v.StartBackgroundURL, "density": v.StartDensity, "navigation": tree}, nil
+		token, _ := ctx.Value(mcpContextKey{}).(mcpaccess.Token)
+		if token.HasPermission(mcpaccess.PermissionNavigationRead) {
+			tree, err := s.navigation.Tree(ctx, true)
+			if err != nil {
+				return nil, err
+			}
+			result["navigation"] = tree
+		}
+		return result, nil
 	})
 	addMCPTool(m, "navigation_tree", "Read all Start folders, groups and links (including private)", true, func(ctx context.Context, _ struct{}) (any, error) {
 		return s.navigation.Tree(ctx, true)
