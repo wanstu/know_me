@@ -336,6 +336,11 @@ func TestMCPGranularReadPayloadIsolation(t *testing.T) {
 	if _, ok := startPayload["navigation"]; ok {
 		t.Fatal("start.read leaked navigation without navigation.read")
 	}
+	for _, key := range []string{"defaultSearchEngine", "searchEngines", "backgroundUrl", "density", "cardOpacity", "cardRadius", "backgroundDim", "rememberLastTab", "wheelSwitchTabs"} {
+		if _, ok := startPayload[key]; !ok {
+			t.Fatalf("start_get omitted Start setting %s", key)
+		}
+	}
 
 	startWithNavigation := connect("start.read", "navigation.read")
 	startNavigationResult, err := startWithNavigation.CallTool(ctx, &mcp.CallToolParams{Name: "start_get", Arguments: map[string]any{}})
