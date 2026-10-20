@@ -327,6 +327,17 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   }
 
   const loopEnabled = settings.startWheelSwitchTabs && groups.length > 1;
+
+  useLayoutEffect(() => {
+    const className = "km-start-loop-scrollbar-hidden";
+    document.documentElement.classList.toggle(className, loopEnabled);
+    document.body.classList.toggle(className, loopEnabled);
+    return () => {
+      document.documentElement.classList.remove(className);
+      document.body.classList.remove(className);
+    };
+  }, [loopEnabled]);
+
   const loopGroupsKey = groups.map((item) => item.id).join(",");
   const loopCenter = loopCenterVirtual ?? Math.max(0, groups.findIndex((item) => item.id === group?.id));
   const loopEntries = useMemo(() => {
