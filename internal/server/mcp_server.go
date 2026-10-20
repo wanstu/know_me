@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -244,9 +245,30 @@ func registerMCPRead(m *mcp.Server, s *Server) {
 		}
 		return v, nil
 	})
-	addMCPTool(m, "site_get", "Read homepage, appearance, access policy and site settings", true, func(ctx context.Context, _ struct{}) (any, error) {
+	addMCPTool(m, "site_get", "Read homepage, appearance, access policy and site settings; Start-specific fields require start.read", true, func(ctx context.Context, _ struct{}) (any, error) {
 		v, err := s.settings.GetSite(ctx)
-		return map[string]any{"settings": v}, err
+		if err != nil {
+			return nil, err
+		}
+		body, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		var site map[string]any
+		if err := json.Unmarshal(body, &site); err != nil {
+			return nil, err
+		}
+		token, _ := ctx.Value(mcpContextKey{}).(mcpaccess.Token)
+		if !token.HasPermission(mcpaccess.PermissionStartRead) {
+			for _, key := range []string{
+				"startBackgroundUrl", "defaultSearchEngine", "searchEngines", "startDensity",
+				"startCardOpacity", "startCardRadius", "startBackgroundDim",
+				"startRememberLastTab", "startWheelSwitchTabs",
+			} {
+				delete(site, key)
+			}
+		}
+		return map[string]any{"settings": site}, nil
 	})
 	addMCPTool(m, "start_get", "Read Start search engines and layout settings; includes navigation only when navigation.read is also granted", true, func(ctx context.Context, _ struct{}) (any, error) {
 		v, err := s.settings.GetSite(ctx)
