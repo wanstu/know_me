@@ -9,8 +9,8 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 ## 管理员配置
 
 1. 登录 Know Me Go 后台，打开「AI 接入」(`/admin/mcp`)。
-2. 填写令牌名称，选择 **只读** 或 **读写**。
-3. 创建令牌；密钥只展示一次，复制后保存在 AI 客户端的凭据配置，不要放进文章、公开配置或提交到仓库。
+2. 填写令牌名称，按模块勾选所需权限。新 Token 默认没有任何权限；“管理”会自动包含同模块的“读取”。
+3. 创建令牌；密钥只展示一次，复制后保存在 AI 客户端的凭据配置，不要放进文章、公开配置或提交到仓库。现有 Token 可直接“调整权限”，不需要更换密钥。
 4. AI 客户端使用地址 `https://<your-domain>/mcp`，自定义请求头 `Authorization: Bearer km_...`。
 5. 可以随时吊销令牌；旧连接发起新请求时立即失效。没有令牌时 MCP 默认拒绝访问。
 6. 对远程访问请使用 HTTPS；MCP 请求不接受网页登录 cookie 作为认证。
@@ -25,35 +25,25 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 }
 ```
 
-## 第一阶段工具清单
+## 工具与权限
 
-**只读令牌：**
+新 Token 使用细粒度权限；`tools/list` 只返回当前 Token 被允许看到的工具，工具真正执行时服务端还会再次校验。升级前已创建的 Token 保持原“只读/读写”能力，直到管理员主动调整权限后才切换为细粒度模式。
 
-- `posts_list` / `posts_get` — 后台文章摘要与完整 Markdown（包括草稿）；文章列表支持状态、分类、标签、发布时间区间及分页
-- `posts_revisions_list` / `posts_revision_get` — 历史修订的摘要、日期和全文
-- `posts_import_preview` — 批量预览 1–50 个 Markdown/Hexo 文件，读取 Front Matter 并检查重复，不修改数据库
-- `taxonomy_list` — 分类与标签及数量
-- `site_get` — 站点设置与主页入口
-- `start_get` — 起始页配置与导航
-- `navigation_tree` — 完整导航分组、链接与文件夹
-
-**读写令牌：** 包含以上只读工具，另有：
-
-- `posts_create` / `posts_update` / `posts_delete` — 文章新增、局部编辑、永久删除（需 `confirm=true`）
-- `posts_set_status` — 立即发布、撤回到草稿、定时发布
-- `posts_taxonomy_update` — 分类标签按名称增量添加/移除，或全部替换
-- `posts_revision_restore` — 确认后恢复指定修订（包含新修订的标签、分类、SEO 等元数据）
-- `posts_import_apply` — 与预览一致的文件和 `previewHash`，加 `confirm:true` 后导入；默认跳过已存在的 slug，不自动覆盖文章
-- `posts_batch_taxonomy` — 批量为 1–50 篇文章增删/替换标签和分类；未确认时只预览
-- `taxonomy_change`（创建/改名/删除）、`taxonomy_merge`
-- `site_update`（档案/主题/短句/主页入口与快捷标签/项目/页脚/友链/页面访问规则等）
-- `start_update`（搜索引擎、密度、背景、布局参数）
-- `navigation_create_group` / `navigation_update_group` / `navigation_delete_group`
-- `navigation_create_item` / `navigation_update_item` / `navigation_move_item` / `navigation_delete_item`
+- `posts.read` — 文章列表、全文、修订历史和批量导入预览
+- `posts.write` — 文章创建、编辑、删除、发布状态、修订恢复、文章分类标签修改、批量导入应用；自动包含 `posts.read`
+- `taxonomy.read` — 分类与标签列表
+- `taxonomy.write` — 分类/标签创建、改名、删除和合并；自动包含 `taxonomy.read`
+- `site.read` — 主页、主题、访问策略、个人资料、友链等站点设置；不包含 Start 专属配置
+- `site.write` — 修改上述站点设置；自动包含 `site.read`
+- `start.read` — Start 搜索引擎、背景、密度、卡片样式、Tab 记忆与滚轮设置
+- `start.write` — 修改 Start 配置；自动包含 `start.read`
+- `navigation.read` — 完整 Start 导航分组、链接与文件夹。只有同时拥有此权限时，`start_get` 才附带导航树
+- `navigation.write` — 创建、修改、移动、删除导航分组和项目；自动包含 `navigation.read`
+- `media.write` — 上传图片到媒体库；当前没有独立的媒体读取工具
 
 删除和合并相关工具需要显式 `confirm=true`。写入均调用原有 Go 业务 Store，保留文章修订记录、字段校验和分类标签关联。不开放任意 SQL 或文件系统执行。
 
-**权限与隔离：** MCP API 只接受 Bearer 令牌；只读和读写令牌在 `tools/list` 看到不同的工具列表。服务器仅保存令牌 SHA-256 哈希，并保存创建时间、最近使用时间、名称及权限。Token 管理 REST API 使用现有管理员网页登录认证及同源保护。带跨域 Origin 的 MCP 请求被拒绝。
+**权限与隔离：** MCP API 只接受 Bearer 令牌；每个 Token 在 `tools/list` 只看到自己被授权的工具。服务器仅保存令牌 SHA-256 哈希，并保存创建时间、最近使用时间、名称及权限。管理员可以在不更换 Token 密钥的情况下收紧或调整权限。升级前创建的旧 Token 保持原“只读/读写”行为，直到管理员主动调整权限后才迁移为细粒度模式。Token 管理 REST API 使用现有管理员网页登录认证及同源保护。带跨域 Origin 的 MCP 请求被拒绝。
 
 ## 文章管理流程和日期约定
 
@@ -119,11 +109,11 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 
 - **认证结果**：`authorization_missing`（未携带 Header）、`authorization_invalid_scheme`（非 Bearer）、`token_invalid_or_revoked`（Token 无效/已撤销）、`origin_mismatch`（跨域请求被拒）、`token_accepted`（令牌通过）
 - **工具调用**：工具名、关联 Token ID/名称、权限类别（如 `posts.write`）、涉及文章或导航记录 ID、操作类型、成功/失败及脱敏的失败原因
-- **Token 管理**：创建、吊销事件；使用令牌的记录与被拒绝的匿名请求可分别筛选
+- **Token 管理**：创建、权限调整、吊销事件；使用令牌的记录与被拒绝的匿名请求可分别筛选
 
 日志写入单独的 SQLite 审计表 `mcp_audit_events`，定期清理约 30 天前和最新 20,000 条之外的记录。审计写入失败不会改变正常 MCP 的认证或工具调用结果。仅存最小化元数据，不保存 Bearer 密钥、请求正文、工具完整参数、文章正文或工具响应；`remotePeer` 是 TCP 对端地址，在 OpenResty 等反向代理后通常为代理地址，不等于真实用户 IP。
 
-未来的 Token 细粒度权限可基于日志中的 `requiredPermission` 字段扩展成 `posts.read`、`posts.write`、`site.write` 等范围。**目前并未改变现有只读/读写的授权规则**；不要将审计字段误认为已经实现了按工具授权。
+Token 细粒度权限已经直接使用日志中的 `requiredPermission` 字段（如 `posts.read`、`posts.write`、`site.write`）进行授权。权限不足时工具不会出现在该 Token 的工具列表中；工具执行入口仍保留二次权限校验。
 
 诊断 `know_me` 的认证故障时，先在 MCP Center 刷新服务，再在 Know Me 日志筛选「拒绝」：无记录提示请求可能根本没有到达这个 Know Me 实例；`authorization_missing` 说明请求没有 Authorization；`token_invalid_or_revoked` 说明已收到 Bearer，但令牌未通过当前数据库校验。如果显示 `token_accepted`，说明已经通过令牌认证，应继续排查 MCP 握手或代理行为。
 
@@ -132,11 +122,11 @@ MCP 已内置 **Go Native 服务**（Know Me CLI、Go Web Server、Desktop 内�
 ## 后续阶段
 
 - 让 AI 客户端实际完成 `wanstu/wanstu.github.io` 的 33 篇文章迁移并验收（当前已逐篇审阅 Front Matter；其中一篇无 Front Matter，使用文件名兜底）；资源 URL 转存、远程图片去重预览后续实现
-- 媒体上传及修改、批量文章操作、更加细粒度的工具权限与后台调用日志
+- 媒体读取与修改能力、更细的单工具/危险操作权限（如需要）、后台调用日志增强
 - Next.js/Docker 部署形态的兼容方案
 
 ## 测试
 
-`go test ./internal/server -run TestMCP -count=1 -v` 会启动真实 MCP HTTP 客户端，验证握手、`tools/list`、创建文章、分类查询、设置修改、导航创建、只读权限、Origin 限制与令牌吊销。`go test ./...` 会同时验证数据库迁移兼容性与所有现有业务测试。
+`go test ./internal/server -run TestMCP -count=1 -v` 会启动真实 MCP HTTP 客户端，验证握手、`tools/list`、创建文章、分类查询、设置修改、导航创建、细粒度工具可见性与权限更新、旧 Token 兼容、Origin 限制与令牌吊销。`go test ./...` 会同时验证数据库迁移兼容性与所有现有业务测试。
 
 本功能不会自动导入任何现有文章，不修改线上站点，也不在首次启动时自动创建 MCP Token。
