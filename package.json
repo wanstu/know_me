@@ -15,6 +15,7 @@
     "auth:smoke": "tsx scripts/auth-smoke.ts",
     "itab:smoke": "tsx scripts/itab-smoke.ts",
     "navigation:smoke": "tsx scripts/navigation-smoke.ts",
+    "start:loop-test": "tsx scripts/start-loop-window.test.ts",
     "itab:import": "tsx scripts/import-itab.ts",
     "blog:smoke": "tsx scripts/blog-smoke.ts",
     "taxonomy:smoke": "tsx scripts/taxonomy-smoke.ts",

@@ -2573,6 +2573,9 @@ select:focus-visible {
   height: auto;
   gap: 0;
 }
+.km-start-stack.is-continuous.is-loop {
+  overflow-anchor: none;
+}
 .km-start-stack.is-continuous .km-start-stack-item {
   flex: 0 0 auto;
   min-height: 0;
