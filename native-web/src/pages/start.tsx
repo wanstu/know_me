@@ -798,13 +798,10 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
           ) : null}
           {homeTags.length ? (
             <div className="km-start-home-tags" aria-label="主页快捷标签">
-              <span className="km-start-home-tags-label"><span aria-hidden="true">⌂</span>主页快捷标签</span>
-              <div className="km-start-home-tag-links">
-                {homeTags.map((item) => {
-                  const href = safeHref(item.url);
-                  return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.label}</a>;
-                })}
-              </div>
+              {homeTags.map((item) => {
+                const href = safeHref(item.url);
+                return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.label}</a>;
+              })}
             </div>
           ) : null}
         </div>
