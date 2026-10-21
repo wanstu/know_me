@@ -28,3 +28,23 @@ export function nearestLoopVirtual(center: number, targetIndex: number, groupCou
   if (delta < -groupCount / 2) delta += groupCount;
   return center + delta;
 }
+
+/**
+ * Wheel fallback for the physical document edges. It only advances when the
+ * user is still scrolling outward, so layout compensation cannot recursively
+ * trigger another recycle and cause flicker.
+ */
+export function loopWheelEdgeVirtual(
+  center: number,
+  deltaY: number,
+  scrollTop: number,
+  viewportHeight: number,
+  scrollHeight: number,
+  epsilon = 2
+) {
+  if (![center, deltaY, scrollTop, viewportHeight, scrollHeight, epsilon].every(Number.isFinite)) return null;
+  if (viewportHeight <= 0 || scrollHeight <= viewportHeight + epsilon || deltaY === 0) return null;
+  if (deltaY < 0 && scrollTop <= epsilon) return center - 1;
+  if (deltaY > 0 && scrollTop + viewportHeight >= scrollHeight - epsilon) return center + 1;
+  return null;
+}

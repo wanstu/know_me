@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../native-web/src/start-loop-window";
+import { loopWheelEdgeVirtual, nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../native-web/src/start-loop-window";
 
 assert.equal(wrapLoopIndex(-1, 7), 6);
 assert.equal(wrapLoopIndex(7, 7), 0);
@@ -25,4 +25,10 @@ assert.equal(nearestLoopVirtual(6, 0, 7), 7, "first group should be one downward
 assert.equal(nearestLoopVirtual(100_000, wrapLoopIndex(100_000 + 1, 7), 7), 100_001);
 
 assert.deepEqual(startLoopSlots(0, 1), [], "single group does not need looping");
+
+assert.equal(loopWheelEdgeVirtual(10, 80, 1500, 900, 2400), 11, "downward wheel at bottom should recycle next page");
+assert.equal(loopWheelEdgeVirtual(10, -80, 0, 900, 2400), 9, "upward wheel at top should recycle previous page");
+assert.equal(loopWheelEdgeVirtual(10, 80, 700, 900, 2400), null, "middle scrolling must not recycle");
+assert.equal(loopWheelEdgeVirtual(10, -80, 1500, 900, 2400), null, "wheel direction must match the blocked edge");
+
 console.log("Start loop window tests passed");

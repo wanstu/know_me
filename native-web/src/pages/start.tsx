@@ -3,7 +3,7 @@ import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { siteLinkAllowed } from "../route-access";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
-import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
+import { loopWheelEdgeVirtual, nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
 import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
@@ -519,6 +519,34 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       }
     };
   }, [activeGroup, groups, loopCenter, loopEnabled]);
+
+  useEffect(() => {
+    if (!loopEnabled) return;
+
+    const onWheel = (event: WheelEvent) => {
+      const scrollingElement = document.scrollingElement ?? document.documentElement;
+      const nextVirtual = loopWheelEdgeVirtual(
+        loopCenter,
+        event.deltaY,
+        window.scrollY,
+        window.innerHeight,
+        scrollingElement.scrollHeight
+      );
+      if (nextVirtual == null) return;
+
+      const node = loopSectionRefs.current.get(nextVirtual);
+      if (!node) return;
+
+      loopPreserveRef.current = {
+        virtual: nextVirtual,
+        top: node.getBoundingClientRect().top
+      };
+      setLoopCenterVirtual(nextVirtual);
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [loopCenter, loopEnabled]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {

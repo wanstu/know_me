@@ -4030,10 +4030,3 @@ body.km-start-loop-scrollbar-hidden::-webkit-scrollbar {
 }
 
 
-/* Keep enough scroll runway on both sides of the recycled three-page window.
-   This lets the normal anchor-based handoff happen before the document hits
-   its physical top/bottom, avoiding edge thrashing and flicker. */
-.km-start-stack.is-continuous.is-loop .km-start-stack-item {
-  min-height: calc(100vh - 104px);
-  min-height: calc(100dvh - 104px);
-}
