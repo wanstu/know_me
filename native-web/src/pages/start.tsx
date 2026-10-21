@@ -686,7 +686,14 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   function renderSearchShell(interactive = true) {
     return (
-        <div className="km-start-search-shell" ref={interactive ? searchShellRef : undefined}>
+        <div
+          className={
+            "km-start-search-shell"
+            + (interactive && searchFocused && !engineMenuOpen ? " is-search-focused" : "")
+            + (interactive && searchFocused && Boolean(query.trim()) && !engineMenuOpen ? " has-search-panel" : "")
+          }
+          ref={interactive ? searchShellRef : undefined}
+        >
           <form className="km-start-search" onSubmit={submitSearch} role="search">
             <div className="km-start-engine-anchor">
               <button
