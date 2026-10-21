@@ -3,7 +3,7 @@ import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { siteLinkAllowed } from "../route-access";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
-import { loopWheelEdgeVirtual, nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
+import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
 import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
@@ -142,7 +142,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const scrollSyncRAFRef = useRef<number | null>(null);
   const [loopCenterVirtual, setLoopCenterVirtual] = useState<number | null>(null);
   const loopPreserveRef = useRef<{ virtual: number; top: number } | null>(null);
-  const loopWheelCarryRef = useRef(0);
   const loopInitialPositionedRef = useRef(false);
   const loopGroupsKeyRef = useRef("");
 
@@ -430,7 +429,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       loopGroupsKeyRef.current = "";
       loopInitialPositionedRef.current = false;
       loopPreserveRef.current = null;
-      loopWheelCarryRef.current = 0;
       loopSectionRefs.current.clear();
       if (loopCenterVirtual != null) setLoopCenterVirtual(null);
       return;
@@ -458,10 +456,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         scrollByImmediately(nextTop - preserve.top);
       }
       loopPreserveRef.current = null;
-
-      const carry = loopWheelCarryRef.current;
-      loopWheelCarryRef.current = 0;
-      if (Math.abs(carry) >= .5) scrollByImmediately(carry);
       return;
     }
 
@@ -501,7 +495,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       const candidateGroup = groups[wrapLoopIndex(candidateVirtual, groups.length)];
       if (candidateGroup && candidateGroup.id !== activeGroup) setActiveGroup(candidateGroup.id);
 
-      if (candidateVirtual !== loopCenter && Math.abs(candidateVirtual - loopCenter) === 1) {
+      if (candidateVirtual !== loopCenter) {
         loopPreserveRef.current = {
           virtual: candidateVirtual,
           top: candidateNode.getBoundingClientRect().top
@@ -525,48 +519,6 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       }
     };
   }, [activeGroup, groups, loopCenter, loopEnabled]);
-
-  useEffect(() => {
-    if (!loopEnabled) return;
-
-    const onWheel = (event: WheelEvent) => {
-      if (event.defaultPrevented || event.ctrlKey || event.deltaY === 0) return;
-
-      const scrollingElement = document.scrollingElement ?? document.documentElement;
-      const nextVirtual = loopWheelEdgeVirtual(
-        loopCenter,
-        event.deltaY,
-        scrollingElement.scrollTop,
-        window.innerHeight,
-        scrollingElement.scrollHeight,
-        8
-      );
-      if (nextVirtual == null) return;
-
-      const node = loopSectionRefs.current.get(nextVirtual);
-      if (!node) return;
-
-      // Native scrolling has no room left at this edge. Recycle the virtual
-      // window first, then replay this wheel delta after layout preservation
-      // so the same gesture visibly continues into the next/previous group.
-      event.preventDefault();
-      const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-        ? 16
-        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-          ? window.innerHeight
-          : 1;
-      const carry = event.deltaY * scale;
-      loopWheelCarryRef.current = Math.max(-240, Math.min(240, loopWheelCarryRef.current + carry));
-      loopPreserveRef.current = {
-        virtual: nextVirtual,
-        top: node.getBoundingClientRect().top
-      };
-      setLoopCenterVirtual(nextVirtual);
-    };
-
-    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
-    return () => window.removeEventListener("wheel", onWheel, { capture: true });
-  }, [loopCenter, loopEnabled]);
 
   async function openItem(item: NavItem) {
     if (item.type === "folder") {
