@@ -2564,6 +2564,16 @@ select:focus-visible {
 .km-start-rail nav button small { font-size: 13px; font-weight: 600; }
 .km-start-admin { text-align: left; padding: 12px 15px; font-size: 12px; }
 .km-start-stack { min-width: 0; }
+.km-start-content { min-width: 0; }
+.km-start-sticky-search {
+  position: sticky; top: 0; z-index: 80;
+  width: min(1280px, calc(100% - 72px)); margin: 0 auto;
+  padding: 10px 0 8px;
+  background: color-mix(in srgb, var(--dk-bg-app, #f5f7fb) 88%, transparent);
+  backdrop-filter: blur(14px);
+}
+.km-start-sticky-search .km-start-search-shell { z-index: 90; }
+.km-start-stack.is-continuous.is-loop .km-start-stack-item { scroll-margin-top: 112px; }
 .km-start-stack.is-single .km-start-stack-item { min-width: 0; }
 .km-start-stack.is-continuous {
   display: flex;
@@ -2709,6 +2719,7 @@ body.km-start-loop-scrollbar-hidden::-webkit-scrollbar {
   .km-start-rail nav button small { font-size: 10px; text-align: center; }
   .km-start-admin { margin: auto 0; padding: 8px; }
   .km-start-main { width: min(100% - 28px, 1320px); padding-top: 22px; }
+  .km-start-sticky-search { width: min(100% - 28px, 1320px); }
   .km-start-quick-grid,
   .km-start-page.is-compact .km-start-quick-grid,
   .km-start-page.is-spacious .km-start-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3099,6 +3110,22 @@ body.km-start-loop-scrollbar-hidden::-webkit-scrollbar {
 .km-start-search-shell .km-start-search-actions .km-start-search-submit:hover { filter: brightness(1.06); }
 .km-start-search-shell .km-start-search-actions .km-start-search-submit span { margin-left: 3px; }
 .km-start-search-shell .km-start-search-actions kbd { font-size: 11px; }
+.km-start-home-tags {
+  margin: 9px 8px 0;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.km-start-home-tags a {
+  display: inline-flex; align-items: center; min-height: 24px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dk-border, #dde2ea) 88%, transparent);
+  background: color-mix(in srgb, var(--dk-bg-elevated, #fff) 76%, transparent);
+  color: var(--dk-text-secondary, #556078); text-decoration: none;
+  font-size: 11px; font-weight: 600;
+}
+.km-start-home-tags a:hover {
+  border-color: color-mix(in srgb, var(--dk-primary, #6366f1) 35%, var(--dk-border, #dde2ea));
+  color: var(--dk-primary, #6366f1);
+}
 .km-start-search-tip {
   margin: 10px 8px 0; font-size: 11px; color: var(--dk-text-muted, #7a849a);
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;

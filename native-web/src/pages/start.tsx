@@ -1,12 +1,13 @@
 import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from "react";
 import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
+import { siteLinkAllowed } from "../route-access";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
 import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
 import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
-import { ErrorCard, LoadingCard, PageFrame, safeHref } from "../ui";
+import { ErrorCard, LoadingCard, PageFrame, isExternal, safeHref } from "../ui";
 
 type FlatItem = { item: NavItem; group: string; folder?: string };
 type FolderSize = "small" | "medium" | "large";
@@ -679,21 +680,13 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
 
   const selectedEngine = engines.find((engine) => engine.id === activeEngine) ?? engines[0];
 
-  function renderGroupPage(displayGroup: NavGroup, options: { active?: boolean; trackSection?: boolean; instanceKey?: string } = {}) {
-    const groupIsActive = options.active ?? displayGroup.id === group?.id;
-    const instanceSuffix = options.instanceKey ? "-" + options.instanceKey : "";
-    const quickTitleID = "km-start-quick-title-" + displayGroup.id + instanceSuffix;
-    return (
-      <main className="km-start-main km-start-group-page" ref={options.trackSection === false ? undefined : (node) => setGroupSectionRef(displayGroup.id, node)} data-start-group={displayGroup.id}>
-        <header className="km-start-top">
-          <div>
-            <span className="km-eyebrow">我的工作台</span>
-            <h1>{displayGroup.name || "我的导航"}</h1>
-          </div>
-          <a href="/">返回个人主页 <span aria-hidden="true">↗</span></a>
-        </header>
+  const homeTags = (settings.socialLinks ?? []).filter((item) =>
+    siteLinkAllowed(settings, item.url, item.visibility ?? (item.disabled ? "disabled" : "all"), Boolean(user))
+  );
 
-        <div className="km-start-search-shell" ref={groupIsActive ? searchShellRef : undefined}>
+  function renderSearchShell(interactive = true) {
+    return (
+        <div className="km-start-search-shell" ref={interactive ? searchShellRef : undefined}>
           <form className="km-start-search" onSubmit={submitSearch} role="search">
             <div className="km-start-engine-anchor">
               <button
@@ -701,14 +694,14 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
                 className="km-start-engine-trigger"
                 aria-label={"选择搜索引擎，当前：" + selectedEngine.name}
                 aria-haspopup="menu"
-                aria-expanded={groupIsActive && engineMenuOpen}
+                aria-expanded={interactive && engineMenuOpen}
                 onClick={() => { setEngineMenuOpen((value) => !value); setSearchFocused(false); }}
               >
                 <EngineBadge engine={selectedEngine} />
                 <span className="km-start-engine-name">{selectedEngine.name}</span>
                 <span className="km-start-engine-chevron" aria-hidden="true">⌄</span>
               </button>
-              {groupIsActive && engineMenuOpen ? (
+              {interactive && engineMenuOpen ? (
                 <div className="km-start-engine-menu" role="menu" aria-label="搜索引擎">
                   <p>选择搜索引擎</p>
                   {engines.map((engine) => (
@@ -733,12 +726,12 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
             </div>
             <span className="km-start-search-divider" aria-hidden="true" />
             <input
-              ref={groupIsActive ? searchRef : undefined}
+              ref={interactive ? searchRef : undefined}
               value={query}
               aria-label="搜索网站和导航"
               aria-autocomplete="list"
               aria-controls="km-start-search-suggestions"
-              aria-expanded={groupIsActive && searchFocused && Boolean(query.trim()) && !engineMenuOpen}
+              aria-expanded={interactive && searchFocused && Boolean(query.trim()) && !engineMenuOpen}
               onFocus={() => { setSearchFocused(true); setEngineMenuOpen(false); }}
               onChange={(event) => { setQuery(event.target.value); setSearchFocused(true); }}
               onKeyDown={(event) => {
@@ -773,7 +766,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               <button type="submit" className="km-start-search-submit" title={"使用 " + selectedEngine.name + " 搜索"} aria-label={"使用 " + selectedEngine.name + " 搜索"} onClick={(event) => { if (event.detail > 0) { event.preventDefault(); searchWeb(); } }}>搜索 <span aria-hidden="true">↗</span></button>
             </div>
           </form>
-          {groupIsActive && searchFocused && query.trim() && !engineMenuOpen ? (
+          {interactive && searchFocused && query.trim() && !engineMenuOpen ? (
             <div id="km-start-search-suggestions" className="km-start-search-suggestions" role="listbox" aria-label="搜索建议">
               <button type="button" className="km-start-suggestion-web" onClick={searchWeb}>
                 <EngineBadge engine={selectedEngine} />
@@ -803,8 +796,33 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
               <footer><span><kbd>Tab</kbd> 切换引擎</span><span><kbd>Enter</kbd> 搜索 · <kbd>Esc</kbd> 收起</span></footer>
             </div>
           ) : null}
-          <p className="km-start-search-tip"><kbd>Ctrl</kbd> + <kbd>F</kbd> 或 <kbd>Tab</kbd> 聚焦搜索 · 已聚焦后 <kbd>Tab</kbd> 切换引擎 · <kbd>Shift</kbd> + <kbd>Tab</kbd> 反向</p>
+          {homeTags.length ? (
+            <div className="km-start-home-tags" aria-label="主页快捷标签">
+              {homeTags.map((item) => {
+                const href = safeHref(item.url);
+                return <a key={item.id} href={href} target={isExternal(href) ? "_blank" : undefined} rel={isExternal(href) ? "noreferrer" : undefined}>{item.label}</a>;
+              })}
+            </div>
+          ) : null}
         </div>
+    );
+  }
+
+  function renderGroupPage(displayGroup: NavGroup, options: { active?: boolean; trackSection?: boolean; instanceKey?: string } = {}) {
+    const groupIsActive = options.active ?? displayGroup.id === group?.id;
+    const instanceSuffix = options.instanceKey ? "-" + options.instanceKey : "";
+    const quickTitleID = "km-start-quick-title-" + displayGroup.id + instanceSuffix;
+    return (
+      <main className="km-start-main km-start-group-page" ref={options.trackSection === false ? undefined : (node) => setGroupSectionRef(displayGroup.id, node)} data-start-group={displayGroup.id}>
+        <header className="km-start-top">
+          <div>
+            <span className="km-eyebrow">我的工作台</span>
+            <h1>{displayGroup.name || "我的导航"}</h1>
+          </div>
+          <a href="/">返回个人主页 <span aria-hidden="true">↗</span></a>
+        </header>
+
+        {!loopEnabled ? renderSearchShell(groupIsActive) : null}
 
         {contextError ? <div className="dk-message is-danger km-start-context-error" role="alert">{contextError}</div> : null}
         <div className="km-start-sections">
@@ -972,7 +990,9 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         <a className="km-start-admin" href={user ? "/admin/navigation" : "/login?next=%2Fstart"}>{user ? "管理" : "登录"}</a>
       </aside>
 
-      <div className={"km-start-stack" + (settings.startWheelSwitchTabs ? " is-continuous" : " is-single") + (loopEnabled ? " is-loop" : "")}>
+      <div className="km-start-content">
+        {loopEnabled ? <div className="km-start-sticky-search">{renderSearchShell(true)}</div> : null}
+        <div className={"km-start-stack" + (settings.startWheelSwitchTabs ? " is-continuous" : " is-single") + (loopEnabled ? " is-loop" : "")}>
         {loopEnabled ? loopEntries.map(({ virtual, item }) => (
           <div
             className="km-start-stack-item"
@@ -991,6 +1011,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
             {renderGroupPage(item)}
           </div>
         ))}
+        </div>
       </div>
 
       {folder ? (
