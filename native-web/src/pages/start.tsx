@@ -3,7 +3,7 @@ import { requestJSON } from "../api";
 import { openExternalBrowser } from "../external-links";
 import { siteLinkAllowed } from "../route-access";
 import { replaceLinkOrder, quickSortStandaloneLinks, moveStandaloneLink, type ShortcutSortMode } from "../start-shortcut-order";
-import { loopEdgeVirtual, nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
+import { nearestLoopVirtual, startLoopSlots, wrapLoopIndex } from "../start-loop-window";
 import { START_SEARCH_ENGINES, configuredStartSearchEngines, isStartSearchEngine, nextStartSearchEngine, startSearchURL, type StartSearchEngine } from "../start-search-engines";
 import type { SearchEngineConfig } from "../types";
 import type { NavGroup, NavItem, SessionUser, SiteSettings } from "../types";
@@ -476,22 +476,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       let candidateNode: HTMLElement | null = null;
       let nearest = Number.POSITIVE_INFINITY;
 
-      const scrollingElement = document.scrollingElement ?? document.documentElement;
-      const edgeVirtual = loopEdgeVirtual(
-        loopCenter,
-        window.scrollY,
-        window.innerHeight,
-        scrollingElement.scrollHeight
-      );
-      if (edgeVirtual != null) {
-        const edgeNode = loopSectionRefs.current.get(edgeVirtual);
-        if (edgeNode) {
-          candidateVirtual = edgeVirtual;
-          candidateNode = edgeNode;
-        }
-      }
-
-      if (!candidateNode) for (const [virtual, node] of loopSectionRefs.current.entries()) {
+      for (const [virtual, node] of loopSectionRefs.current.entries()) {
         const rect = node.getBoundingClientRect();
         if (rect.top <= anchor && rect.bottom > anchor) {
           candidateVirtual = virtual;

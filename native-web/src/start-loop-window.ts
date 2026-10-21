@@ -28,23 +28,3 @@ export function nearestLoopVirtual(center: number, targetIndex: number, groupCou
   if (delta < -groupCount / 2) delta += groupCount;
   return center + delta;
 }
-
-/**
- * When a three-page loop reaches a physical document edge, advance the
- * virtual window before the browser runs out of scroll range. This matters
- * for short groups: the next page may never reach the normal viewport anchor
- * before the document bottom is hit.
- */
-export function loopEdgeVirtual(
-  center: number,
-  scrollTop: number,
-  viewportHeight: number,
-  scrollHeight: number,
-  epsilon = 2
-) {
-  if (![center, scrollTop, viewportHeight, scrollHeight, epsilon].every(Number.isFinite)) return null;
-  if (viewportHeight <= 0 || scrollHeight <= viewportHeight + epsilon) return null;
-  if (scrollTop <= epsilon) return center - 1;
-  if (scrollTop + viewportHeight >= scrollHeight - epsilon) return center + 1;
-  return null;
-}
