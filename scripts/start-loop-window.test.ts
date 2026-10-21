@@ -30,5 +30,6 @@ assert.equal(loopWheelEdgeVirtual(10, 80, 1500, 900, 2400), 11, "downward wheel 
 assert.equal(loopWheelEdgeVirtual(10, -80, 0, 900, 2400), 9, "upward wheel at top should recycle previous page");
 assert.equal(loopWheelEdgeVirtual(10, 80, 700, 900, 2400), null, "middle scrolling must not recycle");
 assert.equal(loopWheelEdgeVirtual(10, -80, 1500, 900, 2400), null, "wheel direction must match the blocked edge");
+assert.equal(loopWheelEdgeVirtual(10, 80, 1494, 900, 2400, 8), 11, "small browser rounding at the bottom must still recycle");
 
 console.log("Start loop window tests passed");

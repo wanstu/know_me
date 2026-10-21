@@ -142,6 +142,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
   const scrollSyncRAFRef = useRef<number | null>(null);
   const [loopCenterVirtual, setLoopCenterVirtual] = useState<number | null>(null);
   const loopPreserveRef = useRef<{ virtual: number; top: number } | null>(null);
+  const loopWheelCarryRef = useRef(0);
   const loopInitialPositionedRef = useRef(false);
   const loopGroupsKeyRef = useRef("");
 
@@ -429,6 +430,7 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       loopGroupsKeyRef.current = "";
       loopInitialPositionedRef.current = false;
       loopPreserveRef.current = null;
+      loopWheelCarryRef.current = 0;
       loopSectionRefs.current.clear();
       if (loopCenterVirtual != null) setLoopCenterVirtual(null);
       return;
@@ -456,6 +458,10 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
         scrollByImmediately(nextTop - preserve.top);
       }
       loopPreserveRef.current = null;
+
+      const carry = loopWheelCarryRef.current;
+      loopWheelCarryRef.current = 0;
+      if (Math.abs(carry) >= .5) scrollByImmediately(carry);
       return;
     }
 
@@ -524,19 +530,33 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
     if (!loopEnabled) return;
 
     const onWheel = (event: WheelEvent) => {
+      if (event.defaultPrevented || event.ctrlKey || event.deltaY === 0) return;
+
       const scrollingElement = document.scrollingElement ?? document.documentElement;
       const nextVirtual = loopWheelEdgeVirtual(
         loopCenter,
         event.deltaY,
-        window.scrollY,
+        scrollingElement.scrollTop,
         window.innerHeight,
-        scrollingElement.scrollHeight
+        scrollingElement.scrollHeight,
+        8
       );
       if (nextVirtual == null) return;
 
       const node = loopSectionRefs.current.get(nextVirtual);
       if (!node) return;
 
+      // Native scrolling has no room left at this edge. Recycle the virtual
+      // window first, then replay this wheel delta after layout preservation
+      // so the same gesture visibly continues into the next/previous group.
+      event.preventDefault();
+      const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? window.innerHeight
+          : 1;
+      const carry = event.deltaY * scale;
+      loopWheelCarryRef.current = Math.max(-240, Math.min(240, loopWheelCarryRef.current + carry));
       loopPreserveRef.current = {
         virtual: nextVirtual,
         top: node.getBoundingClientRect().top
@@ -544,8 +564,8 @@ export function StartPage({ settings, user }: { settings: SiteSettings; user: Se
       setLoopCenterVirtual(nextVirtual);
     };
 
-    window.addEventListener("wheel", onWheel, { passive: true });
-    return () => window.removeEventListener("wheel", onWheel);
+    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true });
   }, [loopCenter, loopEnabled]);
 
   async function openItem(item: NavItem) {
